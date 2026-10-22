@@ -89,12 +89,12 @@ button{font:inherit;color:inherit;cursor:pointer}
 .card .line{font-size:18px;font-weight:700;margin:0 0 6px}
 .card .desc{font-size:15px;color:var(--sub);margin:0 0 20px}
 .songs{list-style:none;margin:0 0 18px;padding:0;display:flex;flex-direction:column;gap:2px}
-.songs a{display:flex;align-items:center;gap:14px;padding:10px 4px;color:inherit;text-decoration:none;border-radius:12px}
-@media (hover:hover){.songs a:hover{background:var(--paper)}}
+.songs li{display:flex;align-items:center;gap:14px;padding:10px 4px}
 .songs .n{font-weight:900;font-size:28px;color:var(--accent);width:22px;text-align:center;line-height:1}
 .songs .t{display:block;font-weight:700;font-size:17px;line-height:1.3}
 .songs .a{display:block;font-size:14px;color:var(--sub)}
-.songs .yt{margin-left:auto;font-size:13px;font-weight:500;color:var(--sub);white-space:nowrap}
+.listen{display:block;margin:-6px 0 18px;padding:14px 16px;border:1.5px solid var(--accent);border-radius:14px;color:var(--accent);font-size:16px;font-weight:700;text-align:center;text-decoration:none}
+@media (hover:hover){.listen:hover{background:var(--paper)}}
 .tip{background:var(--box);color:var(--box-ink);border-radius:20px;padding:18px 18px 20px}
 .tip b{display:block;color:var(--cover-accent);font-size:14px;margin-bottom:6px}
 .tip p{margin:0;font-size:15.5px;line-height:1.6;font-weight:500}

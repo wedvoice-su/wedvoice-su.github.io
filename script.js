@@ -66,7 +66,8 @@ const DATA = {
       "리그 오브 레전드"
      ]
     ],
-    "tip": "웅장한 곡은 인트로가 길어요. “신랑, 입장!”을 외치는 순간 곡이 가장 크게 터지도록, 터지기 직전부터 시작하게 편집하세요."
+    "tip": "웅장한 곡은 인트로가 길어요. “신랑, 입장!”을 외치는 순간 곡이 가장 크게 터지도록, 앞에 전주 부분에는 사회자가 멘트를 하는게 좋아요.",
+    "link": "https://drive.google.com/drive/folders/1U6c4n04X41zyWO9fZsYYap9_Uqd7j65A?usp=sharing"  // 링크1  ← "" 안에 구글 드라이브 링크를 붙여넣으세요. 비워 두면 버튼이 안 보여요.
    },
    "energy": {
     "name": "에너지 폭발형",
@@ -86,7 +87,8 @@ const DATA = {
       "Coldplay"
      ]
     ],
-    "tip": "박자가 뚜렷해서 박수 유도가 잘 되는 곡이에요. 후렴 첫 박에 맞춰 “더 큰 박수!”를 외치면 식장 분위기가 한 번에 올라가요."
+    "tip": "박자가 뚜렷해서 박수 유도가 잘 되는 곡이에요. 노래가 터질 때 입장하면 더 큰 박수 유도를 할 수 있어요.",
+    "link": "https://drive.google.com/drive/folders/1s0m8LNaw05jFZuyRWyUgmlkDmKLy-3FL?usp=sharing"  // 링크2
    },
    "gentle": {
     "name": "젠틀맨형",
@@ -106,7 +108,8 @@ const DATA = {
       "Michael Bublé"
      ]
     ],
-    "tip": "그루브 있는 곡은 빨리 걸으면 어색해요. 한 박에 한 걸음, 중간에 하객 쪽으로 가볍게 눈인사 한 번이면 충분해요."
+    "tip": "그루브 있는 곡은 빨리 걸으면 어색해요. 한 박에 한 걸음 걷는다고 생각하고 천천히 걷는 것을 추천해요.",
+    "link": "https://drive.google.com/drive/folders/1I0zJDY1-Eb6Pz8d-X7uGcH-CvzbBWQHM?usp=sharing"  // 링크3
    },
    "kpop": {
     "name": "K-감성형",
@@ -126,12 +129,13 @@ const DATA = {
       "태일"
      ]
     ],
-    "tip": "가사가 들리는 곡은 사회자 멘트와 겹치면 둘 다 묻혀요. 입장 멘트가 끝난 뒤에 가사가 시작되도록 앞부분을 맞춰 두세요."
+    "tip": "가사가 들리는 곡은 사회자 멘트와 겹치면 둘 다 묻혀요. 입장 멘트가 끝난 뒤에 가사가 시작되도록 앞부분은 편집을 추천해요.",
+    "link": "https://drive.google.com/drive/folders/1xXPrKS-YcZ5ld3M8hskHUYsbGJm8b6_n?usp=sharing"  // 링크4
    },
    "fun": {
     "name": "반전 웃음형",
     "line": "등장은 웃기게, 하객은 즐겁게",
-    "desc": "첫 소절에 하객이 빵 터지는 입장. 식장 긴장이 한 번에 풀려요.",
+    "desc": "첫 소절에 하객이 빵 터지는 입장이라 식장 긴장이 한 번에 풀려요.",
     "songs": [
      [
       "Come And Get Your Love",
@@ -146,7 +150,8 @@ const DATA = {
       "전영호 (디지몬 OST)"
      ]
     ],
-    "tip": "웃긴 곡은 첫 소절이 전부예요. 인트로 없이 터지는 부분부터 시작하고, 어르신들이 당황하지 않게 양가에 미리 귀띔해 두세요."
+    "tip": "웃긴 곡은 첫 소절이 전부예요. 인트로 없이 터지는 부분부터 시작하세요😊",
+    "link": "https://drive.google.com/drive/folders/1KYlhke6-npjoOPO-N-G5PkEFTq5nGSao?usp=sharing"  // 링크5
    }
   }
  },
@@ -465,7 +470,7 @@ function home(){
     <div class="pick">
       ${["groom","bride","march"].map(k=>`<button data-k="${k}" ${isOpen(k)?"":"disabled"}><span>${DATA[k].label}</span><span class="q">${isOpen(k)?"시작하기":"곧 공개"}</span></button>`).join("")}
     </div>
-    <p class="note">※ 실제 웨딩 음원 영상의 조회수를 바탕으로 곡을 골랐어요.</p>
+    <p class="note">※ 실제 결혼식 현장에서 반응이 가장 좋은 인기곡 TOP3를 골랐어요.</p>
     ${foot()}`;
   app.querySelectorAll(".pick button").forEach(b=>b.onclick=()=>go(b.dataset.k));
 }
@@ -520,8 +525,6 @@ function reveal(done){
   setTimeout(()=>{ done(); r.remove(); }, 1300);
 }
 
-function yt(s){return "https://www.youtube.com/results?search_query="+encodeURIComponent(s[0]+" "+s[1])}
-
 function result(k,type){
   document.body.classList.remove("is-cover");
   app.className="wrap";
@@ -532,9 +535,10 @@ function result(k,type){
       <h2>${esc(r.name)}</h2>
       <p class="line">${esc(r.line)}</p>
       <p class="desc">${esc(r.desc)}</p>
-      <ol class="songs" aria-label="추천곡, 조회수 순">
-        ${r.songs.map((s,i)=>`<li><a href="${yt(s)}" target="_blank" rel="noopener"><span class="n">${i+1}</span><span><span class="t">${esc(s[0])}</span><span class="a">${esc(s[1])}</span></span><span class="yt">듣기</span></a></li>`).join("")}
+      <ol class="songs" aria-label="추천곡 TOP3">
+        ${r.songs.map((s,i)=>`<li><span class="n">${i+1}</span><span><span class="t">${esc(s[0])}</span><span class="a">${esc(s[1])}</span></span></li>`).join("")}
       </ol>
+      ${r.link?`<a class="listen" href="${esc(r.link)}" target="_blank" rel="noopener" data-html2canvas-ignore>추천곡 3곡 음원 받기</a>`:""}
       <div class="tip"><b>사회자 한마디</b><p>${esc(r.tip)}</p></div>
       <div class="sign"><span class="motto">두 분은 즐기기만, 챙기는 건 저만</span><span>결혼식사회자 이상운</span></div>
     </article>
