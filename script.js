@@ -316,9 +316,9 @@ const DATA = {
     "b": "흐뭇하게 바라보며 박수"
    },
    {
-    "q": "행진곡 가사는?",
-    "a": "한국어로 다 같이",
-    "b": "영어나 연주로 분위기 있게"
+    "q": "행진곡에서\n더 중요한 건?",
+    "a": "마음을 전하는 가사",
+    "b": "분위기를 띄우는 사운드"
    },
    {
     "q": "두 사람의 걸음은?",
@@ -348,8 +348,8 @@ const DATA = {
     "desc": "하객이 따라 부르는 순간, 식장이 작은 콘서트장이 돼요.",
     "songs": [
      [
-      "Welcome to the Show",
-      "DAY6"
+      "스마일보이",
+      "로이킴"
      ],
      [
       "한 페이지가 될 수 있게",
@@ -360,7 +360,8 @@ const DATA = {
       "잔나비"
      ]
     ],
-    "tip": "떼창 나오는 후렴을 행진 시작에 맞추세요. 사회자가 “잘 살아라!”를 외친 직후 후렴이 터지면 분위기가 최고조로 올라가요."
+    "tip": "떼창 나오는 후렴을 행진 시작에 맞추세요. 앞 부분에는 타이밍 멘트를 넣고 “행진” 직후에 노래가 터지면 반응이 좋아요.",
+    "link": "https://drive.google.com/drive/folders/1fHZI3kafUQDGbhkT-P0DyRlWitnERg8j?usp=sharing"  // 링크행진1  ← "" 안에 구글 드라이브 링크를 붙여넣으세요. 비워 두면 버튼이 안 보여요.
    },
    "sweet": {
     "name": "달달 고백형",
@@ -380,7 +381,8 @@ const DATA = {
       "다비치"
      ]
     ],
-    "tip": "가사가 중요한 곡이라 행진 직전 멘트는 짧게 가요. 멘트가 끝나자마자 가사가 시작되게 맞추면 하객 귀에 가사가 그대로 들어가요."
+    "tip": "멘트가 끝나자마자 가사가 시작되게 맞추면 하객 귀에 가사가 그대로 들어가요. 가사가 좋아서, 가사를 행진 대본에 넣으면 연결되고 좋아요.",
+    "link": "https://drive.google.com/drive/folders/1AuxoA_2fxQuhEo_bVEas7hbfLwYOxT32?usp=sharing"  // 링크행진2
    },
    "modern": {
     "name": "모던 팝 주인공형",
@@ -400,12 +402,13 @@ const DATA = {
       "Bruno Mars"
      ]
     ],
-    "tip": "드라마틱한 곡은 중간에 끊기면 아쉬워요. 버진로드 끝에 도착할 때 클라이맥스가 오도록 편집하면 마지막 사진이 살아나요."
+    "tip": "드라마틱한 곡은 중간에 끊기면 아쉬워요. 버진로드 끝에 도착할 때 클라이맥스가 오도록 편집하면 마지막 사진이 살아나요.",
+    "link": "https://drive.google.com/drive/folders/1lw1DiYhprFZn6zEgI5VdvmU82XzCwiF6?usp=sharing"  // 링크행진3
    },
    "retro": {
     "name": "레트로 흥폭발형",
     "line": "어깨도 들썩, 하객도 들썩",
-    "desc": "누구나 아는 올드팝에 어르신 하객까지 어깨가 들썩이는 행진이에요.",
+    "desc": "흥겨운 레트로 팝에 어르신 하객까지 어깨가 들썩이는 행진이에요.",
     "songs": [
      [
       "Can’t Take My Eyes Off You",
@@ -420,7 +423,8 @@ const DATA = {
       "Beyoncé"
      ]
     ],
-    "tip": "모든 세대가 아는 곡이라 박수 유도가 가장 쉬워요. 행진 중간에 “양가 부모님께도 큰 박수!” 한마디면 어르신 호응까지 챙길 수 있어요."
+    "tip": "모든 세대가 아는 곡이라 박수 유도가 가장 쉬워요. 행진 중간에 “양가 부모님께도 큰 박수!” 한마디면 어르신 호응까지 챙길 수 있어요.",
+    "link": "https://drive.google.com/drive/folders/1SxUE2W0XHBoiVRZpKcm2NLokogeLYgdg?usp=sharing"  // 링크행진4
    },
    "fairy": {
     "name": "동화 피날레형",
@@ -440,14 +444,15 @@ const DATA = {
       "위대한 쇼맨 OST"
      ]
     ],
-    "tip": "뮤지컬 곡은 끝이 웅장하게 마무리돼요. 퇴장 문 앞에서 곡이 끝나도록 길이를 맞추면 박수와 함께 깔끔하게 막이 내려요."
+    "tip": "뮤지컬 곡은 끝이 웅장하게 마무리돼요. 퇴장 문 앞에서 곡이 끝나도록 길이를 맞추면 박수와 함께 깔끔하게 막이 내려요.",
+    "link": "https://drive.google.com/drive/folders/1gc1nu21IhZhLl3LJ0l8X0o3Pe3YHpmf4?usp=sharing"  // 링크행진5
    }
   }
  }
 };
 
 // ===== 답 64가지 → 유형 결정표 (A=1, B=0, 1번 질문이 맨 앞자리) =====
-const TABLES = {"groom": ["gentle", "kpop", "energy", "kpop", "fun", "fun", "fun", "energy", "fun", "fun", "fun", "energy", "fun", "fun", "hero", "hero", "kpop", "kpop", "gentle", "kpop", "gentle", "kpop", "kpop", "energy", "gentle", "kpop", "hero", "kpop", "fun", "kpop", "fun", "fun", "gentle", "kpop", "energy", "energy", "hero", "energy", "hero", "energy", "fun", "hero", "hero", "hero", "hero", "energy", "hero", "energy", "gentle", "gentle", "gentle", "gentle", "gentle", "kpop", "energy", "energy", "gentle", "kpop", "gentle", "energy", "fun", "gentle", "hero", "hero"], "bride": ["pop", "drama", "pop", "drama", "sacred", "princess", "sacred", "princess", "lovely", "pop", "lovely", "pop", "princess", "drama", "lovely", "princess", "pop", "pop", "pop", "pop", "princess", "princess", "princess", "princess", "lovely", "lovely", "lovely", "lovely", "princess", "princess", "lovely", "lovely", "drama", "drama", "pop", "drama", "sacred", "sacred", "sacred", "sacred", "drama", "drama", "pop", "pop", "drama", "drama", "sacred", "drama", "drama", "drama", "pop", "drama", "sacred", "princess", "sacred", "princess", "lovely", "pop", "lovely", "pop", "sacred", "sacred", "lovely", "sacred"], "march": ["modern", "retro", "fairy", "fairy", "modern", "modern", "modern", "sweet", "fairy", "retro", "fairy", "fairy", "modern", "modern", "fairy", "fairy", "modern", "sweet", "fairy", "sweet", "modern", "sweet", "sweet", "sweet", "fairy", "retro", "fairy", "sweet", "band", "sweet", "sweet", "sweet", "modern", "retro", "fairy", "retro", "modern", "modern", "modern", "sweet", "retro", "retro", "fairy", "retro", "band", "retro", "fairy", "retro", "band", "retro", "band", "sweet", "band", "band", "band", "sweet", "band", "retro", "band", "retro", "band", "band", "band", "band"]};
+const TABLES = {"groom": ["gentle", "kpop", "energy", "kpop", "fun", "fun", "fun", "energy", "fun", "fun", "fun", "energy", "fun", "fun", "hero", "hero", "kpop", "kpop", "gentle", "kpop", "gentle", "kpop", "kpop", "energy", "gentle", "kpop", "hero", "kpop", "fun", "kpop", "fun", "fun", "gentle", "kpop", "energy", "energy", "hero", "energy", "hero", "energy", "fun", "hero", "hero", "hero", "hero", "energy", "hero", "energy", "gentle", "gentle", "gentle", "gentle", "gentle", "kpop", "energy", "energy", "gentle", "kpop", "gentle", "energy", "fun", "gentle", "hero", "hero"], "bride": ["pop", "drama", "pop", "drama", "sacred", "princess", "sacred", "princess", "lovely", "pop", "lovely", "pop", "princess", "drama", "lovely", "princess", "pop", "pop", "pop", "pop", "princess", "princess", "princess", "princess", "lovely", "lovely", "lovely", "lovely", "princess", "princess", "lovely", "lovely", "drama", "drama", "pop", "drama", "sacred", "sacred", "sacred", "sacred", "drama", "drama", "pop", "pop", "drama", "drama", "sacred", "drama", "drama", "drama", "pop", "drama", "sacred", "princess", "sacred", "princess", "lovely", "pop", "lovely", "pop", "sacred", "sacred", "lovely", "sacred"], "march": ["modern", "sweet", "modern", "fairy", "modern", "sweet", "modern", "fairy", "retro", "retro", "retro", "fairy", "modern", "sweet", "modern", "fairy", "modern", "sweet", "fairy", "sweet", "sweet", "sweet", "sweet", "sweet", "retro", "retro", "fairy", "fairy", "modern", "sweet", "fairy", "fairy", "band", "retro", "retro", "fairy", "modern", "band", "modern", "sweet", "retro", "band", "retro", "retro", "band", "band", "band", "fairy", "band", "band", "retro", "fairy", "modern", "sweet", "modern", "sweet", "band", "retro", "retro", "retro", "band", "band", "band", "fairy"]};
 const INSTA = "https://www.instagram.com/wed_voice.su/";
 const CHECK = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const app = document.getElementById("app");
@@ -562,7 +567,7 @@ function result(k,type){
   app.querySelectorAll(".btns button[data-k]").forEach(b=>b.onclick=()=>go(b.dataset.k));
   document.getElementById("again").onclick=()=>start(k);
   window.scrollTo(0,0);
-  prepareImage(r.name);
+  prepareImage((k==="march"?"행진곡-":"입장곡-")+r.name);
   document.getElementById("save").onclick=saveCard;
   document.getElementById("copy").onclick=copyLink;
 }
@@ -575,7 +580,7 @@ function prepareImage(name){
   const job = cardJob = (document.fonts ? document.fonts.ready : Promise.resolve())
     .then(()=>window.html2canvas(document.getElementById("card"),{scale:3,backgroundColor:getComputedStyle(document.body).backgroundColor,logging:false}))
     .then(canvas=>new Promise(res=>canvas.toBlob(res,"image/png")))
-    .then(blob=>{ if(job===cardJob) cardFile=new File([blob],"입장곡-"+name+".png",{type:"image/png"}); return cardFile; })
+    .then(blob=>{ if(job===cardJob) cardFile=new File([blob],name+".png",{type:"image/png"}); return cardFile; })
     .catch(()=>null);
 }
 
