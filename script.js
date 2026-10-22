@@ -468,6 +468,7 @@ function home(){
   app.className = "wrap cover";
   app.innerHTML = `
     <div class="top"><span>입장곡 찾기 테스트</span><span>6문항</span></div>
+    <img class="brand" src="${ROOT}img/logo-gold.png" alt="WED VOICE SU">
     <p class="for">예비 신랑·신부님을 위한</p>
     <h1>우리 입장곡<br>찾기</h1>
     <div class="bar"></div>
@@ -545,7 +546,7 @@ function result(k,type){
       </ol>
       ${r.link?`<a class="listen" href="${esc(r.link)}" target="_blank" rel="noopener" data-html2canvas-ignore>추천곡 3곡 음원 받기</a>`:""}
       <div class="tip"><b>사회자 한마디</b><p>${esc(r.tip)}</p></div>
-      <div class="sign"><span class="motto">두 분은 즐기기만, 챙기는 건 저만</span><span>결혼식사회자 이상운</span></div>
+      <div class="sign"><img class="badge" src="${ROOT}img/logo-badge.png" alt="WED VOICE SU"><span class="who"><span class="motto">두 분은 즐기기만, 챙기는 건 저만</span><span>결혼식사회자 이상운</span></span></div>
     </article>
     <div class="after">
       <p class="hint">이 카드를 캡처하거나 저장해서 스토리에 올려보세요</p>
@@ -609,6 +610,7 @@ function soon(k){
   const first = ["groom","bride","march"].find(isOpen);
   app.innerHTML = `
     <div class="top"><span>입장곡 찾기 테스트</span><span>6문항</span></div>
+    <img class="brand" src="${ROOT}img/logo-gold.png" alt="WED VOICE SU">
     <p class="for">곧 공개돼요</p>
     <h1>${esc(DATA[k].label)}<br>찾기</h1>
     <div class="bar"></div>

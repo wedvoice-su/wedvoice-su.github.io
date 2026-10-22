@@ -38,6 +38,8 @@ button{font:inherit;color:inherit;cursor:pointer}
 .cover{color:var(--cover-ink)}
 .cover .top{color:var(--cover-sub)}
 .cover .for{color:var(--cover-accent);font-weight:700;font-size:20px;margin:56px 0 10px}
+.cover .brand{display:block;width:84px;height:auto;margin:12px 0 0}
+.cover .brand + .for{margin-top:28px}
 .cover h1{font-weight:900;font-size:clamp(48px,15vw,64px);line-height:1.08;letter-spacing:-.02em;margin:0}
 .cover .bar{width:64px;height:5px;background:var(--cover-accent);margin:26px 0 22px}
 .cover .lead{color:var(--cover-sub);font-size:16px;margin:0 0 30px}
@@ -98,7 +100,9 @@ button{font:inherit;color:inherit;cursor:pointer}
 .tip{background:var(--box);color:var(--box-ink);border-radius:20px;padding:18px 18px 20px}
 .tip b{display:block;color:var(--cover-accent);font-size:14px;margin-bottom:6px}
 .tip p{margin:0;font-size:15.5px;line-height:1.6;font-weight:500}
-.sign{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-top:18px;font-size:13px;color:var(--sub)}
+.sign{display:flex;align-items:center;gap:12px;margin-top:18px;font-size:13px;color:var(--sub)}
+.sign .badge{flex:0 0 48px;width:48px;height:48px}
+.sign .who{display:flex;flex-direction:column;gap:2px}
 .sign .motto{font-weight:700;color:var(--ink)}
 .after{margin-top:18px}
 .hint{font-size:15px;font-weight:700;text-align:center;margin:4px 0 16px}
