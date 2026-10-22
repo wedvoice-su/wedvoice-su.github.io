@@ -157,7 +157,7 @@ const DATA = {
  },
  "bride": {
   "label": "신부 입장곡",
-  "call": "신부, 입장!",
+  "call": "신부, 입장~",
   "next": [
    "groom",
    "march"
@@ -174,9 +174,9 @@ const DATA = {
     "b": "영화 속 여주인공"
    },
    {
-    "q": "입장곡 가사는?",
-    "a": "한국어로 또렷하게",
-    "b": "외국어나 연주로 분위기 있게"
+    "q": "입장곡에서\n더 중요한 건?",
+    "a": "마음을 전하는 가사",
+    "b": "분위기를 채우는 멜로디"
    },
    {
     "q": "꼭 들어갔으면\n하는 소리는?",
@@ -213,7 +213,8 @@ const DATA = {
       "Sonna Rele (신데렐라 OST)"
      ]
     ],
-    "tip": "디즈니 곡은 앞부분 대사나 효과음이 길 수 있어요. 문이 열리는 순간 멜로디가 바로 나오게 편집하면 “와” 소리가 정확히 그때 나와요."
+    "tip": "디즈니 곡은 앞부분 대사나 효과음이 길 수 있어요. 문이 열리는 순간 멜로디가 바로 나오게 편집하면 “와” 소리가 정확히 그때 나와요.",
+    "link": "https://drive.google.com/drive/folders/1AZjgWupkRCmTaacWEpe1_gxx170-TeaQ?usp=sharing"  // 링크신부1
    },
    "sacred": {
     "name": "성스러운 순간형",
@@ -233,7 +234,8 @@ const DATA = {
       "Pachelbel"
      ]
     ],
-    "tip": "종소리로 시작하는 곡이라면 사회자는 목소리를 낮추고 한 박 쉬어 주세요. 종소리가 먼저 식장을 채운 뒤 “신부, 입장”이 나오면 감동이 커져요."
+    "tip": "앞에 종소리를 추가해서 하객의 시선을 집중시켜서, 입장을 더 극적으로 만들어보세요.",
+    "link": "https://drive.google.com/drive/folders/1diWWv6VJ-rdihnYW_TEYryI-tK1sVB-6?usp=sharing"  // 링크신부2
    },
    "lovely": {
     "name": "러블리 K-감성형",
@@ -253,7 +255,8 @@ const DATA = {
       "스텔라장"
      ]
     ],
-    "tip": "가사가 신부 마음을 대신해 주는 곡이에요. 아버님과 신랑이 만나는 순간에 후렴이 오도록 길이를 맞추면 그 장면이 사진에 가장 예쁘게 남아요."
+    "tip": "가사가 신부 마음을 대신해 주는 곡이에요. 가사가 잘 들리도록 웨딩홀에 음량을 키워달라고 미리 요청하세요.",
+    "link": "https://drive.google.com/drive/folders/17lUZAT9gPcSolYW3a5fTEbCIIffaecbO?usp=sharing"  // 링크신부3
    },
    "pop": {
     "name": "로맨틱 팝송형",
@@ -273,7 +276,8 @@ const DATA = {
       "Kelly Sweet"
      ]
     ],
-    "tip": "잔잔한 곡은 버진로드가 길면 중간이 늘어질 수 있어요. 식장 길이에 맞춰 후렴이 버진로드 중간쯤 오도록 편집하세요."
+    "tip": "잔잔한 곡은 버진로드가 길면 중간이 늘어질 수 있어요. 식장 길이에 맞춰 후렴이 버진로드 중간쯤 오도록 편집하세요. 앞부분을 잘라내고 음원 하이라이트 부분에서 입장하는 것도 좋은 방법이에요.",
+    "link": "https://drive.google.com/drive/folders/1Gm_og3B3obq1Wnqws8vkthpIPmZK-vt4?usp=sharing"  // 링크신부4
    },
    "drama": {
     "name": "드라마 여주인공형",
@@ -293,7 +297,8 @@ const DATA = {
       "진혜림"
      ]
     ],
-    "tip": "익숙한 명곡은 하객이 첫 소절에 알아봐요. 문이 열리는 순간 첫 소절이 나오게 맞추면 “아!” 하는 반응이 함께 터져요."
+    "tip": "익숙한 명곡은 하객이 첫 소절에 알아봐요. 문이 열리는 순간 첫 소절이 나오게 맞추면 하객의 반응을 더 크게 유도할 수 있어요.",
+    "link": "https://drive.google.com/drive/folders/1PzsYEHvQXsZ7hkba0ucu5XMVxOWtMD5A?usp=sharing"  // 링크신부5
    }
   }
  },
@@ -442,7 +447,7 @@ const DATA = {
 };
 
 // ===== 답 64가지 → 유형 결정표 (A=1, B=0, 1번 질문이 맨 앞자리) =====
-const TABLES = {"groom": ["gentle", "kpop", "energy", "kpop", "fun", "fun", "fun", "energy", "fun", "fun", "fun", "energy", "fun", "fun", "hero", "hero", "kpop", "kpop", "gentle", "kpop", "gentle", "kpop", "kpop", "energy", "gentle", "kpop", "hero", "kpop", "fun", "kpop", "fun", "fun", "gentle", "kpop", "energy", "energy", "hero", "energy", "hero", "energy", "fun", "hero", "hero", "hero", "hero", "energy", "hero", "energy", "gentle", "gentle", "gentle", "gentle", "gentle", "kpop", "energy", "energy", "gentle", "kpop", "gentle", "energy", "fun", "gentle", "hero", "hero"], "bride": ["pop", "drama", "pop", "pop", "sacred", "princess", "pop", "pop", "pop", "drama", "pop", "pop", "sacred", "princess", "lovely", "pop", "pop", "princess", "lovely", "pop", "princess", "princess", "pop", "princess", "lovely", "lovely", "lovely", "lovely", "princess", "princess", "lovely", "princess", "drama", "drama", "pop", "drama", "sacred", "drama", "sacred", "drama", "drama", "drama", "lovely", "drama", "sacred", "sacred", "sacred", "sacred", "sacred", "drama", "lovely", "drama", "sacred", "princess", "sacred", "princess", "lovely", "drama", "lovely", "lovely", "sacred", "princess", "lovely", "princess"], "march": ["modern", "retro", "fairy", "fairy", "modern", "modern", "modern", "sweet", "fairy", "retro", "fairy", "fairy", "modern", "modern", "fairy", "fairy", "modern", "sweet", "fairy", "sweet", "modern", "sweet", "sweet", "sweet", "fairy", "retro", "fairy", "sweet", "band", "sweet", "sweet", "sweet", "modern", "retro", "fairy", "retro", "modern", "modern", "modern", "sweet", "retro", "retro", "fairy", "retro", "band", "retro", "fairy", "retro", "band", "retro", "band", "sweet", "band", "band", "band", "sweet", "band", "retro", "band", "retro", "band", "band", "band", "band"]};
+const TABLES = {"groom": ["gentle", "kpop", "energy", "kpop", "fun", "fun", "fun", "energy", "fun", "fun", "fun", "energy", "fun", "fun", "hero", "hero", "kpop", "kpop", "gentle", "kpop", "gentle", "kpop", "kpop", "energy", "gentle", "kpop", "hero", "kpop", "fun", "kpop", "fun", "fun", "gentle", "kpop", "energy", "energy", "hero", "energy", "hero", "energy", "fun", "hero", "hero", "hero", "hero", "energy", "hero", "energy", "gentle", "gentle", "gentle", "gentle", "gentle", "kpop", "energy", "energy", "gentle", "kpop", "gentle", "energy", "fun", "gentle", "hero", "hero"], "bride": ["pop", "drama", "pop", "drama", "sacred", "princess", "sacred", "princess", "lovely", "pop", "lovely", "pop", "princess", "drama", "lovely", "princess", "pop", "pop", "pop", "pop", "princess", "princess", "princess", "princess", "lovely", "lovely", "lovely", "lovely", "princess", "princess", "lovely", "lovely", "drama", "drama", "pop", "drama", "sacred", "sacred", "sacred", "sacred", "drama", "drama", "pop", "pop", "drama", "drama", "sacred", "drama", "drama", "drama", "pop", "drama", "sacred", "princess", "sacred", "princess", "lovely", "pop", "lovely", "pop", "sacred", "sacred", "lovely", "sacred"], "march": ["modern", "retro", "fairy", "fairy", "modern", "modern", "modern", "sweet", "fairy", "retro", "fairy", "fairy", "modern", "modern", "fairy", "fairy", "modern", "sweet", "fairy", "sweet", "modern", "sweet", "sweet", "sweet", "fairy", "retro", "fairy", "sweet", "band", "sweet", "sweet", "sweet", "modern", "retro", "fairy", "retro", "modern", "modern", "modern", "sweet", "retro", "retro", "fairy", "retro", "band", "retro", "fairy", "retro", "band", "retro", "band", "sweet", "band", "band", "band", "sweet", "band", "retro", "band", "retro", "band", "band", "band", "band"]};
 const INSTA = "https://www.instagram.com/wed_voice.su/";
 const CHECK = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const app = document.getElementById("app");
