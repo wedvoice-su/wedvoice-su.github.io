@@ -234,7 +234,7 @@ const DATA = {
       "Pachelbel"
      ]
     ],
-    "tip": "앞에 종소리를 추가해서 하객의 시선을 집중시켜서, 입장을 더 극적으로 만들어보세요.",
+    "tip": "앞에 종소리를 넣어 하객의 시선을 모으면, 입장이 더 극적으로 느껴져요.",
     "link": "https://drive.google.com/drive/folders/1diWWv6VJ-rdihnYW_TEYryI-tK1sVB-6?usp=sharing"  // 링크신부2
    },
    "lovely": {
