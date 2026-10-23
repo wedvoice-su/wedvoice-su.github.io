@@ -6,6 +6,16 @@
 const OPEN = ["groom"];
 // =========================================================
 
+// ===== 릴스 링크 ==========================================
+// 첫 화면과 결과 화면의 신부 입장곡·행진곡 버튼은
+// 테스트 사이트가 아니라 아래 릴스로 보내요. (릴스에 댓글 받고 링크 보내기)
+// 비어 있으면 인스타 프로필로 가요.
+const REELS = {
+  "bride": "",  // TODO: 신부 입장곡 릴스 올리면 주소 넣기
+  "march": ""   // TODO: 행진곡 릴스 올리면 주소 넣기
+};
+// =========================================================
+
 // ===== 데이터: 질문, 결과, 곡 목록 (곡을 바꾸려면 여기만 고치면 돼요) =====
 const DATA = {
  "groom": {
@@ -456,11 +466,19 @@ const TABLES = {"groom": ["gentle", "kpop", "energy", "kpop", "fun", "fun", "fun
 const INSTA = "https://www.instagram.com/wed_voice.su/";
 const CHECK = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const app = document.getElementById("app");
-// 테스트 전용 페이지(groom/, bride/, march/)면 body의 data-test 값으로 그 테스트만 보여줘요
+// 테스트 전용 페이지(groom/, lovely-bride/, hand-in-hand/)면 body의 data-test 값으로 그 테스트만 보여줘요
+// 신부·행진곡 폴더는 groom에서 주소를 짐작하지 못하게 다른 이름을 써요 (폴더 이름과 같아야 해요)
+const PATHS = { "groom": "groom", "bride": "lovely-bride", "march": "hand-in-hand" };
 const FIXED = DATA[document.body.dataset.test] ? document.body.dataset.test : null;
 const ROOT = FIXED ? "../" : "./";
-function go(k){ location.href = ROOT + k + "/"; }
+function go(k){ location.href = ROOT + PATHS[k] + "/"; }
 function isOpen(k){ return OPEN.includes(k); }
+// 다른 테스트로 가는 버튼: REELS에 있는 테스트는 릴스로, 나머지는 사이트로
+function testLink(k, cls, inner){
+  return k in REELS
+    ? `<a class="${cls}" href="${esc(REELS[k]||INSTA)}" target="_blank" rel="noopener">${inner}</a>`
+    : `<button class="${cls}" data-k="${k}">${inner}</button>`;
+}
 const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 let state = { test:null, i:0, answers:[] };
 
@@ -479,11 +497,11 @@ function home(){
     <div class="bar"></div>
     <p class="lead">A, B 중에 고르기만 하세요. 1분이면 끝나요.</p>
     <div class="pick">
-      ${["groom","bride","march"].map(k=>`<button data-k="${k}" ${isOpen(k)?"":"disabled"}><span>${DATA[k].label}</span><span class="q">${isOpen(k)?"시작하기":"곧 공개"}</span></button>`).join("")}
+      ${["groom","bride","march"].map(k=>isOpen(k)?testLink(k,"go",`<span>${DATA[k].label}</span><span class="q">시작하기</span>`):`<button disabled><span>${DATA[k].label}</span><span class="q">곧 공개</span></button>`).join("")}
     </div>
     <p class="note">※ 실제 결혼식 현장에서 반응이 가장 좋은 인기곡 TOP3를 골랐어요.</p>
     ${foot()}`;
-  app.querySelectorAll(".pick button").forEach(b=>b.onclick=()=>go(b.dataset.k));
+  app.querySelectorAll(".pick button[data-k]").forEach(b=>b.onclick=()=>go(b.dataset.k));
 }
 
 function start(k){
@@ -558,7 +576,7 @@ function result(k,type){
       <div class="btns">
         <button class="btn main" id="save">이미지로 저장하기</button>
         <p class="msg" id="msg" role="status"></p>
-        ${t.next.map(n=>isOpen(n)?`<button class="btn ghost" data-k="${n}">${DATA[n].label}도 찾아보기</button>`:`<button class="btn ghost" disabled>${DATA[n].label} 테스트는 곧 공개돼요</button>`).join("")}
+        ${t.next.map(n=>isOpen(n)?testLink(n,"btn ghost",`${DATA[n].label}도 찾아보기`):`<button class="btn ghost" disabled>${DATA[n].label} 테스트는 곧 공개돼요</button>`).join("")}
         <a class="btn insta" href="${INSTA}" target="_blank" rel="noopener">인스타에서 결혼 준비 꿀팁 보기</a>
         <button class="text-btn btn-link" id="copy">테스트 링크 복사하기</button>
         <button class="text-btn btn-link" id="again">다시 하기</button>
@@ -622,19 +640,19 @@ function soon(k){
     <p class="lead">인스타를 팔로우하면 공개 소식을 가장 먼저 받아볼 수 있어요.</p>
     <div class="pick">
       <a class="soon-insta" href="${INSTA}" target="_blank" rel="noopener">인스타 팔로우하기</a>
-      ${first?`<button data-k="${first}"><span>${DATA[first].label} 테스트 먼저 하기</span></button>`:""}
+      ${first?testLink(first,"go",`<span>${DATA[first].label} 테스트 먼저 하기</span>`):""}
     </div>
     ${foot()}`;
-  app.querySelectorAll(".pick button").forEach(b=>b.onclick=()=>go(b.dataset.k));
+  app.querySelectorAll(".pick button[data-k]").forEach(b=>b.onclick=()=>go(b.dataset.k));
 }
 
 function goHome(){ try{ history.replaceState(null,"","#") }catch(e){} home(); }
 
 function route(){
   if(FIXED){ isOpen(FIXED) ? start(FIXED) : soon(FIXED); return; }
-  // 예전 주소(#groom 등)로 들어와도 새 주소(groom/)로 옮겨줘요
+  // 예전 주소(#groom)로 들어와도 새 주소(groom/)로 옮겨줘요. 신부·행진곡은 주소가 드러나지 않게 옮기지 않아요
   const h=(location.hash||"").replace("#","");
-  if(DATA[h]){ location.replace(ROOT + h + "/"); return; }
+  if(h==="groom"){ location.replace(ROOT + PATHS.groom + "/"); return; }
   home();
 }
 route();

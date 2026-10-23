@@ -44,13 +44,13 @@ button{font:inherit;color:inherit;cursor:pointer}
 .cover .bar{width:64px;height:5px;background:var(--cover-accent);margin:26px 0 22px}
 .cover .lead{color:var(--cover-sub);font-size:16px;margin:0 0 30px}
 .pick{display:flex;flex-direction:column;gap:12px}
-.pick button{
+.pick button,.pick a.go{
   display:flex;justify-content:space-between;align-items:center;width:100%;
   background:transparent;border:1.5px solid #3A3A3A;border-radius:18px;color:var(--cover-ink);
-  padding:20px 22px;font-size:20px;font-weight:700;text-align:left;transition:border-color .15s,background .15s;
+  padding:20px 22px;font-size:20px;font-weight:700;text-align:left;text-decoration:none;transition:border-color .15s,background .15s;
 }
-@media (hover:hover){.pick button:hover{border-color:var(--cover-accent)}}
-.pick button:active{background:#222}
+@media (hover:hover){.pick button:hover,.pick a.go:hover{border-color:var(--cover-accent)}}
+.pick button:active,.pick a.go:active{background:#222}
 .pick .q{font-size:14px;font-weight:500;color:var(--cover-sub)}
 .pick button:disabled{opacity:.45;cursor:default}
 .soon-insta{display:block;text-align:center;background:var(--cover-accent);color:#fff;border-radius:18px;padding:20px 22px;font-size:20px;font-weight:700;text-decoration:none}
