@@ -1,0 +1,83 @@
+/* 감사 문자 & 땡큐 카드 전용 스타일 (공통 스타일은 shared/brand.css) */
+
+.title{font-weight:900;font-size:clamp(26px,7.6vw,32px);line-height:1.25;letter-spacing:-.02em;margin:0 0 18px}
+.sec{font-size:17px;font-weight:900;margin:30px 0 12px}
+.gap{margin-top:18px}
+.tip{margin-top:22px}
+
+/* 안심 문구 */
+.safe{display:flex;gap:7px;align-items:flex-start;font-size:13px;line-height:1.5;color:var(--sub);margin:14px 2px 0}
+.safe svg,.safe-cover svg{flex:0 0 14px;width:14px;height:14px;margin-top:2px}
+.safe-cover{display:flex;gap:7px;align-items:flex-start}
+
+/* 받는 사람 목록 */
+.list{background:var(--card);border-radius:24px;padding:6px;display:flex;flex-direction:column}
+.list button{position:relative;display:flex;flex-direction:column;gap:3px;width:100%;background:transparent;border:0;border-radius:16px;padding:16px 14px;text-align:left}
+.list button + button::before{content:"";position:absolute;left:14px;right:14px;top:0;height:1px;background:var(--line)}
+.list b{font-size:18px;font-weight:700;line-height:1.35}
+.list span{font-size:14px;color:var(--sub)}
+@media (hover:hover){.list button:hover{background:var(--paper)}}
+.list button:active{background:var(--paper)}
+
+/* 입력 */
+.panel{background:var(--card);border-radius:24px;padding:18px 16px;display:flex;flex-direction:column;gap:14px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:700;color:var(--ink);min-width:0}
+.field em{font-style:normal;font-weight:500;color:var(--sub)}
+.field input,.field textarea{
+  font:inherit;font-size:16px;font-weight:500;color:var(--ink);background:var(--paper);
+  border:1.5px solid transparent;border-radius:12px;padding:12px;width:100%;min-width:0;-webkit-appearance:none;appearance:none
+}
+.field input[type=date]{min-height:48px}
+.field textarea{line-height:1.7;resize:vertical}
+.field input:focus,.field textarea:focus{outline:none;border-color:var(--accent)}
+.field input::placeholder{color:var(--sub);opacity:.7}
+.edited{margin:-6px 0 0;font-size:13px;color:var(--sub)}
+.fit{margin:-6px 0 0;font-size:13px;font-weight:700;color:var(--accent)}
+.edited .text-btn{font-size:13px;padding:4px 2px}
+
+/* 말투 고르기 */
+.seg{display:flex;background:var(--paper);border-radius:12px;padding:4px;gap:4px}
+.seg button{flex:1;border:0;background:transparent;border-radius:9px;padding:11px 6px;font-size:15px;font-weight:700;color:var(--sub)}
+.seg button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.14)}
+
+/* 카드 미리보기 */
+.stage{border-radius:10px;overflow:hidden;box-shadow:0 10px 28px rgba(0,0,0,.16);background:#DDD6CC}
+.stage canvas{display:block;width:100%;height:auto;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.stage.can-drag canvas{touch-action:none;cursor:grab}
+.drag{font-size:13px;color:var(--sub);text-align:center;margin:10px 0 0}
+.photo-row{margin-top:14px}
+.opts{display:flex;flex-direction:column;gap:14px;margin-top:16px}
+.opts:not(:has(> :not([hidden]))){display:none}
+.range{display:flex;align-items:center;gap:14px;font-size:15px;font-weight:700}
+.range input{flex:1;accent-color:var(--accent)}
+.check{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:700;cursor:pointer}
+.check input{flex:0 0 22px;width:22px;height:22px;margin:0;accent-color:var(--accent)}
+.chips{display:flex;align-items:center;gap:12px;font-size:15px;font-weight:700}
+.chips span{margin-right:4px}
+.chips button{width:34px;height:34px;border-radius:50%;background:var(--c);border:3px solid var(--paper);box-shadow:0 0 0 1.5px var(--line);padding:0}
+.chips button.on{box-shadow:0 0 0 2.5px var(--ink)}
+
+/* 디자인 고르기 */
+.designs{display:grid;grid-template-columns:repeat(4,1fr);gap:14px 10px}
+.designs button{background:none;border:0;padding:0;display:flex;flex-direction:column;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--sub)}
+.designs canvas{display:block;width:100%;height:auto;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.14);outline:2.5px solid transparent;outline-offset:3px;transition:outline-color .15s}
+.designs button.on{color:var(--ink)}
+.designs button.on canvas{outline-color:var(--accent)}
+
+/* 저장 버튼은 화면 아래에 붙어 있어요 */
+.savebar{position:sticky;bottom:0;z-index:5;margin:22px -20px 0;padding:12px 20px calc(12px + env(safe-area-inset-bottom,0px));background:linear-gradient(to bottom,transparent,var(--paper) 22%)}
+.savebar + .msg{margin:2px 0 10px}
+
+/* 저장 대신 이미지 띄우기 */
+/* 결혼 앞둔 친구 태그 유도 */
+.invite{margin-top:22px;display:flex;flex-direction:column;gap:12px}
+.invite b{margin-bottom:0;font-size:17px;color:var(--box-ink)}
+.invite .btn{margin-top:4px}
+.invite .follow{color:var(--cover-accent);font-size:15px;font-weight:700;text-align:center;text-underline-offset:4px}
+
+.sheet{position:fixed;inset:0;z-index:30;background:rgba(10,10,10,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px}
+.sheet img{display:block;max-width:100%;max-height:68vh;border-radius:6px;-webkit-touch-callout:default}
+.sheet p{margin:0;color:#fff;font-size:17px;font-weight:700}
+.sheet .btn{width:auto;padding:13px 26px}
+.sheet .text-btn{color:#ddd}

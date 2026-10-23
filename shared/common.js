@@ -9,7 +9,8 @@
 const SITES = {
   "groom": { path: "groom",        direct: true },  // 신랑 입장곡 테스트
   "bride": { path: "lovely-bride", reel: "" },      // 신부 입장곡 테스트  TODO: 릴스 올리면 주소 넣기
-  "march": { path: "hand-in-hand", reel: "" }       // 행진곡 테스트      TODO: 릴스 올리면 주소 넣기
+  "march": { path: "hand-in-hand", reel: "" },      // 행진곡 테스트      TODO: 릴스 올리면 주소 넣기
+  "thanks": { path: "with-gratitude", reel: "" }    // 감사 문자 & 땡큐 카드 (이번 주 신부님용 임시 주소)  TODO: 릴스 올리면 주소 넣기
 };
 // =========================================================
 
