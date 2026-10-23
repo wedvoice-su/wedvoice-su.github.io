@@ -1,0 +1,10 @@
+/* 입장곡 테스트 전용 스타일 (공통 스타일은 shared/brand.css) */
+
+/* 추천곡 목록 */
+.songs{list-style:none;margin:0 0 18px;padding:0;display:flex;flex-direction:column;gap:2px}
+.songs li{display:flex;align-items:center;gap:14px;padding:10px 4px}
+.songs .n{font-weight:900;font-size:28px;color:var(--accent);width:22px;text-align:center;line-height:1}
+.songs .t{display:block;font-weight:700;font-size:17px;line-height:1.3}
+.songs .a{display:block;font-size:14px;color:var(--sub)}
+.listen{display:block;margin:-6px 0 18px;padding:14px 16px;border:1.5px solid var(--accent);border-radius:14px;color:var(--accent);font-size:16px;font-weight:700;text-align:center;text-decoration:none}
+@media (hover:hover){.listen:hover{background:var(--paper)}}

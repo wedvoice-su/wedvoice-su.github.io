@@ -1,3 +1,5 @@
+// 입장곡 테스트 (신랑 입장곡, 신부 입장곡, 행진곡). 공통 기능은 shared/common.js
+
 // ===== 공개 설정 ==========================================
 // 공개할 테스트만 아래 [ ] 안에 적으세요. 저장하면 1~2분 뒤 반영돼요.
 //   신랑만        →  ["groom"]
@@ -6,15 +8,7 @@
 const OPEN = ["groom"];
 // =========================================================
 
-// ===== 릴스 링크 ==========================================
-// 첫 화면과 결과 화면의 신부 입장곡·행진곡 버튼은
-// 테스트 사이트가 아니라 아래 릴스로 보내요. (릴스에 댓글 받고 링크 보내기)
-// 비어 있으면 인스타 프로필로 가요.
-const REELS = {
-  "bride": "",  // TODO: 신부 입장곡 릴스 올리면 주소 넣기
-  "march": ""   // TODO: 행진곡 릴스 올리면 주소 넣기
-};
-// =========================================================
+// ※ 신부 입장곡·행진곡 릴스 링크는 shared/common.js 맨 위 "사이트 목록"에 넣어요.
 
 // ===== 데이터: 질문, 결과, 곡 목록 (곡을 바꾸려면 여기만 고치면 돼요) =====
 const DATA = {
@@ -463,45 +457,27 @@ const DATA = {
 
 // ===== 답 64가지 → 유형 결정표 (A=1, B=0, 1번 질문이 맨 앞자리) =====
 const TABLES = {"groom": ["gentle", "kpop", "energy", "kpop", "fun", "fun", "fun", "energy", "fun", "fun", "fun", "energy", "fun", "fun", "hero", "hero", "kpop", "kpop", "gentle", "kpop", "gentle", "kpop", "kpop", "energy", "gentle", "kpop", "hero", "kpop", "fun", "kpop", "fun", "fun", "gentle", "kpop", "energy", "energy", "hero", "energy", "hero", "energy", "fun", "hero", "hero", "hero", "hero", "energy", "hero", "energy", "gentle", "gentle", "gentle", "gentle", "gentle", "kpop", "energy", "energy", "gentle", "kpop", "gentle", "energy", "fun", "gentle", "hero", "hero"], "bride": ["pop", "drama", "pop", "drama", "sacred", "princess", "sacred", "princess", "lovely", "pop", "lovely", "pop", "princess", "drama", "lovely", "princess", "pop", "pop", "pop", "pop", "princess", "princess", "princess", "princess", "lovely", "lovely", "lovely", "lovely", "princess", "princess", "lovely", "lovely", "drama", "drama", "pop", "drama", "sacred", "sacred", "sacred", "sacred", "drama", "drama", "pop", "pop", "drama", "drama", "sacred", "drama", "drama", "drama", "pop", "drama", "sacred", "princess", "sacred", "princess", "lovely", "pop", "lovely", "pop", "sacred", "sacred", "lovely", "sacred"], "march": ["modern", "sweet", "modern", "fairy", "modern", "sweet", "modern", "fairy", "retro", "retro", "retro", "fairy", "modern", "sweet", "modern", "fairy", "modern", "sweet", "fairy", "sweet", "sweet", "sweet", "sweet", "sweet", "retro", "retro", "fairy", "fairy", "modern", "sweet", "fairy", "fairy", "band", "retro", "retro", "fairy", "modern", "band", "modern", "sweet", "retro", "band", "retro", "retro", "band", "band", "band", "fairy", "band", "band", "retro", "fairy", "modern", "sweet", "modern", "sweet", "band", "retro", "retro", "retro", "band", "band", "band", "fairy"]};
-const INSTA = "https://www.instagram.com/wed_voice.su/";
-const CHECK = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-const app = document.getElementById("app");
 // 테스트 전용 페이지(groom/, lovely-bride/, hand-in-hand/)면 body의 data-test 값으로 그 테스트만 보여줘요
-// 신부·행진곡 폴더는 groom에서 주소를 짐작하지 못하게 다른 이름을 써요 (폴더 이름과 같아야 해요)
-const PATHS = { "groom": "groom", "bride": "lovely-bride", "march": "hand-in-hand" };
+// 폴더 이름(주소)은 shared/common.js의 사이트 목록에 있어요
 const FIXED = DATA[document.body.dataset.test] ? document.body.dataset.test : null;
-const ROOT = FIXED ? "../" : "./";
-function go(k){ location.href = ROOT + PATHS[k] + "/"; }
 function isOpen(k){ return OPEN.includes(k); }
-// 다른 테스트로 가는 버튼: REELS에 있는 테스트는 릴스로, 나머지는 사이트로
-function testLink(k, cls, inner){
-  return k in REELS
-    ? `<a class="${cls}" href="${esc(REELS[k]||INSTA)}" target="_blank" rel="noopener">${inner}</a>`
-    : `<button class="${cls}" data-k="${k}">${inner}</button>`;
-}
-const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 let state = { test:null, i:0, answers:[] };
-
-function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
-function pad(n){return String(n).padStart(2,"0")}
-function foot(){return '<div class="foot"><span>결혼식사회자 이상운</span><span>@wed_voice.su</span></div>'}
 
 function home(){
   document.body.classList.add("is-cover");
   app.className = "wrap cover";
   app.innerHTML = `
     <div class="top"><span>입장곡 찾기 테스트</span><span>6문항</span></div>
-    <img class="brand" src="${ROOT}img/logo-gold.png" alt="WED VOICE SU">
+    ${brandLogo()}
     <p class="for">예비 신랑·신부님을 위한</p>
     <h1>우리 입장곡<br>찾기</h1>
     <div class="bar"></div>
     <p class="lead">A, B 중에 고르기만 하세요. 1분이면 끝나요.</p>
     <div class="pick">
-      ${["groom","bride","march"].map(k=>isOpen(k)?testLink(k,"go",`<span>${DATA[k].label}</span><span class="q">시작하기</span>`):`<button disabled><span>${DATA[k].label}</span><span class="q">곧 공개</span></button>`).join("")}
+      ${["groom","bride","march"].map(k=>isOpen(k)?siteLink(k,"go",`<span>${DATA[k].label}</span><span class="q">시작하기</span>`):`<button disabled><span>${DATA[k].label}</span><span class="q">곧 공개</span></button>`).join("")}
     </div>
     <p class="note">※ 실제 결혼식 현장에서 반응이 가장 좋은 인기곡 TOP3를 골랐어요.</p>
     ${foot()}`;
-  app.querySelectorAll(".pick button[data-k]").forEach(b=>b.onclick=()=>go(b.dataset.k));
 }
 
 function start(k){
@@ -542,16 +518,7 @@ function pick(v){
   if(state.i<5){ state.i++; ask(); return; }
   const idx = state.answers.reduce((s,b)=>s*2+b,0);
   const type = TABLES[state.test][idx];
-  reveal(()=>result(state.test,type));
-}
-
-function reveal(done){
-  if(reduce){ done(); return; }
-  const r=document.createElement("div");
-  r.className="reveal";
-  r.innerHTML=`<div><p>${esc(DATA[state.test].call)}</p><div class="bar"></div></div>`;
-  document.body.appendChild(r);
-  setTimeout(()=>{ done(); r.remove(); }, 1300);
+  reveal(DATA[state.test].call, ()=>result(state.test,type));
 }
 
 function result(k,type){
@@ -569,61 +536,24 @@ function result(k,type){
       </ol>
       ${r.link?`<a class="listen" href="${esc(r.link)}" target="_blank" rel="noopener" data-html2canvas-ignore>추천곡 3곡 음원 받기</a>`:""}
       <div class="tip"><b>사회자 한마디</b><p>${esc(r.tip)}</p></div>
-      <div class="sign"><img class="badge" src="${ROOT}img/logo-badge.png" alt="WED VOICE SU"><span class="who"><span class="motto">두 분은 즐기기만, 챙기는 건 저만</span><span>결혼식사회자 이상운</span></span></div>
+      ${sign()}
     </article>
     <div class="after">
       <p class="hint">이 카드를 캡처하거나 저장해서 스토리에 올려보세요</p>
       <div class="btns">
         <button class="btn main" id="save">이미지로 저장하기</button>
         <p class="msg" id="msg" role="status"></p>
-        ${t.next.map(n=>isOpen(n)?testLink(n,"btn ghost",`${DATA[n].label}도 찾아보기`):`<button class="btn ghost" disabled>${DATA[n].label} 테스트는 곧 공개돼요</button>`).join("")}
+        ${t.next.map(n=>isOpen(n)?siteLink(n,"btn ghost",`${DATA[n].label}도 찾아보기`):`<button class="btn ghost" disabled>${DATA[n].label} 테스트는 곧 공개돼요</button>`).join("")}
         <a class="btn insta" href="${INSTA}" target="_blank" rel="noopener">인스타에서 결혼 준비 꿀팁 보기</a>
         <button class="text-btn btn-link" id="copy">테스트 링크 복사하기</button>
         <button class="text-btn btn-link" id="again">다시 하기</button>
       </div>
     </div>`;
-  app.querySelectorAll(".btns button[data-k]").forEach(b=>b.onclick=()=>go(b.dataset.k));
   document.getElementById("again").onclick=()=>start(k);
   window.scrollTo(0,0);
   prepareImage((k==="march"?"행진곡-":"입장곡-")+r.name);
   document.getElementById("save").onclick=saveCard;
-  document.getElementById("copy").onclick=copyLink;
-}
-
-// ===== 결과 카드 이미지 만들기 (결과가 뜨면 미리 만들어 둬요) =====
-let cardFile=null, cardJob=null;
-function prepareImage(name){
-  cardFile=null;
-  if(typeof window.html2canvas!=="function"){ document.getElementById("save").hidden=true; return; }
-  const job = cardJob = (document.fonts ? document.fonts.ready : Promise.resolve())
-    .then(()=>window.html2canvas(document.getElementById("card"),{scale:3,backgroundColor:getComputedStyle(document.body).backgroundColor,logging:false}))
-    .then(canvas=>new Promise(res=>canvas.toBlob(res,"image/png")))
-    .then(blob=>{ if(job===cardJob) cardFile=new File([blob],name+".png",{type:"image/png"}); return cardFile; })
-    .catch(()=>null);
-}
-
-async function saveCard(){
-  const msg=document.getElementById("msg");
-  const file = cardFile || await cardJob;
-  if(!file){ msg.textContent="이미지를 만들지 못했어요. 화면을 캡처해 주세요."; return; }
-  // 휴대폰: 공유 창(인스타 스토리, 사진 저장)으로 바로 보내기
-  if(navigator.canShare && navigator.canShare({files:[file]})){
-    try{ await navigator.share({files:[file]}); msg.textContent=""; return; }
-    catch(e){ if(e && e.name==="AbortError"){ msg.textContent=""; return; } }
-  }
-  // 컴퓨터 등: 파일로 내려받기
-  const url=URL.createObjectURL(file);
-  const a=document.createElement("a"); a.href=url; a.download=file.name;
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url),4000);
-  msg.textContent="저장했어요. 스토리에 올려보세요!";
-}
-
-async function copyLink(){
-  const msg=document.getElementById("msg");
-  const link=location.origin+location.pathname;
-  try{ await navigator.clipboard.writeText(link); msg.textContent="테스트 링크를 복사했어요."; }
-  catch(e){ msg.textContent=link; }
+  document.getElementById("copy").onclick=()=>copyLink("테스트 링크를 복사했어요.");
 }
 
 // ===== 아직 공개 전인 테스트에 들어왔을 때 =====
@@ -633,17 +563,16 @@ function soon(k){
   const first = ["groom","bride","march"].find(isOpen);
   app.innerHTML = `
     <div class="top"><span>입장곡 찾기 테스트</span><span>6문항</span></div>
-    <img class="brand" src="${ROOT}img/logo-gold.png" alt="WED VOICE SU">
+    ${brandLogo()}
     <p class="for">곧 공개돼요</p>
     <h1>${esc(DATA[k].label)}<br>찾기</h1>
     <div class="bar"></div>
     <p class="lead">인스타를 팔로우하면 공개 소식을 가장 먼저 받아볼 수 있어요.</p>
     <div class="pick">
       <a class="soon-insta" href="${INSTA}" target="_blank" rel="noopener">인스타 팔로우하기</a>
-      ${first?testLink(first,"go",`<span>${DATA[first].label} 테스트 먼저 하기</span>`):""}
+      ${first?siteLink(first,"go",`<span>${DATA[first].label} 테스트 먼저 하기</span>`):""}
     </div>
     ${foot()}`;
-  app.querySelectorAll(".pick button[data-k]").forEach(b=>b.onclick=()=>go(b.dataset.k));
 }
 
 function goHome(){ try{ history.replaceState(null,"","#") }catch(e){} home(); }
@@ -652,7 +581,7 @@ function route(){
   if(FIXED){ isOpen(FIXED) ? start(FIXED) : soon(FIXED); return; }
   // 예전 주소(#groom)로 들어와도 새 주소(groom/)로 옮겨줘요. 신부·행진곡은 주소가 드러나지 않게 옮기지 않아요
   const h=(location.hash||"").replace("#","");
-  if(h==="groom"){ location.replace(ROOT + PATHS.groom + "/"); return; }
+  if(h==="groom"){ location.replace(siteUrl("groom")); return; }
   home();
 }
 route();
