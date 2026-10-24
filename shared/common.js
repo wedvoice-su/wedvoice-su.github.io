@@ -10,6 +10,7 @@ const SITES = {
   "groom": { path: "groom",        direct: true },  // 신랑 입장곡 테스트
   "bride": { path: "lovely-bride", reel: "" },      // 신부 입장곡 테스트  TODO: 릴스 올리면 주소 넣기
   "march": { path: "hand-in-hand", reel: "" },      // 행진곡 테스트      TODO: 릴스 올리면 주소 넣기
+  "serenade": { path: "sing-for-you", reel: "" },   // 축가 테스트        TODO: 릴스 올리면 주소 넣기
   "thanks": { path: "with-gratitude", reel: "" }    // 감사 문자 & 땡큐 카드 (이번 주 신부님용 임시 주소)  TODO: 릴스 올리면 주소 넣기
 };
 // =========================================================
@@ -38,14 +39,15 @@ function siteLink(key, cls, inner){
     : `<a class="${cls}" href="${esc(s.reel||INSTA)}" target="_blank" rel="noopener">${inner}</a>`;
 }
 
-// 결과 직전에 큰 글씨로 한 번 외치기 (예: "신랑, 입장!")
+// 결과 직전에 큰 글씨로 한 번 외치기 (예: "신랑, 입장!"). 긴 문구는 \n으로 줄을 나누면 글씨가 조금 작아지고 조금 더 오래 보여요.
 function reveal(text, done){
   if(reduce){ done(); return; }
+  const long = text.replace(/\n/g,"").length > 8;
   const r=document.createElement("div");
-  r.className="reveal";
-  r.innerHTML=`<div><p>${esc(text)}</p><div class="bar"></div></div>`;
+  r.className="reveal"+(long?" long":"");
+  r.innerHTML=`<div><p>${esc(text).replace(/\n/g,"<br>")}</p><div class="bar"></div></div>`;
   document.body.appendChild(r);
-  setTimeout(()=>{ done(); r.remove(); }, 1300);
+  setTimeout(()=>{ done(); r.remove(); }, long?1700:1300);
 }
 
 // ===== 결과 카드 이미지 만들기 (결과가 뜨면 미리 만들어 둬요) =====

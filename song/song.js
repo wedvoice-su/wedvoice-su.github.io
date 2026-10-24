@@ -1,14 +1,14 @@
-// 입장곡 테스트 (신랑 입장곡, 신부 입장곡, 행진곡). 공통 기능은 shared/common.js
+// 결혼식 음악 테스트 (신랑 입장곡, 신부 입장곡, 행진곡, 축가). 공통 기능은 shared/common.js
 
 // ===== 공개 설정 ==========================================
 // 공개할 테스트만 아래 [ ] 안에 적으세요. 저장하면 1~2분 뒤 반영돼요.
 //   신랑만        →  ["groom"]
 //   신랑 + 신부   →  ["groom", "bride"]
-//   전부 공개     →  ["groom", "bride", "march"]
+//   전부 공개     →  ["groom", "bride", "march", "serenade"]   (serenade = 축가)
 const OPEN = ["groom", "bride"];
 // =========================================================
 
-// ※ 신부 입장곡·행진곡 릴스 링크는 shared/common.js 맨 위 "사이트 목록"에 넣어요.
+// ※ 신부 입장곡·행진곡·축가 릴스 링크는 shared/common.js 맨 위 "사이트 목록"에 넣어요.
 
 // ===== 데이터: 질문, 결과, 곡 목록 (곡을 바꾸려면 여기만 고치면 돼요) =====
 const DATA = {
@@ -17,7 +17,8 @@ const DATA = {
   "call": "신랑, 입장!",
   "next": [
    "bride",
-   "march"
+   "march",
+   "serenade"
   ],
   "questions": [
    {
@@ -164,7 +165,8 @@ const DATA = {
   "call": "신부, 입장~",
   "next": [
    "groom",
-   "march"
+   "march",
+   "serenade"
   ],
   "questions": [
    {
@@ -311,7 +313,8 @@ const DATA = {
   "call": "신랑 신부, 행진!",
   "next": [
    "groom",
-   "bride"
+   "bride",
+   "serenade"
   ],
   "questions": [
    {
@@ -452,12 +455,163 @@ const DATA = {
     "link": "https://drive.google.com/drive/folders/1gc1nu21IhZhLl3LJ0l8X0o3Pe3YHpmf4?usp=sharing"  // 링크행진5
    }
   }
+ },
+ "serenade": {
+  "label": "축가",
+  "kind": "우리 축가 유형",
+  "linkLabel": "추천곡 3곡 MR 받기",
+  "call": "멋진 무대를\n만나보겠습니다!",
+  "hint": "이 카드를 저장해서 축가 부를 분께 보내 보세요. 스토리에 올려도 좋아요.",
+  "next": [
+   "groom",
+   "bride",
+   "march"
+  ],
+  "questions": [
+   {
+    "q": "우리 축가,\n누가 불러요?",
+    "a": "친구·지인",
+    "b": "신랑 (또는 우리 둘이)"
+   },
+   {
+    "q": "부르는 사람\n노래 실력은?",
+    "a": "노래방 90점 이상",
+    "b": "점수보다 진심"
+   },
+   {
+    "q": "축가 끝나고\n하객 반응은?",
+    "a": "“감동이다…” 눈물 글썽",
+    "b": "“앵콜!” 박수와 환호"
+   },
+   {
+    "q": "무대에는\n몇 명이 서요?",
+    "a": "한 명이 집중",
+    "b": "둘 이상 같이"
+   },
+   {
+    "q": "둘이 노래방 가면\n주로?",
+    "a": "발라드 열창",
+    "b": "댄스곡 떼창"
+   },
+   {
+    "q": "축가는\n어떤 노래가 좋아요?",
+    "a": "요즘 많이 부르는 노래",
+    "b": "다들 아는 명곡"
+   }
+  ],
+  "types": {
+   "ballad": {
+    "name": "눈물샘 발라드형",
+    "line": "첫 소절은 조용히, 후렴은 눈물로",
+    "desc": "목소리 하나로 식장을 울리는 축가예요. 양가 부모님 눈가가 가장 먼저 촉촉해져요.",
+    "songs": [
+     [
+      "감사",
+      "김동률"
+     ],
+     [
+      "봄이 와도",
+      "로이킴"
+     ],
+     [
+      "모든 날, 모든 순간",
+      "폴킴"
+     ]
+    ],
+    "tip": "발라드는 원키가 높은 곡이 많아요. 키를 1~2개 낮춘 MR을 미리 준비하고, 2절은 빼고 1절+하이라이트로 2분 30초 안팎으로 편집하면 끝까지 집중이 유지돼요.",
+    "link": ""  // 링크축가1  ← "" 안에 구글 드라이브 링크(MR 폴더)를 붙여넣으세요. 비워 두면 버튼이 안 보여요.
+   },
+   "party": {
+    "name": "흥 폭발 파티형",
+    "line": "박수는 크게, 떼창은 더 크게",
+    "desc": "첫 박자부터 하객이 손뼉을 치고, 후렴은 식장 전체가 따라 불러요. 분위기가 한 번에 올라가는 축가예요.",
+    "songs": [
+     [
+      "팡파레",
+      "다비치"
+     ],
+     [
+      "그대랑",
+      "이적"
+     ],
+     [
+      "예술이야",
+      "싸이"
+     ]
+    ],
+    "tip": "신나는 곡은 하객 호응이 전부예요. 후렴 직전에 제가 “다 같이!” 한마디로 박수를 모아 드릴게요. 신랑신부도 자리에서 같이 흔들어 주면 영상이 훨씬 살아요.",
+    "link": ""  // 링크축가2
+   },
+   "duet": {
+    "name": "달달 듀엣형",
+    "line": "화음은 달달하게, 눈빛은 더 달달하게",
+    "desc": "둘이 주고받는 가사가 신랑신부 이야기처럼 들려요. 사랑스러운 분위기가 식장을 채우는 축가예요.",
+    "songs": [
+     [
+      "좋겠다",
+      "스윗소로우"
+     ],
+     [
+      "사랑인가봐",
+      "멜로망스"
+     ],
+     [
+      "너의 의미",
+      "아이유"
+     ]
+    ],
+    "tip": "듀엣은 마이크 2개가 필수예요. 웨딩홀 음향팀에 미리 말해 두고, 파트를 나눈 가사지를 두 장 준비하세요. 마지막 소절만 둘이 같이 부르면 박수가 자연스럽게 터져요.",
+    "link": ""  // 링크축가3
+   },
+   "surprise": {
+    "name": "신랑 서프라이즈형",
+    "line": "가사는 고백처럼, 눈은 신부만 보고",
+    "desc": "신랑이 마이크를 잡는 순간 하객이 “어?” 하고 웃다가, 후렴에서 신부가 울어요. 그날 가장 오래 기억되는 장면이에요.",
+    "songs": [
+     [
+      "청혼하지 않을 이유를 못 찾았어",
+      "이무진"
+     ],
+     [
+      "소나기",
+      "이클립스"
+     ],
+     [
+      "달리 표현할 수 없어요",
+      "로이킴"
+     ]
+    ],
+    "tip": "서프라이즈는 사회자와 음향팀만 알면 돼요. 식순에는 ‘축가’로만 적어 두면 제가 신부 모르게 자연스럽게 마이크를 넘겨 드릴게요. 가사를 잊어도 괜찮아요. “사랑해” 한마디면 식장이 터져요.",
+    "link": ""  // 링크축가4
+   },
+   "easy": {
+    "name": "노래 못해도 되는 축가형",
+    "line": "실력 대신 떼창으로, 음정 대신 진심으로",
+    "desc": "첫 소절만 나와도 하객이 다 같이 따라 부르는 곡이에요. 음정이 흔들려도 박수로 덮이는, 가장 마음 편한 축가예요.",
+    "songs": [
+     [
+      "라라라",
+      "SG워너비"
+     ],
+     [
+      "아로하",
+      "쿨 · 조정석"
+     ],
+     [
+      "커플",
+      "젝스키스"
+     ]
+    ],
+    "tip": "이 곡들은 하객이 더 잘 알아요. 후렴에서 마이크를 하객 쪽으로 돌리면 떼창이 터지고, 음이 틀려도 아무도 몰라요. 가사지를 들고 불러도 괜찮아요.",
+    "link": ""  // 링크축가5
+   }
+  }
  }
 };
 
 // ===== 답 64가지 → 유형 결정표 (A=1, B=0, 1번 질문이 맨 앞자리) =====
-const TABLES = {"groom": ["gentle", "kpop", "energy", "kpop", "fun", "fun", "fun", "energy", "fun", "fun", "fun", "energy", "fun", "fun", "hero", "hero", "kpop", "kpop", "gentle", "kpop", "gentle", "kpop", "kpop", "energy", "gentle", "kpop", "hero", "kpop", "fun", "kpop", "fun", "fun", "gentle", "kpop", "energy", "energy", "hero", "energy", "hero", "energy", "fun", "hero", "hero", "hero", "hero", "energy", "hero", "energy", "gentle", "gentle", "gentle", "gentle", "gentle", "kpop", "energy", "energy", "gentle", "kpop", "gentle", "energy", "fun", "gentle", "hero", "hero"], "bride": ["pop", "drama", "pop", "drama", "sacred", "princess", "sacred", "princess", "lovely", "pop", "lovely", "pop", "princess", "drama", "lovely", "princess", "pop", "pop", "pop", "pop", "princess", "princess", "princess", "princess", "lovely", "lovely", "lovely", "lovely", "princess", "princess", "lovely", "lovely", "drama", "drama", "pop", "drama", "sacred", "sacred", "sacred", "sacred", "drama", "drama", "pop", "pop", "drama", "drama", "sacred", "drama", "drama", "drama", "pop", "drama", "sacred", "princess", "sacred", "princess", "lovely", "pop", "lovely", "pop", "sacred", "sacred", "lovely", "sacred"], "march": ["modern", "sweet", "modern", "fairy", "modern", "sweet", "modern", "fairy", "retro", "retro", "retro", "fairy", "modern", "sweet", "modern", "fairy", "modern", "sweet", "fairy", "sweet", "sweet", "sweet", "sweet", "sweet", "retro", "retro", "fairy", "fairy", "modern", "sweet", "fairy", "fairy", "band", "retro", "retro", "fairy", "modern", "band", "modern", "sweet", "retro", "band", "retro", "retro", "band", "band", "band", "fairy", "band", "band", "retro", "fairy", "modern", "sweet", "modern", "sweet", "band", "retro", "retro", "retro", "band", "band", "band", "fairy"]};
-// 테스트 전용 페이지(groom/, lovely-bride/, hand-in-hand/)면 body의 data-test 값으로 그 테스트만 보여줘요
+const TABLES = {"groom": ["gentle", "kpop", "energy", "kpop", "fun", "fun", "fun", "energy", "fun", "fun", "fun", "energy", "fun", "fun", "hero", "hero", "kpop", "kpop", "gentle", "kpop", "gentle", "kpop", "kpop", "energy", "gentle", "kpop", "hero", "kpop", "fun", "kpop", "fun", "fun", "gentle", "kpop", "energy", "energy", "hero", "energy", "hero", "energy", "fun", "hero", "hero", "hero", "hero", "energy", "hero", "energy", "gentle", "gentle", "gentle", "gentle", "gentle", "kpop", "energy", "energy", "gentle", "kpop", "gentle", "energy", "fun", "gentle", "hero", "hero"], "bride": ["pop", "drama", "pop", "drama", "sacred", "princess", "sacred", "princess", "lovely", "pop", "lovely", "pop", "princess", "drama", "lovely", "princess", "pop", "pop", "pop", "pop", "princess", "princess", "princess", "princess", "lovely", "lovely", "lovely", "lovely", "princess", "princess", "lovely", "lovely", "drama", "drama", "pop", "drama", "sacred", "sacred", "sacred", "sacred", "drama", "drama", "pop", "pop", "drama", "drama", "sacred", "drama", "drama", "drama", "pop", "drama", "sacred", "princess", "sacred", "princess", "lovely", "pop", "lovely", "pop", "sacred", "sacred", "lovely", "sacred"], "march": ["modern", "sweet", "modern", "fairy", "modern", "sweet", "modern", "fairy", "retro", "retro", "retro", "fairy", "modern", "sweet", "modern", "fairy", "modern", "sweet", "fairy", "sweet", "sweet", "sweet", "sweet", "sweet", "retro", "retro", "fairy", "fairy", "modern", "sweet", "fairy", "fairy", "band", "retro", "retro", "fairy", "modern", "band", "modern", "sweet", "retro", "band", "retro", "retro", "band", "band", "band", "fairy", "band", "band", "retro", "fairy", "modern", "sweet", "modern", "sweet", "band", "retro", "retro", "retro", "band", "band", "band", "fairy"], "serenade": ["easy", "easy", "easy", "easy", "easy", "easy", "surprise", "surprise", "easy", "duet", "ballad", "ballad", "surprise", "surprise", "surprise", "surprise", "party", "party", "duet", "duet", "party", "party", "surprise", "surprise", "duet", "duet", "duet", "duet", "surprise", "surprise", "surprise", "surprise", "easy", "easy", "easy", "easy", "easy", "easy", "ballad", "party", "easy", "duet", "ballad", "ballad", "ballad", "party", "ballad", "ballad", "party", "party", "duet", "duet", "party", "party", "party", "ballad", "duet", "duet", "duet", "duet", "ballad", "party", "ballad", "ballad"]};
+// 테스트 전용 페이지(groom/, lovely-bride/, hand-in-hand/, sing-for-you/)면 body의 data-test 값으로 그 테스트만 보여줘요
 // 폴더 이름(주소)은 shared/common.js의 사이트 목록에 있어요
 const FIXED = DATA[document.body.dataset.test] ? document.body.dataset.test : null;
 function isOpen(k){ return OPEN.includes(k); }
@@ -467,14 +621,14 @@ function home(){
   document.body.classList.add("is-cover");
   app.className = "wrap cover";
   app.innerHTML = `
-    <div class="top"><span>입장곡 찾기 테스트</span><span>6문항</span></div>
+    <div class="top"><span>결혼식 음악 찾기 테스트</span><span>6문항</span></div>
     ${brandLogo()}
     <p class="for">예비 신랑·신부님을 위한</p>
-    <h1>우리 입장곡<br>찾기</h1>
+    <h1>우리 결혼식<br>음악 찾기</h1>
     <div class="bar"></div>
     <p class="lead">A, B 중에 고르기만 하세요. 1분이면 끝나요.</p>
     <div class="pick">
-      ${["groom","bride","march"].map(k=>isOpen(k)?siteLink(k,"go",`<span>${DATA[k].label}</span><span class="q">시작하기</span>`):`<button disabled><span>${DATA[k].label}</span><span class="q">곧 공개</span></button>`).join("")}
+      ${["groom","bride","march","serenade"].map(k=>isOpen(k)?siteLink(k,"go",`<span>${DATA[k].label}</span><span class="q">시작하기</span>`):`<button disabled><span>${DATA[k].label}</span><span class="q">곧 공개</span></button>`).join("")}
     </div>
     <p class="note">※ 실제 결혼식 현장에서 반응이 가장 좋은 인기곡 TOP3를 골랐어요.</p>
     ${foot()}`;
@@ -527,19 +681,19 @@ function result(k,type){
   const t=DATA[k], r=t.types[type];
   app.innerHTML=`
     <article class="card" id="card">
-      <div class="head"><span class="kind">나의 ${t.label} 유형</span><span class="handle">@wed_voice.su</span></div>
+      <div class="head"><span class="kind">${esc(t.kind||"나의 "+t.label+" 유형")}</span><span class="handle">@wed_voice.su</span></div>
       <h2>${esc(r.name)}</h2>
       <p class="line">${esc(r.line)}</p>
       <p class="desc">${esc(r.desc)}</p>
       <ol class="songs" aria-label="추천곡 TOP3">
         ${r.songs.map((s,i)=>`<li><span class="n">${i+1}</span><span><span class="t">${esc(s[0])}</span><span class="a">${esc(s[1])}</span></span></li>`).join("")}
       </ol>
-      ${r.link?`<a class="listen" href="${esc(r.link)}" target="_blank" rel="noopener" data-html2canvas-ignore>추천곡 3곡 음원 받기</a>`:""}
+      ${r.link?`<a class="listen" href="${esc(r.link)}" target="_blank" rel="noopener" data-html2canvas-ignore>${esc(t.linkLabel||"추천곡 3곡 음원 받기")}</a>`:""}
       <div class="tip"><b>사회자 한마디</b><p>${esc(r.tip)}</p></div>
       ${sign()}
     </article>
     <div class="after">
-      <p class="hint">이 카드를 캡처하거나 저장해서 스토리에 올려보세요</p>
+      <p class="hint">${esc(t.hint||"이 카드를 캡처하거나 저장해서 스토리에 올려보세요")}</p>
       <div class="btns">
         <button class="btn main" id="save">이미지로 저장하기</button>
         <p class="msg" id="msg" role="status"></p>
@@ -551,7 +705,7 @@ function result(k,type){
     </div>`;
   document.getElementById("again").onclick=()=>start(k);
   window.scrollTo(0,0);
-  prepareImage((k==="march"?"행진곡-":"입장곡-")+r.name);
+  prepareImage(({march:"행진곡-",serenade:"축가-"}[k]||"입장곡-")+r.name);  // 저장되는 이미지 파일 이름
   document.getElementById("save").onclick=saveCard;
   document.getElementById("copy").onclick=()=>copyLink("테스트 링크를 복사했어요.");
 }
@@ -560,9 +714,9 @@ function result(k,type){
 function soon(k){
   document.body.classList.add("is-cover");
   app.className = "wrap cover";
-  const first = ["groom","bride","march"].find(isOpen);
+  const first = ["groom","bride","march","serenade"].find(isOpen);
   app.innerHTML = `
-    <div class="top"><span>입장곡 찾기 테스트</span><span>6문항</span></div>
+    <div class="top"><span>결혼식 음악 찾기 테스트</span><span>6문항</span></div>
     ${brandLogo()}
     <p class="for">곧 공개돼요</p>
     <h1>${esc(DATA[k].label)}<br>찾기</h1>
