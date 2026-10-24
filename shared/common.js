@@ -7,7 +7,7 @@
 //   direct : true면 버튼이 사이트로 바로 가요 (주소가 이미 공개된 사이트)
 //   reel   : direct가 아니면 버튼이 이 릴스로 가요 (댓글 받고 링크 보내기). 비어 있으면 인스타 프로필로 가요.
 const SITES = {
-  "groom": { path: "groom",        direct: true },  // 신랑 입장곡 테스트
+  "groom": { path: "groom",        reel: "https://www.instagram.com/reel/DezOuL0z6Iu/" },  // 신랑 입장곡 테스트 (버튼은 릴스로, 주소는 이미 공개)
   "bride": { path: "lovely-bride", reel: "" },      // 신부 입장곡 테스트  TODO: 릴스 올리면 주소 넣기
   "march": { path: "hand-in-hand", reel: "" },      // 행진곡 테스트      TODO: 릴스 올리면 주소 넣기
   "serenade": { path: "sing-for-you", reel: "" },   // 축가 테스트        TODO: 릴스 올리면 주소 넣기
