@@ -4,10 +4,11 @@
 // ===== 사이트 목록 ========================================
 // 다른 사이트로 가는 버튼이 이 목록을 보고 주소를 정해요. 새 사이트를 만들면 한 줄 추가하세요.
 //   path   : 폴더 이름 (다른 사이트 주소에서 짐작하지 못하게 지어요)
-//   direct : true면 버튼이 사이트로 바로 가요 (주소가 이미 공개된 사이트)
-//   reel   : direct가 아니면 버튼이 이 릴스로 가요 (댓글 받고 링크 보내기). 비어 있으면 인스타 프로필로 가요.
+//   reel   : 있으면 버튼이 이 릴스로 가요 (댓글 받고 링크 보내기)
+//   direct : true면 주소가 공개된 사이트예요. 결과 화면에 "테스트 링크 복사하기"가 보이고, reel이 없으면 버튼이 사이트로 바로 가요
+//   둘 다 없으면 버튼이 인스타 프로필로 가요.
 const SITES = {
-  "groom": { path: "groom",        reel: "https://www.instagram.com/reel/DezOuL0z6Iu/" },  // 신랑 입장곡 테스트 (버튼은 릴스로, 주소는 이미 공개)
+  "groom": { path: "groom",        direct: true, reel: "https://www.instagram.com/reel/DezOuL0z6Iu/" },  // 신랑 입장곡 테스트 (주소 공개, 버튼은 릴스로)
   "bride": { path: "lovely-bride", reel: "" },      // 신부 입장곡 테스트  TODO: 릴스 올리면 주소 넣기
   "march": { path: "hand-in-hand", reel: "" },      // 행진곡 테스트      TODO: 릴스 올리면 주소 넣기
   "serenade": { path: "sing-for-you", reel: "" },   // 축가 테스트        TODO: 릴스 올리면 주소 넣기
@@ -34,7 +35,7 @@ function sign(){return `<div class="sign"><img class="badge" src="${ROOT}shared/
 function siteUrl(key){ return ROOT + SITES[key].path + "/"; }
 function siteLink(key, cls, inner){
   const s = SITES[key];
-  return s.direct
+  return (!s.reel && s.direct)
     ? `<a class="${cls}" href="${siteUrl(key)}">${inner}</a>`
     : `<a class="${cls}" href="${esc(s.reel||INSTA)}" target="_blank" rel="noopener">${inner}</a>`;
 }
