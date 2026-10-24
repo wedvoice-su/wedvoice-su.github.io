@@ -699,7 +699,7 @@ function result(k,type){
         <p class="msg" id="msg" role="status"></p>
         ${t.next.map(n=>isOpen(n)?siteLink(n,"btn ghost",`${DATA[n].label}도 찾아보기`):`<button class="btn ghost" disabled>${DATA[n].label} 테스트는 곧 공개돼요</button>`).join("")}
         <a class="btn insta" href="${INSTA}" target="_blank" rel="noopener">인스타에서 결혼 준비 꿀팁 보기</a>
-        <button class="text-btn btn-link" id="copy">테스트 링크 복사하기</button>
+        ${SITES[k].direct?'<button class="text-btn btn-link" id="copy">테스트 링크 복사하기</button>':""}
         <button class="text-btn btn-link" id="again">다시 하기</button>
       </div>
     </div>`;
@@ -707,7 +707,8 @@ function result(k,type){
   window.scrollTo(0,0);
   prepareImage(({march:"행진곡-",serenade:"축가-"}[k]||"입장곡-")+r.name);  // 저장되는 이미지 파일 이름
   document.getElementById("save").onclick=saveCard;
-  document.getElementById("copy").onclick=()=>copyLink("테스트 링크를 복사했어요.");
+  // 링크 복사 버튼은 주소가 공개된 테스트(SITES에서 direct)에만 있어요. 신부·행진곡은 댓글로 링크를 받게 해요
+  const copy=document.getElementById("copy"); if(copy) copy.onclick=()=>copyLink("테스트 링크를 복사했어요.");
 }
 
 // ===== 아직 공개 전인 테스트에 들어왔을 때 =====
