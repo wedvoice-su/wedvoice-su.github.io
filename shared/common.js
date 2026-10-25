@@ -9,7 +9,7 @@
 //   둘 다 없으면 버튼이 인스타 프로필로 가요.
 const SITES = {
   "groom": { path: "groom",        direct: true, reel: "https://www.instagram.com/reel/DezOuL0z6Iu/" },  // 신랑 입장곡 테스트 (주소 공개, 버튼은 릴스로)
-  "bride": { path: "lovely-bride", reel: "" },      // 신부 입장곡 테스트  TODO: 릴스 올리면 주소 넣기
+  "bride": { path: "lovely-bride", reel: "https://www.instagram.com/reel/De5paX6zt2S/" },  // 신부 입장곡 테스트 (버튼은 릴스로)
   "march": { path: "hand-in-hand", reel: "" },      // 행진곡 테스트      TODO: 릴스 올리면 주소 넣기
   "serenade": { path: "sing-for-you", reel: "" },   // 축가 테스트        TODO: 릴스 올리면 주소 넣기
   "thanks": { path: "with-gratitude", reel: "" }    // 감사 문자 & 땡큐 카드 (이번 주 신부님용 임시 주소)  TODO: 릴스 올리면 주소 넣기
