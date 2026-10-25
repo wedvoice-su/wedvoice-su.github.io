@@ -5,7 +5,7 @@
 //   신랑만        →  ["groom"]
 //   신랑 + 신부   →  ["groom", "bride"]
 //   전부 공개     →  ["groom", "bride", "march", "serenade"]   (serenade = 축가)
-const OPEN = ["groom", "bride"];
+const OPEN = ["groom", "bride", "march"];
 // =========================================================
 
 // ※ 신부 입장곡·행진곡·축가 릴스 링크는 shared/common.js 맨 위 "사이트 목록"에 넣어요.
