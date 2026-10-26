@@ -140,6 +140,7 @@ function lenBox(){
     ? `<div class="len ok"><b>${O.minText} 이상이에요 (${fmt(S.dur)})</b>${esc(O.why)}</div>`
     : `<div class="len warn"><b>${O.minText}보다 짧아요 (${fmt(S.dur)})</b>${esc(O.longer)} ${esc(O.why)}</div>`;
 }
+// ※ accept는 확장자로 적어요. 아이폰 사파리는 accept="audio/*"를 영상처럼 취급해서 mp3·m4a가 회색으로 막혀요 (WebKit 버그 242110, 34442)
 function fileStep(){
   stopAudio(); plain();
   app.innerHTML = `
@@ -147,7 +148,7 @@ function fileStep(){
     <h2 class="title">웨딩홀에 보낼<br>바로 그 파일을 열어 주세요</h2>
     <p class="lead2">시간은 이 파일을 기준으로 찍혀요. 편집본을 쓸 거면 편집본을, 원곡 그대로면 원곡을 여세요.</p>
     <label class="drop${S.file?" has":""}" id="drop">
-      <input type="file" id="file" accept="audio/*" hidden>
+      <input type="file" id="file" class="vh" accept=".mp3,.m4a,.wav,.aac,.flac,.ogg,.aiff,.aif">
       ${S.file
         ? `<span class="fn">${esc(S.name)}</span><span class="fd">${S.dur!=null?"길이 "+fmt(S.dur):"길이를 읽지 못했어요"} · <u>다른 파일 열기</u></span>`
         : `<span>파일 열기</span><span class="fd">mp3, m4a 등 음원 파일</span>`}
@@ -158,7 +159,7 @@ function fileStep(){
       <input id="durIn" inputmode="numeric" placeholder="예: 4:50" value="${S.noFile&&S.dur!=null?fmt(S.dur):""}">
       <em>파일 없이 시간만 적어요. 길이를 모르면 비워 두세요.</em>
     </div>
-    <p class="safe">${LOCK}<span>${SAFE} 구글 드라이브 음원은 휴대폰에 한 번 저장한 뒤 열 수 있어요.</span></p>
+    <p class="safe">${LOCK}<span>${SAFE} 아이폰은 “파일 선택”을 누르고 파일 앱에서 고르세요. 구글 드라이브·카카오톡 음원은 “파일에 저장”을 먼저 해 주세요. 음악 앱의 노래는 열 수 없어요.</span></p>
     <div class="btns gap">
       <button class="btn main" id="next" ${S.file||S.noFile?"":"disabled"}>다음</button>
       <p class="msg" id="msg" role="status"></p>
