@@ -519,7 +519,7 @@ const DATA = {
      ]
     ],
     "tip": "발라드는 원키가 높은 곡이 많아요. 키를 1~2개 낮춘 MR을 미리 준비하고, 2절은 빼고 1절+하이라이트로 2분 30초 안팎으로 편집하면 끝까지 집중이 유지돼요.",
-    "link": ""  // 링크축가1  ← "" 안에 구글 드라이브 링크(MR 폴더)를 붙여넣으세요. 비워 두면 버튼이 안 보여요.
+    "link": "https://drive.google.com/drive/folders/1YCxifs6EJv9D1a57XxrvsoxrdyACZjPR?usp=sharing"  // 링크축가1  ← "" 안에 구글 드라이브 링크(MR 폴더)를 붙여넣으세요. 비워 두면 버튼이 안 보여요.
    },
    "party": {
     "name": "흥 폭발 파티형",
@@ -540,7 +540,7 @@ const DATA = {
      ]
     ],
     "tip": "신나는 곡은 하객 호응이 전부예요. 후렴 직전에 제가 “다 같이!” 한마디로 박수를 모아 드릴게요. 신랑신부도 자리에서 같이 흔들어 주면 영상이 훨씬 살아요.",
-    "link": ""  // 링크축가2
+    "link": "https://drive.google.com/drive/folders/1kvZJWFcAEFmdE8b9HvKV0rhquhygiTD4?usp=sharing"  // 링크축가2
    },
    "duet": {
     "name": "달달 듀엣형",
@@ -561,7 +561,7 @@ const DATA = {
      ]
     ],
     "tip": "듀엣은 마이크 2개가 필수예요. 웨딩홀 음향팀에 미리 말해 두고, 파트를 나눈 가사지를 두 장 준비하세요. 마지막 소절만 둘이 같이 부르면 박수가 자연스럽게 터져요.",
-    "link": ""  // 링크축가3
+    "link": "https://drive.google.com/drive/folders/1gJDW0DMQPO7OABsxEhbZ2dGuX1Q37jJJ?usp=sharing"  // 링크축가3
    },
    "surprise": {
     "name": "신랑 서프라이즈형",
@@ -582,7 +582,7 @@ const DATA = {
      ]
     ],
     "tip": "서프라이즈는 사회자와 음향팀만 알면 돼요. 식순에는 ‘축가’로만 적어 두면 제가 신부 모르게 자연스럽게 마이크를 넘겨 드릴게요. 가사를 잊어도 괜찮아요. “사랑해” 한마디면 식장이 터져요.",
-    "link": ""  // 링크축가4
+    "link": "https://drive.google.com/drive/folders/1pu3z-BwBNNkJ2XrEQ5rFpcBfX5uEObdZ?usp=sharing"  // 링크축가4
    },
    "easy": {
     "name": "노래 못해도 되는 축가형",
@@ -603,7 +603,7 @@ const DATA = {
      ]
     ],
     "tip": "이 곡들은 하객이 더 잘 알아요. 후렴에서 마이크를 하객 쪽으로 돌리면 떼창이 터지고, 음이 틀려도 아무도 몰라요. 가사지를 들고 불러도 괜찮아요.",
-    "link": ""  // 링크축가5
+    "link": "https://drive.google.com/drive/folders/1zRRP4iiRqtrExDGRircOQebADzNZ51eT?usp=sharing"  // 링크축가5
    }
   }
  }
