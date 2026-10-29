@@ -12,7 +12,7 @@ const SITE = {
   kicker: "양가 부모님을 위한",
   title: "화촉점화,\n이렇게\n하시면 돼요",
   lead: "진행 방식만 고르면 양가 부모님 동선이 순서대로 정리돼요. 어른들께 보내 드릴 안내 카드가 나와요.",
-  call: "긴장하지\n마세요",
+  kind: "양가 부모님 입장·화촉점화 안내",   // 카드 맨 위 작은 글씨
   hint: "이 카드를 저장해서 양가 부모님께 보내 드리세요",
   // 카드 맨 위 한 줄
   line: "사회자가 한 순서씩 마이크로 안내해 드려요. 이 순서만 알고 계시면 돼요.",
@@ -32,7 +32,7 @@ const FIRST = "enter";
 // 진행 방식별 순서. [누가, 무엇을, (작은 설명)]
 const FLOWS = {
   mothers: {
-    name: "어머님 화촉점화 순서", sub: "가장 많이 하는 방식",
+    name: "어머님 화촉점화", title: "어머님\n화촉점화", call: "양가 어머님,\n화촉점화!",
     steps: [
       ["신랑 어머님", "화촉점화"],
       ["신부 어머님", "화촉점화"],
@@ -43,7 +43,7 @@ const FLOWS = {
     remember: "불을 붙이신 뒤 바로 자리로 가지 마세요. 사회자가 “양가 어머님, 맞절!”, “양가 어머님, 인사!” 하고 신호를 드리면 그때 맞절과 하객 인사를 하고 자리로 돌아가세요."
   },
   all4: {
-    name: "양가 부모님 입장 · 네 분 화촉점화", sub: "",
+    name: "양가 부모님 입장, 네 분 화촉점화", title: "양가 부모님 입장,\n네 분 화촉점화", call: "양가 부모님,\n입장!",
     steps: [
       ["신랑 부모님", "입장"],
       ["신랑 부모님", "단상 앞에서 잠시 기다리기", "신부 부모님이 오실 때까지"],
@@ -58,7 +58,7 @@ const FLOWS = {
     remember: "불을 붙이신 뒤 바로 자리로 가지 마세요. 사회자가 “양가 부모님, 맞절!”, “양가 부모님, 인사!” 하고 신호를 드리면 그때 맞절과 하객 인사를 하고 자리로 돌아가세요."
   },
   greetFirst: {
-    name: "양가 부모님 입장 · 인사 먼저, 어머님 화촉점화", sub: "",
+    name: "양가 부모님 입장, 인사 먼저 어머님 화촉점화", title: "양가 부모님 입장,\n인사 먼저\n어머님 화촉점화", call: "양가 부모님,\n입장!",
     steps: [
       ["신랑 부모님", "입장"],
       ["신부 부모님", "입장"],
@@ -71,7 +71,7 @@ const FLOWS = {
     remember: "아버님은 하객 인사 뒤에 먼저 자리로 가세요. 어머님은 화촉점화까지 하고 자리로 돌아가세요."
   },
   lightFirst: {
-    name: "양가 부모님 입장 · 어머님 화촉점화 뒤 인사", sub: "",
+    name: "양가 부모님 입장, 어머님 화촉점화 뒤 인사", title: "양가 부모님 입장,\n어머님 화촉점화\n뒤 인사", call: "양가 부모님,\n입장!",
     steps: [
       ["신랑 부모님", "입장"],
       ["신부 부모님", "입장"],
@@ -154,7 +154,7 @@ function ask(id){
       const v = +b.dataset.v;
       A[id] = v; order.push(id);
       const next = q.next[v ? "a" : "b"];
-      next ? ask(next) : reveal(SITE.call, result);
+      next ? ask(next) : reveal(FLOWS[flowKey()].call, result);
     }, reduce?60:260);
   });
   const back = document.getElementById("back");
@@ -177,8 +177,8 @@ function result(){
   const key = flowKey(), f = FLOWS[key], notes = notesFor(key);
   app.innerHTML = `
     <article class="card" id="card">
-      <div class="head"><span class="kind">${esc(f.name)}</span><span class="handle">@wed_voice.su</span></div>
-      <h2>${esc(SITE.call).replace(/\n/g,"<br>")}</h2>
+      <div class="head"><span class="kind">${esc(SITE.kind)}</span><span class="handle">@wed_voice.su</span></div>
+      <h2>${esc(f.title).replace(/\n/g,"<br>")}</h2>
       <p class="line">${esc(SITE.line)}</p>
       <ol class="steps">
         ${f.steps.map((s,i)=>`<li><span class="n">${i+1}</span><span class="t"><span class="who">${esc(s[0])}</span><span class="do">${esc(s[1])}</span>${s[2]?`<span class="sub">${esc(s[2])}</span>`:""}</span></li>`).join("")}

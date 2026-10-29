@@ -1,7 +1,7 @@
 /* 양가 부모님 입장·화촉점화 안내 전용 스타일 (공통 스타일은 shared/brand.css) */
 
 /* 어른들이 보시는 카드라 글씨를 크게, 줄 간격을 넉넉하게 */
-.card h2{font-size:clamp(34px,10.5vw,44px)}
+.card h2{font-size:clamp(28px,8.6vw,36px);line-height:1.2}
 .card .line{font-size:16px;color:var(--sub);font-weight:500;margin:0 0 18px;line-height:1.6}
 
 /* 순서 목록 */
