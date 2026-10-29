@@ -9,7 +9,7 @@
 const CATEGORIES = [
   { path: "song", name: "결혼식 음악 찾기", desc: "신랑 입장곡 · 신부 입장곡 · 행진곡 · 축가" }
   // 공개할 때 아래 줄 앞의 // 를 지우세요 (big-day/day.js의 open과 for-our-parents/app.js의 OPEN도 같이 true로)
-  // ,{ path: "big-day", name: "결혼식 당일 준비", desc: "양가 부모님 입장·화촉점화 안내" }
+  // ,{ path: "big-day", name: "결혼식 당일 준비", desc: "양가 부모님 안내 · 부모님 본식 점수 퀴즈" }
 ];
 // =========================================================
 
