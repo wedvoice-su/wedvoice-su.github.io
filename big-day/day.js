@@ -6,7 +6,8 @@
 //   open  : 공개하면 true (그 사이트 app.js의 OPEN도 같이 true로)
 const ITEMS = [
   { key: "parents", label: "양가 부모님 입장·화촉점화", q: "부모님께 보낼 순서 카드", open: false },
-  { key: "parentsQuiz", label: "우리 부모님 본식 점수 퀴즈", q: "부모님께 보내는 O/X 10문제", open: false }
+  { key: "parentsQuiz", label: "우리 부모님 본식 점수 퀴즈", q: "부모님께 보내는 O/X 10문제", open: false },
+  { key: "groomQuiz", label: "우리 신랑 본식 점수 퀴즈", q: "신랑에게 보내는 O/X 10문제", open: false }
 ];
 // =========================================================
 
