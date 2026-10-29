@@ -9,6 +9,9 @@ const ITEMS = [
 ];
 // =========================================================
 
+// 미리 보기: 주소 뒤에 ?preview 를 붙이면 공개 전 사이트도 미리 보기 주소로 바로 열려요
+const PREVIEW = (location.search + location.hash).toLowerCase().includes("preview");
+
 function home(){
   document.body.classList.add("is-cover");
   app.className = "wrap cover";
@@ -22,7 +25,9 @@ function home(){
     <div class="pick">
       ${ITEMS.map(it=>it.open
         ? siteLink(it.key,"go",`<span>${esc(it.label)}</span><span class="q">${esc(it.q)}</span>`)
-        : `<button disabled><span>${esc(it.label)}</span><span class="q">곧 공개</span></button>`).join("")}
+        : PREVIEW
+          ? `<a class="go" href="${siteUrl(it.key)}?preview"><span>${esc(it.label)}</span><span class="q">미리 보기</span></a>`
+          : `<button disabled><span>${esc(it.label)}</span><span class="q">곧 공개</span></button>`).join("")}
     </div>
     ${foot()}`;
 }

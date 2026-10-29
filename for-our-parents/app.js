@@ -2,7 +2,7 @@
 // 공통 기능은 shared/common.js. 문구를 바꾸려면 아래 "문구"만 고치면 돼요.
 
 // ===== 공개 설정 ==========================================
-// 공개 전에는 false. 미리 보려면 주소 뒤에 ?preview 를 붙여요. (예: …/for-our-parents/?preview)
+// 공개 전에는 false. 미리 보려면 주소 뒤에 ?preview 를 붙여요. (예: …/for-our-parents/?preview 또는 …/for-our-parents/#preview)
 const OPEN = false;
 // =========================================================
 
@@ -254,9 +254,14 @@ function soon(){
     ${foot()}`;
 }
 
+// 미리 보기: 주소 뒤에 ?preview 또는 #preview (대소문자 상관없음). 한 번 열면 이 브라우저에서는 계속 미리 보기로 열려요.
+function isPreview(){
+  const u = (location.search + location.hash).toLowerCase();
+  if(u.includes("preview")){ try{ sessionStorage.setItem("preview","1"); }catch(e){} return true; }
+  try{ return sessionStorage.getItem("preview")==="1"; }catch(e){ return false; }
+}
 function route(){
-  const preview = new URLSearchParams(location.search).has("preview");
-  if(!OPEN && !preview){ soon(); return; }
+  if(!OPEN && !isPreview()){ soon(); return; }
   home();
 }
 route();
