@@ -222,7 +222,7 @@ function qSplit(){
 function qMent(){
   const O=ORDERS[S.order];
   askQ(`${O.verb} 전에\n사회자 멘트를 넣을까요?`,
-    [`네, 멘트 뒤에 ${O.verb}!`, "앞소리가 끝나는 곳부터 멘트하고, 곡이 터지기 직전에 외쳐요"],
+    [`네, 멘트 뒤에 ${O.verb}!`, `음원이 시작되면 바로 멘트하고, 곡이 터지기 전에 “${O.call}” 하고 외쳐요`],
     [`멘트 없이\n“${O.call}”만`, "음원을 틀고 정한 지점 1초 전에 바로 외쳐요"],
     "",
     yes=>{ S.ment=yes; go(qSpot); });
