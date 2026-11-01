@@ -18,11 +18,6 @@
 .drop .fn{font-size:16px;word-break:break-all}
 .drop .fd{font-size:14px;color:var(--sub);font-weight:500}
 .drop .fd u{text-decoration-thickness:1px;text-underline-offset:3px}
-.panel{background:var(--card);border-radius:20px;padding:16px;margin-top:12px;display:flex;flex-direction:column;gap:8px}
-.panel label{font-size:14px;font-weight:700}
-.panel input{font:inherit;font-size:18px;font-weight:700;background:var(--paper);border:1.5px solid transparent;border-radius:12px;padding:12px;width:100%;color:var(--ink);-webkit-appearance:none;appearance:none}
-.panel input:focus{outline:none;border-color:var(--accent)}
-.panel em{font-style:normal;font-size:13px;color:var(--sub)}
 .len{margin:14px 0 0;padding:14px 16px;border-radius:14px;font-size:14.5px;line-height:1.55;font-weight:500}
 .len.ok{background:var(--card);color:var(--ink)}
 .len.warn{background:var(--box);color:var(--box-ink)}

@@ -48,7 +48,7 @@ const SAFE = "음원 파일은 이 휴대폰 안에서만 쓰이고, 어디에�
 const LOCK = '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="7" width="10" height="7.5" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5.4 7V5.2a2.6 2.6 0 015.2 0V7" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
 
 // ===== 상태 =====
-const S = { order:null, file:null, url:"", name:"", dur:null, noFile:false,
+const S = { order:null, file:null, url:"", name:"", dur:null,
             timing:null, split:false, ment:null, callFirst:false, spot:null,
             m:{ lead:0, appear:null, enter:null, door:null }, doorAuto:true };
 let stack = [];
@@ -76,7 +76,7 @@ function stopAudio(){ try{ audio.pause(); }catch(e){} onTick = null; cancelAnima
 function clearFile(){
   stopAudio();
   if(S.url){ try{ URL.revokeObjectURL(S.url); }catch(e){} }
-  S.file=null; S.url=""; S.name=""; S.dur=null; S.noFile=false;
+  S.file=null; S.url=""; S.name=""; S.dur=null;
   try{ audio.removeAttribute("src"); audio.load(); }catch(e){}
 }
 function loadFile(file){
@@ -154,16 +154,10 @@ function fileStep(){
         : `<span>파일 열기</span><span class="fd">mp3, m4a 등 음원 파일</span>`}
     </label>
     <div id="len">${lenBox()}</div>
-    <div class="panel" id="nofile" ${S.noFile?"":"hidden"}>
-      <label for="durIn">곡 길이</label>
-      <input id="durIn" inputmode="numeric" placeholder="예: 4:50" value="${S.noFile&&S.dur!=null?fmt(S.dur):""}">
-      <em>파일 없이 시간만 적어요. 길이를 모르면 비워 두세요.</em>
-    </div>
     <p class="safe">${LOCK}<span>${SAFE} 아이폰은 “파일 선택”을 누르고 파일 앱에서 고르세요. 구글 드라이브·카카오톡 음원은 “파일에 저장”을 먼저 해 주세요. 음악 앱의 노래는 열 수 없어요.</span></p>
     <div class="btns gap">
-      <button class="btn main" id="next" ${S.file||S.noFile?"":"disabled"}>다음</button>
+      <button class="btn main" id="next" ${S.file?"":"disabled"}>다음</button>
       <p class="msg" id="msg" role="status"></p>
-      ${S.noFile?"":'<button class="text-btn btn-link" id="nofileBtn">파일 없이 시간만 적을게요</button>'}
     </div>
     ${nav()}
     ${foot()}`;
@@ -174,14 +168,11 @@ function fileStep(){
     msg.textContent="파일을 읽는 중…";
     S.m={ lead:0, appear:null, enter:null, door:null }; S.doorAuto=true;   // 파일이 바뀌면 시간도 처음부터
     const d = await loadFile(f);
-    if(d==null) msg.textContent="이 파일은 재생하지 못했어요. 다른 파일을 열어 주세요.";
+    if(d==null) clearFile();   // 재생하지 못하는 파일로는 못 가요 (음원이 있어야 찍을 수 있어요)
     fileStep();
+    if(d==null) document.getElementById("msg").textContent="이 파일은 재생하지 못했어요. 다른 파일을 열어 주세요.";
   };
-  const nb=document.getElementById("nofileBtn");
-  if(nb) nb.onclick = ()=>{ clearFile(); S.noFile=true; fileStep(); document.getElementById("durIn").focus(); };
-  const di=document.getElementById("durIn");
-  if(di) di.onchange = ()=>{ const t=parseT(di.value); S.dur = t; di.value = t!=null?fmt(t):""; document.getElementById("len").innerHTML=lenBox(); };
-  next.onclick = ()=>{ if(di && document.activeElement===di) di.onchange(); go(qTiming); };
+  next.onclick = ()=>{ if(S.file) go(qTiming); };
 }
 
 // ===== 2. 방식 고르기 =====
@@ -265,7 +256,7 @@ function notice(){
 // 방식이 정해지면 찍을 게 있는지 보고 다음 화면으로
 function afterQ(){
   normalize();
-  const f = needs().length ? mark : (S.file ? rehearse : result);
+  const f = needs().length ? mark : rehearse;
   stack[stack.length-1] = f;   // "이전"을 누르면 질문으로 돌아가게
   f();
 }
@@ -326,18 +317,18 @@ function mark(){
   const O=ORDERS[S.order];
   app.innerHTML = `
     ${topBar(3)}
-    <h2 class="title">${S.file?"곡을 들으면서<br>“여기!”를 눌러 주세요":"시간을 적어 주세요"}</h2>
-    <p class="lead2">${S.file?"찍은 뒤에 1초씩 옮기거나 숫자를 바로 고칠 수 있어요.":"0:16처럼 적으면 돼요. 파일을 열면 들으면서 찍을 수도 있어요."}</p>
-    ${S.file?player():""}
+    <h2 class="title">곡을 들으면서<br>“여기!”를 눌러 주세요</h2>
+    <p class="lead2">찍은 뒤에 1초씩 옮기거나 숫자를 바로 고칠 수 있어요.</p>
+    ${player()}
     <div class="marks" id="marks"></div>
     <div class="facts" id="facts"></div>
     <div class="btns gap"><button class="btn main" id="next">다음</button></div>
     ${nav()}
     ${foot()}`;
   bindNav();
-  if(S.file) bindPlayer();
+  bindPlayer();
   paintMarks();
-  document.getElementById("next").onclick = ()=>{ if(check().ok) go(S.file ? rehearse : result); };
+  document.getElementById("next").onclick = ()=>{ if(check().ok) go(rehearse); };
 }
 function paintMarks(){
   const O=ORDERS[S.order], need=needs(), {e,ok}=check(), m=S.m;
@@ -350,10 +341,10 @@ function paintMarks(){
       <div class="mk-head"><b>${esc(name(k))}</b><input class="mk-t" inputmode="numeric" placeholder="0:00" value="${m[k]!=null?fmt(m[k]):""}" aria-label="${esc(name(k))} 시간"></div>
       <p class="mk-hint">${esc(hint(k))}</p>
       <div class="mk-btns">
-        ${S.file?'<button class="stamp">여기!</button>':""}
+        <button class="stamp">여기!</button>
         <button class="adj" data-d="-1" ${m[k]==null||m[k]<=0?"disabled":""}>−1초</button>
         <button class="adj" data-d="1" ${m[k]==null?"disabled":""}>+1초</button>
-        ${S.file?`<button class="from" ${m[k]==null?"disabled":""}>여기부터 듣기</button>`:""}
+        <button class="from" ${m[k]==null?"disabled":""}>여기부터 듣기</button>
       </div>
       <p class="err">${esc(e[k]||"")}</p>
     </div>`).join("");
