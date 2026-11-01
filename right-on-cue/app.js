@@ -49,7 +49,7 @@ const LOCK = '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="7" widt
 
 // ===== 상태 =====
 const S = { order:null, file:null, url:"", name:"", dur:null, noFile:false,
-            timing:null, split:false, ment:null, spot:null,
+            timing:null, split:false, ment:null, callFirst:false, spot:null,
             m:{ lead:0, appear:null, enter:null, door:null }, doorAuto:true };
 let stack = [];
 function go(fn){ stack.push(fn); fn(); }
@@ -127,7 +127,7 @@ function home(){
 
 function start(k){
   if(S.order !== k) clearFile();
-  S.order=k; S.timing=null; S.split=false; S.ment=null; S.spot=null;
+  S.order=k; S.timing=null; S.split=false; S.ment=null; S.callFirst=false; S.spot=null;
   S.m={ lead:0, appear:null, enter:null, door:null }; S.doorAuto=true;
   stack=[]; go(fileStep);
 }
@@ -223,9 +223,18 @@ function qMent(){
   const O=ORDERS[S.order];
   askQ(`${O.verb} 전에\n사회자 멘트를 넣을까요?`,
     [`네, 멘트 뒤에 ${O.verb}!`, `음원이 시작되면 바로 멘트하고, 곡이 터지기 전에 “${O.call}” 하고 외쳐요`],
-    [`멘트 없이\n“${O.call}”만`, "음원을 틀고 정한 지점 1초 전에 바로 외쳐요"],
+    [`멘트 없이\n“${O.call}”만`, `멘트는 없고 “${O.call}”만 외쳐요. 언제 외칠지는 다음에 골라요`],
     "",
-    yes=>{ S.ment=yes; go(qSpot); });
+    yes=>{ S.ment=yes; S.callFirst=false; go(yes ? qSpot : qCall); });
+}
+// 멘트 없이 타이밍 입장: 외침을 음원 전에 하는지(외침 → 음원 → 정한 지점에 입장), 음원 중에 하는지(음원 → 1초 전 외침 → 입장)
+function qCall(){
+  const O=ORDERS[S.order], bride=S.order==="bride";
+  askQ(`“${O.call}”은\n언제 외칠까요?`,
+    ["음원을 틀기 전에", `외친 직후 음원이 시작되고, 멘트 없이 정한 지점에 ${bride?"문이 열리며 입장해요":O.verb+"해요"}`],
+    ["음원이 나가는 중에", `음원을 먼저 틀고, 정한 지점 1초 전에 외쳐요`],
+    "",
+    yes=>{ S.callFirst=yes; go(qSpot); });
 }
 function qSpot(){
   const O=ORDERS[S.order];
@@ -280,7 +289,7 @@ function normalize(){
 function check(){
   const m=S.m, e={}, need=needs(), has=k=>m[k]!=null;
   if(need.includes("enter") && has("enter")){
-    if(m.enter<1) e.enter = `외침이 1초 전에 나가니까 0:01 이후여야 해요.`;
+    if(m.enter<1) e.enter = S.callFirst ? `정한 지점에 ${ORDERS[S.order].verb}하려면 0:01 이후여야 해요. 0:00이면 “바로 틀어요” 방식이에요.` : `외침이 1초 전에 나가니까 0:01 이후여야 해요.`;
     else if(S.dur!=null && m.enter>S.dur) e.enter = `곡 길이(${fmt(S.dur)})보다 뒤예요.`;
   }
   if(need.includes("lead") && has("lead") && has("enter") && m.lead > m.enter-1) e.lead = "앞소리 끝은 외침(1초 전)보다 앞이어야 해요.";
@@ -333,7 +342,9 @@ function mark(){
 function paintMarks(){
   const O=ORDERS[S.order], need=needs(), {e,ok}=check(), m=S.m;
   const name = k => MARKS[k].name.replace("{verb}",O.verb);
-  const hint = k => MARKS[k].hint.replace("{verb}",O.verb).replace("{call}",O.call);
+  const hint = k => (k==="enter" && S.callFirst)
+    ? `발을 떼는 순간이에요. “${O.call}”은 음원을 틀기 전에 이미 외쳤어요.`
+    : MARKS[k].hint.replace("{verb}",O.verb).replace("{call}",O.call);
   document.getElementById("marks").innerHTML = need.map(k=>`
     <div class="mark" data-k="${k}">
       <div class="mk-head"><b>${esc(name(k))}</b><input class="mk-t" inputmode="numeric" placeholder="0:00" value="${m[k]!=null?fmt(m[k]):""}" aria-label="${esc(name(k))} 시간"></div>
@@ -375,14 +386,15 @@ function cues(){
   const O=ORDERS[S.order], m=S.m, R=[], bride=S.order==="bride";
   const add=(t,who,text)=>R.push({t,who,text});
   if(S.timing){
-    add(0,"음향","사회자 신호에 재생 시작");
+    if(S.callFirst){ add(0,"사회자",`“${O.call}”`); add(0,"음향","외침 직후 재생 시작"); }
+    else add(0,"음향","사회자 신호에 재생 시작");
     if(S.ment){
       if(m.lead>0) add(0,"음원",`앞소리 (종소리·가사) ${fmt(0)}~${fmt(m.lead)}`);
       add(m.lead,"사회자",`멘트 ${fmt(m.lead)}~${fmt(m.enter-1)}`);
     }
     if(bride && S.split) add(m.appear,"문","문 열림 · 신부 등장");
     if(bride && !S.split && m.door<m.enter) add(m.door,"문","문 열림");
-    add(m.enter-1,"사회자",`“${O.call}”`);
+    if(!S.callFirst) add(m.enter-1,"사회자",`“${O.call}”`);
     add(m.enter,O.who, bride ? (S.split ? "아버님과 입장" : (m.door===m.enter ? "입장 · 문 열림" : "입장")) : O.verb);
   } else if(bride && S.split){
     add(0,"사회자","등장 멘트");
@@ -402,11 +414,12 @@ function phases(){
   const O=ORDERS[S.order], m=S.m, P=[], bride=S.order==="bride";
   const walk = (bride ? (S.split ? "아버님과 입장" : "입장") : O.verb) + "\n천천히 걷기";
   if(S.timing){
+    if(S.callFirst) P.push({t:0,label:O.call,call:true,pre:true});   // 음원 전에 외쳐요 (재생 버튼을 누르면 먼저 보여 줘요)
     if(S.ment){ if(m.lead>0) P.push({t:0,label:"앞소리"}); P.push({t:m.lead,label:"사회자 멘트"}); }
     else P.push({t:0,label:"음원 시작"});
     if(bride && S.split) P.push({t:m.appear,label:"문 열림 · 신부 등장"});
     if(bride && !S.split && m.door<m.enter) P.push({t:m.door,label:"문 열림"});
-    P.push({t:m.enter-1,label:O.call,call:true});
+    if(!S.callFirst) P.push({t:m.enter-1,label:O.call,call:true});
     P.push({t:m.enter,label:walk});
   } else if(bride && S.split){
     P.push({t:0,label:"문 열림 · 신부 등장"});
@@ -443,7 +456,7 @@ function rehearse(){
         now=document.getElementById("now"), play=document.getElementById("play"), items=[...document.querySelectorAll("#cuelist li")];
   let last=-1;
   onTick = t => {
-    let cur=-1; for(let i=0;i<P.length;i++) if(t>=P[i].t) cur=i;
+    let cur=-1; for(let i=0;i<P.length;i++) if(!P[i].pre && t>=P[i].t) cur=i;
     const c=P[cur], nx=P[cur+1];
     if(cur!==last){
       last=cur;
@@ -458,8 +471,14 @@ function rehearse(){
     if(audio.ended){ phNow.textContent = `곡이 끝났어요 (${fmt(S.dur)})`; phNext.textContent=""; }
   };
   play.onclick = ()=>{
-    if(audio.paused||audio.ended){ last=-1; audio.currentTime=0; audio.play().catch(()=>{}); }
-    else { audio.pause(); }
+    if(!(audio.paused||audio.ended)){ audio.pause(); return; }
+    last=-1; audio.currentTime=0;
+    const pre = P.findIndex(p=>p.pre);
+    if(pre<0){ audio.play().catch(()=>{}); return; }
+    // 외침을 음원 전에 하는 방식: 외침을 먼저 크게 보여 주고 나서 음원을 틀어요
+    phNow.textContent = P[pre].label; phNext.textContent = "다음 0:00 음원 시작";
+    items.forEach((li,i)=>li.classList.toggle("on",i===pre));
+    reveal(O.call, ()=>audio.play().catch(()=>{}));
   };
   document.getElementById("next").onclick = ()=>go(result);
 }
@@ -470,6 +489,7 @@ function modeLine(){
   const sp = S.order==="bride" && S.split ? " 등장과 입장을 따로 해요." : "";
   if(!S.timing) return `“${O.call}” 직후 파일을 처음부터 틀어요. 파일의 0:00이 곧 ${v}이에요.${sp}`;
   if(S.ment) return `타이밍 ${v}. 앞소리가 끝나면 사회자 멘트, 그다음 “${O.call}” 하고 1초 뒤 ${v}해요.${sp}`;
+  if(S.callFirst) return `타이밍 ${v}. “${O.call}” 하고 바로 음원을 틀고, 멘트 없이 정한 지점에 ${v}해요.${sp}`;
   return `타이밍 ${v}. 음원을 먼저 틀고, 정한 지점 1초 전에 “${O.call}”을 외쳐요.${sp}`;
 }
 function memos(){
