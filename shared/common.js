@@ -13,7 +13,7 @@ const SITES = {
   "march": { path: "hand-in-hand", reel: "https://www.instagram.com/reel/DfEE6LQT6O4/" },  // 행진곡 테스트 (버튼은 릴스로)
   "serenade": { path: "sing-for-you", reel: "https://www.instagram.com/reel/DfHNCqZTnEK/" },  // 축가 테스트 (버튼은 릴스로)
   "thanks": { path: "with-gratitude", reel: "" },   // 감사 문자 & 땡큐 카드 (이번 주 신부님용 임시 주소)  TODO: 릴스 올리면 주소 넣기
-  "cue": { path: "right-on-cue", reel: "" },        // 입장 타이밍 큐시트 (미공개: 행진곡·축가 공개 뒤에. 공개하면 right-on-cue/app.js의 OPEN을 true로)
+  "cue": { path: "right-on-cue", reel: "" },        // 입장 타이밍 큐시트 (공개 2026-11-01, 아직 허브·결과 화면에 버튼 없음)  TODO: 릴스 올리면 주소 넣기
   "parents": { path: "for-our-parents", reel: "" }, // 양가 부모님 입장·화촉점화 안내 (미공개. 공개하면 for-our-parents/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
   "parentsQuiz": { path: "full-marks", reel: "" }, // 우리 부모님 본식 점수 퀴즈 (미공개. 공개하면 full-marks/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
   "groomQuiz": { path: "well-suited", reel: "" }   // 우리 신랑 본식 점수 퀴즈 (미공개. 공개하면 well-suited/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
