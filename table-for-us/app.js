@@ -26,12 +26,7 @@ const REGIONS = [
   { name: "종로 · 을지로", st: ["종로3가", "을지로3가"] },
   { name: "성동 · 광진", st: ["왕십리", "건대입구"] }
 ];
-// 결과 카드의 "사회자 한마디" (11명 이상이면 11+ 문구)
-const TIP = {
-  "남": "청첩장은 첫 잔을 들기 전에 건네세요. 그리고 식 끝나고 원판 사진까지 꼭 같이 찍자고 말해 두세요.",
-  "여": "청첩장은 음식이 나오기 전에 건네세요. 그리고 식 끝나고 원판 사진까지 꼭 같이 찍자고 말해 두세요.",
-  "11+": "11명이 넘으면 한 공간에 다 앉을 수 있는지가 먼저예요. 예약 전화에서 '한 방에 몇 명까지 되나요?'부터 물어보세요."
-};
+// 결과 카드에 "사회자 한마디"는 넣지 않아요 — 식당 고르기는 사회자 전문 영역이 아니라서 (사회자님, 2026-11-03)
 // 고른 인원이 앉을 수 있다고 확인되지 않은 곳에 붙는 안내
 const FIT = {
   "7-10": "단체석 정보가 없는 곳이에요. 7명이 넘으면 전화로 자리부터 확인해 주세요.",
@@ -243,7 +238,6 @@ function result(){
   plain();
   const { list, fit } = pickPlaces();
   const who = WHO[S.who], size = sizeLabel(S.size);
-  const tip = S.size === "11+" ? TIP["11+"] : TIP[S.who];
   app.innerHTML = `
     <div class="top"><span>${NAME}</span><span>${esc(S.st)}역</span></div>
     <div class="conds" role="group" aria-label="조건 바꾸기">
@@ -257,7 +251,6 @@ function result(){
       <p class="line">${esc(who.short)} · ${esc(size)}</p>
       <p class="desc">${esc(DATA_DATE)} 기준 · 예약할 때 한 번 더 확인해 주세요</p>
       ${list.map(placeHtml).join("")}
-      <div class="tip"><b>사회자 한마디</b><p>${esc(tip)}</p></div>
       ${sign()}
     </article>
     <div class="after">

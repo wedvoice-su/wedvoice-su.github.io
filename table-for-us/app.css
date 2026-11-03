@@ -70,7 +70,6 @@
 .pa{display:flex;align-items:center;justify-content:center;min-height:44px;border-radius:12px;background:var(--paper);color:var(--ink);font-size:13px;font-weight:700;text-decoration:none;border:0;text-align:center;padding:0 4px;line-height:1.25}
 .pa.call{background:var(--ink);color:var(--paper)}
 .pa:disabled{opacity:1;color:var(--accent)}
-.card .tip{margin-top:4px}
 
 /* 복사가 막힐 때 보여 주는 문구 */
 .manual{font-size:14px;line-height:1.5;resize:none;white-space:pre-wrap}
