@@ -15,6 +15,7 @@ const SITES = {
   "thanks": { path: "from-the-heart", reel: "" },   // 감사 문자 & 땡큐 카드 (정식 주소 2026-11-02, 허브엔 아직 버튼 없음)  TODO: 릴스 올리면 주소 넣기
   "cue": { path: "right-on-cue", reel: "" },        // 입장 타이밍 큐시트 (공개 2026-11-01, 아직 허브·결과 화면에 버튼 없음)  TODO: 릴스 올리면 주소 넣기
   "flow": { path: "in-good-order", reel: "" },     // 결혼식 식순표 (미공개. 공개하면 in-good-order/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
+  "table": { path: "table-for-us", reel: "" },     // 청모 장소 찾기 (미공개. 공개하면 table-for-us/app.js의 OPEN을 true로, 아직 어느 카테고리에도 없음)  TODO: 릴스 올리면 주소 넣기
   "parents": { path: "for-our-parents", reel: "" }, // 양가 부모님 입장·화촉점화 안내 (미공개. 공개하면 for-our-parents/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
   "parentsQuiz": { path: "full-marks", reel: "" }, // 우리 부모님 본식 점수 퀴즈 (미공개. 공개하면 full-marks/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
   "groomQuiz": { path: "well-suited", reel: "" }   // 우리 신랑 본식 점수 퀴즈 (미공개. 공개하면 well-suited/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기

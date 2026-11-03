@@ -1,0 +1,77 @@
+/* 청모 장소 찾기 전용 스타일 (공통 스타일은 shared/brand.css) */
+
+/* 질문 */
+.answers .a{display:block}
+.answers .sub{display:block;font-size:14px;font-weight:500;color:var(--sub);margin-top:3px}
+.question + .lead2{margin-top:-16px}
+.lead2{font-size:15px;color:var(--sub);margin:0 0 18px;line-height:1.6}
+.title{font-weight:900;font-size:clamp(26px,7.6vw,32px);line-height:1.25;letter-spacing:-.02em;margin:24px 0 12px}
+.under{margin-top:18px}
+
+/* 역 고르기 */
+.regions{display:flex;flex-direction:column;gap:14px}
+.reg-n{font-size:13px;font-weight:700;color:var(--sub);margin:0 2px 8px}
+.stations{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.stn{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-height:64px;background:var(--card);border:2px solid transparent;border-radius:16px;padding:11px 12px;text-align:left}
+.stn b{font-size:17px;font-weight:900;letter-spacing:-.01em;line-height:1.25}
+.stn small{font-size:11.5px;color:var(--sub);font-weight:500;line-height:1.35}
+.stn.on{border-color:var(--accent)}
+@media (hover:hover){.stn:hover{border-color:var(--line)}.stn.on:hover{border-color:var(--accent)}}
+.find{margin-top:20px;background:var(--card);border-radius:20px;padding:14px}
+.find .lbl{display:block;font-size:13px;font-weight:700;color:var(--sub);margin:0 2px 8px}
+.in{font:inherit;font-size:16px;width:100%;min-height:46px;background:var(--paper);border:1.5px solid transparent;border-radius:12px;padding:10px 12px;color:var(--ink);-webkit-appearance:none;appearance:none;display:block}
+.in:focus{outline:none;border-color:var(--accent)}
+.in::placeholder{color:var(--sub)}
+.hits{display:flex;flex-direction:column;gap:2px;margin-top:6px}
+.hits:empty{display:none}
+.hit{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;background:transparent;border:0;border-radius:12px;padding:11px 8px;text-align:left}
+@media (hover:hover){.hit:hover{background:var(--paper)}}
+.hit:active{background:var(--paper)}
+.hn b{font-size:16px;font-weight:700}
+.hn small{font-size:12.5px;color:var(--sub);margin-left:6px;font-weight:500}
+.go2{font-size:13px;font-weight:700;color:var(--accent);white-space:nowrap}
+.hits .none{font-size:14px;color:var(--sub);margin:8px 4px 2px;line-height:1.5}
+
+/* 가까운 역 */
+.lead2.tight{margin-top:0}
+.near{display:flex;flex-direction:column;gap:8px}
+.nearbtn{display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;background:var(--card);border:2px solid transparent;border-radius:18px;padding:16px 18px;text-align:left}
+.nearbtn .hn{display:flex;flex-direction:column;gap:2px}
+.nearbtn .hn b{font-size:19px;font-weight:900}
+.nearbtn .hn small{margin:0}
+.nearbtn .km{font-size:14px;font-weight:700;color:var(--accent);white-space:nowrap;font-variant-numeric:tabular-nums}
+@media (hover:hover){.nearbtn:hover{border-color:var(--accent)}}
+
+/* 결과 위 조건 바꾸기 */
+.conds{display:flex;flex-direction:column;gap:6px;margin:-12px 0 12px}
+.seg{display:flex;background:var(--card);border-radius:14px;padding:4px;gap:4px}
+.sg{flex:1 1 0;min-height:40px;border:0;border-radius:10px;background:transparent;font-size:14px;font-weight:700;color:var(--sub);padding:0 6px}
+.sg.on{background:var(--ink);color:var(--paper)}
+.status2{background:var(--box);color:var(--box-ink);border-radius:14px;padding:12px 14px;font-size:14px;line-height:1.55;font-weight:500;margin:0 0 12px}
+
+/* 결과 카드 */
+.card h2.res-h{font-size:clamp(30px,9vw,38px);line-height:1.15}
+.card .desc{margin-bottom:6px}
+.place{border-top:2px solid var(--ink);padding:16px 0 18px;margin-top:12px}
+.p-head{display:flex;gap:10px;align-items:flex-start}
+.p-n{flex:0 0 28px;width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;font-weight:900;font-size:15px;display:grid;place-items:center;margin-top:2px;font-variant-numeric:tabular-nums}
+.p-t{display:flex;flex-direction:column;min-width:0}
+.p-cat{font-size:13px;font-weight:700;color:var(--accent)}
+.p-name{font-size:22px;font-weight:900;line-height:1.25;letter-spacing:-.02em;word-break:keep-all;overflow-wrap:anywhere}
+.p-why{font-size:15px;font-weight:700;margin:8px 0 10px;line-height:1.5}
+.facts{margin:0}
+.facts div{display:grid;grid-template-columns:36px minmax(0,1fr);gap:10px;padding:7px 0;border-top:1px solid var(--line);font-size:14px;line-height:1.5}
+.facts dt{font-weight:700;color:var(--sub);font-size:13px;padding-top:1px}
+.facts dd{margin:0;overflow-wrap:anywhere}
+.facts .sm{display:block;font-size:12.5px;color:var(--sub);margin-top:1px}
+.p-notes{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.p-notes li{background:var(--paper);border-radius:12px;padding:9px 12px;font-size:13.5px;line-height:1.5;font-weight:500;border-left:4px solid var(--accent)}
+.p-act{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:12px}
+.pa{display:flex;align-items:center;justify-content:center;min-height:44px;border-radius:12px;background:var(--paper);color:var(--ink);font-size:13px;font-weight:700;text-decoration:none;border:0;text-align:center;padding:0 4px;line-height:1.25}
+.pa.call{background:var(--ink);color:var(--paper)}
+.pa:disabled{opacity:1;color:var(--accent)}
+.card .tip{margin-top:4px}
+
+/* 복사가 막힐 때 보여 주는 문구 */
+.manual{font-size:14px;line-height:1.5;resize:none;white-space:pre-wrap}
+.hiddenbox{position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0}
