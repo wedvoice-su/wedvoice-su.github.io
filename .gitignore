@@ -4,3 +4,6 @@ docs/
 
 .DS_Store
 릴스/
+
+# 식순표 참고용 옛 사이트 (Express+SQLite, 실제 신부 데이터·.env 포함) — 절대 올리지 않음, 새 식순표 사이트 완성 후 삭제
+wedding-flow-reference/
