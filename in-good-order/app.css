@@ -53,9 +53,11 @@ input[type=date].in,input[type=time].in{min-width:0}
 .step{display:flex;align-items:center;background:var(--paper);border-radius:12px}
 .step button{width:40px;height:40px;border:0;background:transparent;font-size:20px;font-weight:700;border-radius:12px}
 .step b{min-width:48px;text-align:center;font-variant-numeric:tabular-nums;font-size:15px}
-.ctrl .mv,.ctrl .del{border:0;border-radius:12px;padding:0 12px;height:40px;font-size:14px;font-weight:700;background:var(--paper)}
+.mvs{display:flex;gap:6px;margin-top:6px}
+.mv,.ctrl .del{border:0;border-radius:12px;padding:0 12px;height:40px;font-size:14px;font-weight:700;background:var(--paper)}
+.mvs .mv{flex:1}
 .ctrl .del{color:var(--accent);margin-left:auto}
-.ctrl button:disabled{opacity:.4;cursor:default}
+.ctrl button:disabled,.mvs button:disabled{opacity:.4;cursor:default}
 
 /* 순서 넣기 */
 .lib{background:var(--card);border-radius:20px;padding:8px;display:flex;flex-direction:column;gap:2px}

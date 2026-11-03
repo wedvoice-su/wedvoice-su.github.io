@@ -307,9 +307,11 @@ function rowHtml(it, i){
         <input class="in" data-note placeholder="진행 내용 · 메모 (선택)" value="${esc(content)}" autocomplete="off">
         <div class="ctrl">
           <div class="step" aria-label="소요 시간"><button type="button" data-d="-1" ${it.min<=0?"disabled":""}>−</button><b>${it.min}분</b><button type="button" data-d="1" ${it.min>=60?"disabled":""}>+</button></div>
+          <button type="button" class="del" data-del>빼기</button>
+        </div>
+        <div class="mvs">
           <button type="button" class="mv" data-mv="-1" ${i===0?"disabled":""}>▲ 위로</button>
           <button type="button" class="mv" data-mv="1" ${i===S.items.length-1?"disabled":""}>▼ 아래로</button>
-          <button type="button" class="del" data-del>빼기</button>
         </div>
       </div>`;
   }
