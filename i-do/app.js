@@ -134,10 +134,12 @@ function fresh(){
     year:"", season:"", meet:"", place:"", impB:"", impBText:"", impG:"", impGText:"",
     conf:"", love:"", promG:[], promB:[], traitB:[], traitG:[],
     open:0, close:0, flip:{}, off:{}, edit:{}, memo:"",
-    sc:"home", step:0, resume:null };   // sc: 지금 화면(home/names/q/result), resume: 이어서 만들기로 갈 화면
+    sc:"home", step:0, resume:null, ret:false };   // sc: 지금 화면(home/names/q/result), resume: 이어서 만들기로 갈 화면
 }
 let S = fresh();
-let sel = null, aiOpen = false;   // 화면에서만 쓰는 상태: 누른 줄, AI 상자 열림 (보관 안 함)
+// 화면에서만 쓰는 상태 (보관 안 함): 누른 줄, AI 상자 열림, 새로 시작 확인 중인 버튼, 2개 넘게 고르려던 칩 묶음
+let sel = null, aiOpen = false, armed = null, limitKey = null;
+const WIPE = "만들던 서약서가 지워져요 · 한 번 더 누르면 새로 시작";
 function save(){ try{ STORE.setItem(KEY, JSON.stringify(S)); }catch(e){} }
 function load(){
   try{ const d = JSON.parse(STORE.getItem(KEY) || "null"); if(d && d.mode) return Object.assign(fresh(), d); }catch(e){}
@@ -248,7 +250,8 @@ function render(){
 function nav(sc, step, how){   // how: "push" 앞으로 / "jump" 건너뛰어 이동 / "replace" 지금 기록을 바꿈
   S.sc = sc; if(step!==undefined) S.step = step;
   if(sc!=="home") S.resume = { sc, step:S.step };
-  sel = null; aiOpen = false;
+  if(sc==="result" || sc==="home" || sc==="names") S.ret = false;   // ret: 결과에서 질문으로 왔음 → "서약서로 돌아가기"
+  sel = null; aiOpen = false; armed = null; limitKey = null;
   const st = { sc, step:S.step, back: how==="push" };
   if(how==="replace") history.replaceState(st, ""); else history.pushState(st, "");
   save(); render(); window.scrollTo(0,0);
@@ -268,7 +271,8 @@ window.addEventListener("popstate", e=>{
   S.sc = S.mode ? st.sc : "home";
   if(st.step!==undefined) S.step = st.step;
   if(S.sc!=="home") S.resume = { sc:S.sc, step:S.step };
-  sel = null; aiOpen = false;
+  if(S.sc!=="q") S.ret = false;
+  sel = null; aiOpen = false; armed = null; limitKey = null;
   save(); render(); window.scrollTo(0,0);
 });
 // 같은 화면을 다시 그릴 때 (칩·줄 누르기): 스크롤 위치 유지
@@ -289,12 +293,16 @@ function home(){
     <p class="lead">처음 만난 날, 서로의 버릇 같은 걸 고르면 우리 이야기가 담긴 서약서가 나와요. 둘이 같이 골라도, 신부 혼자 골라도 돼요.</p>
     <div class="pick">
       ${saved ? `<button id="resume"><span>이어서 만들기</span><span class="q">만들던 서약서</span></button>` : ""}
-      <button id="story"><span>우리 이야기로 만들기</span><span class="q">질문 6개</span></button>
-      <button id="basic"><span>기본 서약서로 빠르게</span><span class="q">이름만 넣으면 끝</span></button>
+      <button id="story"${armed==="story"?' class="armed"':""}><span>우리 이야기로 만들기</span><span class="q">${armed==="story" ? WIPE : "질문 6개"}</span></button>
+      <button id="basic"${armed==="basic"?' class="armed"':""}><span>기본 서약서로 빠르게</span><span class="q">${armed==="basic" ? WIPE : "이름만 넣으면 끝"}</span></button>
     </div>
     <p class="note">※ 적은 내용은 이 휴대폰 브라우저 안에만 보관되고, 어디에도 올라가지 않아요.</p>
     ${foot()}`;
-  const start = mode=>{ S = fresh(); S.mode = mode; nav("names", 0, "push"); };
+  // 만들던 서약서가 있으면 한 번 더 눌러야 새로 시작 (실수로 지우지 않게)
+  const start = mode=>{
+    if(saved && armed!==mode){ armed = mode; home(); return; }
+    S = fresh(); S.mode = mode; nav("names", 0, "push");
+  };
   document.getElementById("story").onclick = ()=>start("story");
   document.getElementById("basic").onclick = ()=>start("basic");
   const r = document.getElementById("resume");
@@ -331,65 +339,100 @@ function chips(k, list, max){
     return `<button class="chip${on?" on":""}" data-k="${k}" data-v="${esc(v)}" data-max="${max||0}" aria-pressed="${on}">${esc(text)}</button>`;
   }).join("")}</div>`;
 }
+// 여러 개 고르는 묶음 제목: 고른 수 / 최대, 다 차면 안내
+function groupTitle(text, k, max){
+  const full = S[k].length >= max;
+  return `<p class="gt">${text} <small class="${full?"full":""}">${S[k].length} / ${max}</small></p>
+    ${limitKey===k ? `<p class="warn">${max}개까지 골라요. 하나를 빼고 다시 눌러 주세요.</p>` : ""}`;
+}
+// 칩 바로 아래 미리보기: 고르면 그 자리에서 문장이 보여요
+const PV = {};
+function pv(id, filter, emptyTitle){
+  PV[id] = { filter, emptyTitle };
+  return `<div class="pv-inline" id="pv-${id}">${pvInner(id)}</div>`;
+}
+function pvInner(id){
+  const { filter, emptyTitle } = PV[id];
+  const lines = build().filter(filter);
+  const title = emptyTitle && emptyTitle() ? emptyTitle() : "이렇게 들어가요";
+  if(!lines.length) return `<p class="pv-empty">고르면 여기에 문장이 보여요.</p>`;
+  return `<p class="pv-title">${title}</p>` + lines.map(l=>`<p><b>(${l.who})</b> ${esc(l.text)}</p>`).join("");
+}
 const idx = list=>list.map((t,i)=>[String(i), t]);
+const noProm = ()=> !S.promG.length && !S.promB.length ? "안 고르면 이렇게 들어가요" : "";
 const QS = [
-  { title:"처음 만난 건 언제, 어디였나요?", desc:"생각나는 것만 골라도 돼요.", sec:["meet"],
-    clear:()=>{ S.year=""; S.season=""; S.meet=""; S.place=""; }, body:()=>{
+  { title:"처음 만난 건 언제, 어디였나요?", desc:"생각나는 것만 골라도 돼요.", has:()=>S.year||S.season||S.meet, body:()=>{
       const years = []; for(let y=2026; y>=2000; y--) years.push(y);
       return `
       <p class="gt">만난 해</p>
       <select id="year" class="sel" aria-label="만난 해"><option value="">기억 안 나요</option>${years.map(y=>`<option${String(y)===S.year?" selected":""}>${y}</option>`).join("")}</select>
       <p class="gt">계절</p>${chips("season", ["봄","여름","가을","겨울"].map(s=>[s,s]))}
       <p class="gt">만난 곳</p>${chips("meet", [...idx(MEET.map(m=>m[0])), ["direct","직접 적기"]])}
-      ${S.meet==="direct" ? `<input id="place" class="inp" value="${esc(S.place)}" placeholder="예: 강남역 스터디카페" autocomplete="off" enterkeyhint="done" aria-label="만난 곳">` : ""}`; } },
-  { title:"그날, 서로 어떤 모습이었나요?", desc:"신랑이 기억하는 신부, 신부가 기억하는 신랑을 하나씩 골라요.", sec:["meet"],
-    clear:()=>{ S.impB=""; S.impG=""; }, body:()=>`
+      ${S.meet==="direct" ? `<input id="place" class="inp" value="${esc(S.place)}" placeholder="예: 강남역 스터디카페" autocomplete="off" enterkeyhint="done" aria-label="만난 곳">` : ""}
+      ${pv("meet", l=>l.id==="meet1")}`; } },
+  { title:"그날, 서로 어떤 모습이었나요?", desc:"신랑이 기억하는 신부, 신부가 기억하는 신랑을 하나씩 골라요.", has:()=>S.impB||S.impG, body:()=>`
       <p class="gt">그날의 신부</p>${chips("impB", [...idx(IMP), ["direct","직접 적기"]])}
       ${S.impB==="direct" ? `<input id="impBText" class="inp" value="${esc(S.impBText)}" placeholder="예: 커피를 쏟던" autocomplete="off" enterkeyhint="done" aria-label="그날의 신부 직접 적기"><p class="warn" id="impBWarn"></p>` : ""}
+      ${pv("impB", l=>l.id==="meet1")}
       <p class="gt">그날의 신랑</p>${chips("impG", [...idx(IMP), ["direct","직접 적기"]])}
-      ${S.impG==="direct" ? `<input id="impGText" class="inp" value="${esc(S.impGText)}" placeholder="예: 커피를 쏟던" autocomplete="off" enterkeyhint="done" aria-label="그날의 신랑 직접 적기"><p class="warn" id="impGWarn"></p>` : ""}` },
-  { title:"누가 먼저 좋아한다고 했나요?", desc:"", sec:["conf"],
-    clear:()=>{ S.conf=""; }, body:()=>chips("conf", [["b","신랑이 먼저"],["g","신부가 먼저"],["diff","서로 다르게 기억해요"]]) },
-  { title:"우리 연애를 한마디로 하면?", desc:"하나만 골라요.", sec:["love"],
-    clear:()=>{ S.love=""; }, body:()=>chips("love", idx(LOVE.map(l=>l[0]))) },
-  { title:"서로에게 어떤 약속을 할까요?", desc:"신랑이 할 약속, 신부가 할 약속을 1~2개씩 골라요. 같은 걸 골라도 돼요.", sec:["prom"],
-    clear:()=>{ S.promG=[]; S.promB=[]; }, body:()=>`
-      <p class="gt">신랑의 약속 <small>${S.promG.length} / 2</small></p>${chips("promG", idx(PROM.map(p=>p[0])), 2)}
-      <p class="gt">신부의 약속 <small>${S.promB.length} / 2</small></p>${chips("promB", idx(PROM.map(p=>p[0])), 2)}` },
-  { title:"서로 어떤 사람인가요?", desc:"고르면 웃음 포인트 약속이 들어가요. 신부를 고르면 신랑이, 신랑을 고르면 신부가 말해요.", sec:["trait"],
-    clear:()=>{ S.traitB=[]; S.traitG=[]; }, body:()=>`
-      <p class="gt">신부는 이런 사람이에요 <small>${S.traitB.length} / 2</small></p>${chips("traitB", idx(TRAITS.map(t=>t[0])), 2)}
-      <p class="gt">신랑은 이런 사람이에요 <small>${S.traitG.length} / 2</small></p>${chips("traitG", idx(TRAITS.map(t=>t[0])), 2)}` }
+      ${S.impG==="direct" ? `<input id="impGText" class="inp" value="${esc(S.impGText)}" placeholder="예: 커피를 쏟던" autocomplete="off" enterkeyhint="done" aria-label="그날의 신랑 직접 적기"><p class="warn" id="impGWarn"></p>` : ""}
+      ${pv("impG", l=>l.id==="meet2")}` },
+  { title:"누가 먼저 좋아한다고 했나요?", desc:"", has:()=>S.conf, body:()=>`
+      ${chips("conf", [["b","신랑이 먼저"],["g","신부가 먼저"],["diff","서로 다르게 기억해요"]])}
+      ${pv("conf", l=>l.sec==="conf")}` },
+  { title:"우리 연애를 한마디로 하면?", desc:"하나만 골라요.", has:()=>S.love, body:()=>`
+      ${chips("love", idx(LOVE.map(l=>l[0])))}
+      ${pv("love", l=>l.id==="love", ()=> S.love==="" ? "안 고르면 이렇게 들어가요" : "")}` },
+  { title:"서로에게 어떤 약속을 할까요?", desc:"신랑이 할 약속, 신부가 할 약속을 1~2개씩 골라요. 같은 걸 골라도 돼요.", has:()=>S.promG.length||S.promB.length, body:()=>`
+      ${groupTitle("신랑의 약속", "promG", 2)}${chips("promG", idx(PROM.map(p=>p[0])), 2)}
+      ${pv("promG", l=>l.sec==="prom" && l.who!=="신부", noProm)}
+      ${groupTitle("신부의 약속", "promB", 2)}${chips("promB", idx(PROM.map(p=>p[0])), 2)}
+      ${pv("promB", l=>l.sec==="prom" && l.who!=="신랑", noProm)}` },
+  { title:"서로 어떤 사람인가요?", desc:"고르면 웃음 포인트 약속이 들어가요. 신부를 고르면 신랑이, 신랑을 고르면 신부가 말해요.", has:()=>S.traitB.length||S.traitG.length, body:()=>`
+      ${groupTitle("신부는 이런 사람이에요", "traitB", 2)}${chips("traitB", idx(TRAITS.map(t=>t[0])), 2)}
+      ${pv("traitB", l=>l.sec==="trait" && l.id.endsWith("-신부"))}
+      ${groupTitle("신랑은 이런 사람이에요", "traitG", 2)}${chips("traitG", idx(TRAITS.map(t=>t[0])), 2)}
+      ${pv("traitG", l=>l.sec==="trait" && l.id.endsWith("-신랑"))}` }
 ];
+const LAST = QS.length - 1;
 
-function previewHtml(){
-  const sec = QS[S.step].sec;
-  const lines = build().filter(l=>sec.includes(l.sec));
-  if(!lines.length) return `<p class="pv-empty">고르면 여기에 문장이 보여요.</p>`;
-  return lines.map(l=>`<p><b>(${l.who})</b> ${esc(l.text)}</p>`).join("");
+// 아래에 붙는 막대: 이전 · 읽는 시간 · 다음(안 골랐으면 건너뛰기). 결과에서 왔으면 서약서로 돌아가기
+function nextLabel(){ return S.step===LAST ? "서약서 보기" : QS[S.step].has() ? "다음" : "건너뛰기"; }
+function barTime(){
+  const sec = seconds(build());
+  return `<span class="${sec>LIMIT_SEC?"over":""}">읽는 시간 약 ${timeText(sec)}</span>`;
 }
-function refreshPreview(){ const p = document.getElementById("pv"); if(p) p.innerHTML = previewHtml(); }
+function refreshPreview(){
+  Object.keys(PV).forEach(id=>{ const el = document.getElementById("pv-"+id); if(el) el.innerHTML = pvInner(id); });
+  const t = document.getElementById("qtime"); if(t) t.innerHTML = barTime();
+  const n = document.getElementById("next"); if(n && !S.ret) n.textContent = nextLabel();
+}
 
 function ask(){
   document.body.classList.remove("is-cover");
   app.className = "wrap";
   const q = QS[S.step];
+  Object.keys(PV).forEach(k=>delete PV[k]);
   app.innerHTML = `
     ${topBar(`질문 ${S.step+1} / ${QS.length}`)}
     <h2 class="qt">${esc(q.title)}</h2>
     ${q.desc ? `<p class="qd">${esc(q.desc)}</p>` : ""}
     <div class="panel">${q.body()}</div>
-    <div class="pv-box"><p class="pv-title">이렇게 들어가요</p><div id="pv" aria-live="polite">${previewHtml()}</div></div>
-    <div class="nav">
+    <div class="qbar">
       <button class="text-btn" id="prev">이전</button>
-      <span class="nav-r"><button class="text-btn" id="skip">건너뛰기</button><button class="btn main" id="next">다음</button></span>
+      ${S.ret
+        ? `<span class="nav-r">${S.step<LAST ? `<button class="text-btn" id="next">다음 질문</button>` : ""}<button class="btn main" id="toResult">서약서로 돌아가기</button></span>`
+        : `<span class="qtime" id="qtime">${barTime()}</span><button class="btn main" id="next">${nextLabel()}</button>`}
     </div>
     ${foot()}`;
   app.querySelectorAll(".chip").forEach(c=>c.onclick = ()=>{
     const k = c.dataset.k, v = c.dataset.v, max = +c.dataset.max;
+    limitKey = null;
     if(max){
       const arr = S[k], i = arr.indexOf(v);
-      if(i>=0) arr.splice(i,1); else { if(arr.length>=max) arr.shift(); arr.push(v); }
+      if(i>=0) arr.splice(i,1);
+      else if(arr.length>=max) limitKey = k;   // 다 찼으면 바꾸지 않고 안내만
+      else arr.push(v);
     } else S[k] = S[k]===v ? "" : v;
     save(); redraw();
     const inp = document.getElementById(k==="meet" ? "place" : k+"Text");
@@ -405,16 +448,16 @@ function ask(){
   }));
   ["place","impBText","impGText"].forEach(id=>{ const el = document.getElementById(id); if(el) el.onkeydown = e=>{ if(e.key==="Enter"){ e.preventDefault(); el.blur(); } }; });
   ["impB","impG"].forEach(k=>{ const el = document.getElementById(k+"Text"); if(el) el.oninput({ target:el }); });
-  const next = ()=> S.step < QS.length-1 ? nav("q", S.step+1, "push") : nav("result", undefined, "push");
+  const next = ()=> S.step < LAST ? nav("q", S.step+1, "push") : nav("result", undefined, "push");
   document.getElementById("prev").onclick = goBack;
-  document.getElementById("next").onclick = next;
-  document.getElementById("skip").onclick = ()=>{ q.clear(); next(); };
+  const n = document.getElementById("next"); if(n) n.onclick = next;
+  const tr = document.getElementById("toResult"); if(tr) tr.onclick = ()=>nav("result", undefined, "push");
 }
 
 // ===== 결과 =====
 function timeHtml(lines){
   const sec = seconds(lines);
-  return `읽는 데 약 ${timeText(sec)} 걸려요${sec>LIMIT_SEC ? `<span class="over">2분이 넘어요. 약속을 하나 빼 보세요.</span>` : ""}`;
+  return `읽는 데 약 ${timeText(sec)} 걸려요${sec>LIMIT_SEC ? `<span class="over">2분이 넘어요. 약속 문장을 눌러 하나 빼 보세요.</span>` : ""}`;
 }
 let imgTimer = null;
 function fileName(){ return `혼인서약서-${S.groom.trim()||"신랑"}-${S.bride.trim()||"신부"}`; }
@@ -433,6 +476,7 @@ function result(){
         <textarea class="inp" id="editTxt" rows="3" aria-label="문장 고치기">${esc(l.text)}</textarea>
         <div class="edit-btns">
           ${l.cyc ? `<button class="eb" id="cyc" data-cyc="${l.cyc}">↻ 다른 문장</button>` : ""}
+          ${qOf(l)!==undefined ? `<button class="eb" id="toQ" data-q="${qOf(l)}">질문에서 다시 고르기</button>` : ""}
           <button class="eb" id="offLine">✕ 빼기</button>
           <button class="eb main" id="doneLine">완료</button>
         </div>
@@ -517,8 +561,16 @@ function result(){
     $("copyAi").onclick = ()=>copy(aiPrompt(), "AI에게 보낼 글을 복사했어요. AI 앱에 붙여 넣어 보세요.", "msgAi");
   }
   const ts = $("toStory"); if(ts) ts.onclick = ()=>{ S.mode = "story"; S.off = {}; S.edit = {}; nav("q", 0, "push"); };
-  const ag = $("again"); if(ag) ag.onclick = ()=>nav("q", 0, "jump");
+  const ag = $("again"); if(ag) ag.onclick = ()=>{ S.ret = true; nav("q", 0, "jump"); };
+  const tq = $("toQ"); if(tq) tq.onclick = ()=>{ S.ret = true; nav("q", +tq.dataset.q, "jump"); };
   $("home").onclick = ()=>nav("home", undefined, "jump");
+}
+// 이 줄을 만든 질문 (결과에서 "질문에서 다시 고르기"로 바로 가요). 여는 말·맺음·이름 맹세·기본 서약서는 없음
+function qOf(l){
+  if(S.mode!=="story") return undefined;
+  if(l.id==="meet2") return 1;
+  if(l.id==="bridge") return undefined;
+  return { meet:0, conf:2, love:3, prom:4, trait:5 }[l.sec];
 }
 // 누른 줄 닫기. 글을 다 지웠으면 그 줄은 빼요. keep=true면 다시 그리지 않음
 function closeLine(keep){

@@ -25,15 +25,26 @@ textarea.inp{resize:vertical;line-height:1.55}
 .chip.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 .warn{font-size:13px;color:var(--accent);margin:0}
 .warn:empty{display:none}
-.pv-box{margin-top:14px;border:1.5px dashed var(--line);border-radius:20px;padding:14px 16px}
-.pv-title{font-size:13px;font-weight:700;color:var(--accent);margin:0 0 6px}
-#pv p{margin:0 0 6px;font-size:15px;line-height:1.6}
-#pv p:last-child{margin-bottom:0}
-#pv b{color:var(--sub);font-weight:700}
-.pv-empty{color:var(--sub)}
+/* 칩 바로 아래 미리보기 */
+.pv-inline{margin:10px 0 4px;border-left:3px solid var(--accent);background:var(--paper);border-radius:0 12px 12px 0;padding:9px 12px}
+.pv-inline p{margin:0 0 4px;font-size:14.5px;line-height:1.6}
+.pv-inline p:last-child{margin-bottom:0}
+.pv-inline b{color:var(--sub);font-weight:700}
+.pv-title{font-size:12.5px;font-weight:700;color:var(--accent)}
+.pv-empty{color:var(--sub);font-size:13.5px!important}
+.gt small.full{color:var(--accent)}
+.cover .pick button.armed{border-color:var(--cover-accent)}
+.cover .pick button.armed .q{color:var(--cover-accent)}
 .nav{display:flex;justify-content:space-between;align-items:center;margin-top:18px;gap:8px}
-.nav-r{display:flex;align-items:center;gap:8px}
 .nav .btn{width:auto;padding:14px 28px}
+/* 질문 화면 아래에 붙는 막대 (스크롤해도 늘 보임) */
+.qbar{position:sticky;bottom:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:8px;
+  margin:16px -20px 0;padding:10px 20px calc(10px + env(safe-area-inset-bottom,0px));background:var(--paper);border-top:1px solid var(--line)}
+.qbar .btn{width:auto;padding:13px 22px;font-size:16px;white-space:nowrap}
+.qbar .text-btn{white-space:nowrap}
+.qtime{flex:1;text-align:center;font-size:13px;font-weight:700;color:var(--sub);font-variant-numeric:tabular-nums}
+.qtime .over{color:var(--accent)}
+.nav-r{display:flex;align-items:center;gap:6px}
 
 /* 결과: 서약서 카드 */
 .tabs{display:flex;gap:6px;margin-bottom:12px}
