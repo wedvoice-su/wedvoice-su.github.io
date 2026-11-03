@@ -125,14 +125,24 @@ const TIPS = [  // 10-1~5 (초안)
 ];
 
 // ===== 상태 =====
+// 이 휴대폰 브라우저 안에만 보관해요(탭을 닫아도 남음). 새로 만들기를 누르면 덮어써요.
+// 다른 앱(카톡·챗GPT)에 다녀오는 사이 아이폰이 페이지를 새로 불러와도 이어서 할 수 있게.
+const STORE = window.localStorage;
+const KEY = "i-do.v1";
 function fresh(){
   return { mode:"", tpl:0, groom:"", bride:"", date:"",
     year:"", season:"", meet:"", place:"", impB:"", impBText:"", impG:"", impGText:"",
     conf:"", love:"", promG:[], promB:[], traitB:[], traitG:[],
-    open:0, close:0, flip:{}, off:{}, edit:{}, editing:false, memo:"" };
+    open:0, close:0, flip:{}, off:{}, edit:{}, memo:"",
+    sc:"home", step:0, resume:null };   // sc: 지금 화면(home/names/q/result), resume: 이어서 만들기로 갈 화면
 }
 let S = fresh();
-let step = 0;
+let sel = null, aiOpen = false;   // 화면에서만 쓰는 상태: 누른 줄, AI 상자 열림 (보관 안 함)
+function save(){ try{ STORE.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+function load(){
+  try{ const d = JSON.parse(STORE.getItem(KEY) || "null"); if(d && d.mode) return Object.assign(fresh(), d); }catch(e){}
+  return null;
+}
 
 // ===== 문장 만들기 =====
 function hasBatchim(word){
@@ -202,7 +212,9 @@ function build(){
     OATH.forEach(([w,t],i)=>add("oath", "oath"+i, w, t));
     add("close", "close", "함께", CLOSES[S.close], { cyc:"close" });
   }
-  return L.filter(l=>!S.off[l.id]).map(l=> S.edit[l.id]!==undefined ? { ...l, text:S.edit[l.id] } : l);
+  return L.filter(l=>!S.off[l.id])
+    .map(l=> S.edit[l.id]!==undefined ? { ...l, text:S.edit[l.id] } : l)
+    .filter(l=>l.text.trim() || l.id===sel);   // 글을 다 지운 줄은 빠짐 (고치는 중인 줄은 남김)
 }
 function seconds(lines){
   const n = lines.map(l=>l.text).join("").replace(/\s/g,"").length;
@@ -223,84 +235,135 @@ function plain(lines){
   return `혼인서약서\n\n${body}\n\n${dateText()}\n신랑 ${S.groom.trim()||"○○○"} · 신부 ${S.bride.trim()||"○○○"}`;
 }
 
+// ===== 화면 이동 =====
+// 휴대폰 "뒤로 가기"가 사이트를 나가지 않고 한 화면 전으로 가도록 화면마다 기록을 남겨요.
+// back: 바로 앞 기록이 한 화면 전 화면인지 (그럴 때만 "이전"이 history.back()을 씀)
+if("scrollRestoration" in history) history.scrollRestoration = "manual";
+function render(){
+  if(S.sc==="names") names();
+  else if(S.sc==="q") ask();
+  else if(S.sc==="result") result();
+  else home();
+}
+function nav(sc, step, how){   // how: "push" 앞으로 / "jump" 건너뛰어 이동 / "replace" 지금 기록을 바꿈
+  S.sc = sc; if(step!==undefined) S.step = step;
+  if(sc!=="home") S.resume = { sc, step:S.step };
+  sel = null; aiOpen = false;
+  const st = { sc, step:S.step, back: how==="push" };
+  if(how==="replace") history.replaceState(st, ""); else history.pushState(st, "");
+  save(); render(); window.scrollTo(0,0);
+}
+function prevOf(){
+  if(S.sc==="names") return ["home"];
+  if(S.sc==="q") return S.step>0 ? ["q", S.step-1] : ["names"];
+  if(S.sc==="result") return S.mode==="basic" ? ["names"] : ["q", QS.length-1];
+  return ["home"];
+}
+function goBack(){
+  if(history.state && history.state.back) history.back();
+  else { const [sc, st] = prevOf(); nav(sc, st, "replace"); }
+}
+window.addEventListener("popstate", e=>{
+  const st = e.state || { sc:"home" };
+  S.sc = S.mode ? st.sc : "home";
+  if(st.step!==undefined) S.step = st.step;
+  if(S.sc!=="home") S.resume = { sc:S.sc, step:S.step };
+  sel = null; aiOpen = false;
+  save(); render(); window.scrollTo(0,0);
+});
+// 같은 화면을 다시 그릴 때 (칩·줄 누르기): 스크롤 위치 유지
+function redraw(){ const y = window.scrollY; render(); window.scrollTo(0, y); }
+
 // ===== 화면 =====
 function topBar(right){ return `<div class="top"><span>혼인서약서</span><span class="count">${right||""}</span></div>`; }
 
 function home(){
   document.body.classList.add("is-cover");
   app.className = "wrap cover";
+  const saved = S.mode && S.resume;
   app.innerHTML = `
     ${brandLogo()}
-    <p class="for">혼인서약서를 써야 하는 신랑·신부님을 위한</p>
+    <p class="for">혼인서약서를 써야 하는 <span class="nw">신랑·신부님을 위한</span></p>
     <h1>혼인서약서,<br>고르기만 하면<br>써져요</h1>
     <div class="bar"></div>
     <p class="lead">처음 만난 날, 서로의 버릇 같은 걸 고르면 우리 이야기가 담긴 서약서가 나와요. 둘이 같이 골라도, 신부 혼자 골라도 돼요.</p>
     <div class="pick">
+      ${saved ? `<button id="resume"><span>이어서 만들기</span><span class="q">만들던 서약서</span></button>` : ""}
       <button id="story"><span>우리 이야기로 만들기</span><span class="q">질문 6개</span></button>
       <button id="basic"><span>기본 서약서로 빠르게</span><span class="q">이름만 넣으면 끝</span></button>
     </div>
-    <p class="note">※ 적은 내용은 이 휴대폰 브라우저 안에만 있고, 어디에도 올라가지 않아요.</p>
+    <p class="note">※ 적은 내용은 이 휴대폰 브라우저 안에만 보관되고, 어디에도 올라가지 않아요.</p>
     ${foot()}`;
-  document.getElementById("story").onclick = ()=>{ S = fresh(); S.mode = "story"; names(); };
-  document.getElementById("basic").onclick = ()=>{ S = fresh(); S.mode = "basic"; names(); };
+  const start = mode=>{ S = fresh(); S.mode = mode; nav("names", 0, "push"); };
+  document.getElementById("story").onclick = ()=>start("story");
+  document.getElementById("basic").onclick = ()=>start("basic");
+  const r = document.getElementById("resume");
+  if(r) r.onclick = ()=>nav(S.resume.sc, S.resume.step, "jump");
 }
 
 function names(){
   document.body.classList.remove("is-cover");
   app.className = "wrap";
   app.innerHTML = `
-    ${topBar()}
+    ${topBar(S.mode==="basic" ? "기본 서약서" : "우리 이야기")}
     <h2 class="qt">두 분 이름을 알려 주세요</h2>
     <p class="qd">이름 맹세와 서명에 들어가요. 비워 두면 ○○○로 나와서 손으로 적을 수 있어요.</p>
     <div class="panel">
-      <label class="field"><span>신랑 이름</span><input id="groom" value="${esc(S.groom)}" placeholder="예: 김민준" autocomplete="off"></label>
-      <label class="field"><span>신부 이름</span><input id="bride" value="${esc(S.bride)}" placeholder="예: 이서연" autocomplete="off"></label>
+      <label class="field"><span>신랑 이름</span><input id="groom" value="${esc(S.groom)}" placeholder="예: 김민준" autocomplete="off" enterkeyhint="next"></label>
+      <label class="field"><span>신부 이름</span><input id="bride" value="${esc(S.bride)}" placeholder="예: 이서연" autocomplete="off" enterkeyhint="next"></label>
       <label class="field"><span>예식 날짜 (선택)</span><input id="date" type="date" value="${esc(S.date)}"></label>
     </div>
     <div class="nav"><button class="text-btn" id="prev">이전</button><button class="btn main" id="next">다음</button></div>
     ${foot()}`;
-  ["groom","bride","date"].forEach(k=>document.getElementById(k).oninput = e=>{ S[k] = e.target.value; });
-  document.getElementById("prev").onclick = home;
-  document.getElementById("next").onclick = ()=>{ if(S.mode==="basic") result(); else { step = 0; ask(); } };
-  window.scrollTo(0,0);
+  ["groom","bride","date"].forEach(k=>{ const el = document.getElementById(k); el.oninput = el.onchange = e=>{ S[k] = e.target.value; save(); }; });
+  // 키보드의 "다음"(엔터): 신랑 → 신부 → 다음 화면
+  document.getElementById("groom").onkeydown = e=>{ if(e.key==="Enter"){ e.preventDefault(); document.getElementById("bride").focus(); } };
+  document.getElementById("bride").onkeydown = e=>{ if(e.key==="Enter"){ e.preventDefault(); e.target.blur(); } };
+  document.getElementById("prev").onclick = goBack;
+  document.getElementById("next").onclick = ()=> S.mode==="basic" ? nav("result", undefined, "push") : nav("q", 0, "push");
 }
 
 // 칩 묶음. k: 상태 이름, max: 여러 개 고르기(최대 개수), 없으면 하나만
 function chips(k, list, max){
   const cur = S[k];
-  return `<div class="chips">${list.map((label,i)=>{
-    const v = typeof label==="object" ? label[0] : String(i);
-    const text = typeof label==="object" ? label[1] : label;
+  return `<div class="chips">${list.map(([v, text])=>{
     const on = max ? cur.includes(v) : cur===v;
-    return `<button class="chip${on?" on":""}" data-k="${k}" data-v="${esc(v)}" data-max="${max||0}">${esc(text)}</button>`;
+    return `<button class="chip${on?" on":""}" data-k="${k}" data-v="${esc(v)}" data-max="${max||0}" aria-pressed="${on}">${esc(text)}</button>`;
   }).join("")}</div>`;
 }
+const idx = list=>list.map((t,i)=>[String(i), t]);
 const QS = [
-  { title:"처음 만난 건 언제, 어디였나요?", desc:"생각나는 것만 골라도 돼요.", sec:["meet"], body:()=>{
+  { title:"처음 만난 건 언제, 어디였나요?", desc:"생각나는 것만 골라도 돼요.", sec:["meet"],
+    clear:()=>{ S.year=""; S.season=""; S.meet=""; S.place=""; }, body:()=>{
       const years = []; for(let y=2026; y>=2000; y--) years.push(y);
       return `
       <p class="gt">만난 해</p>
-      <select id="year" class="sel"><option value="">기억 안 나요</option>${years.map(y=>`<option${String(y)===S.year?" selected":""}>${y}</option>`).join("")}</select>
+      <select id="year" class="sel" aria-label="만난 해"><option value="">기억 안 나요</option>${years.map(y=>`<option${String(y)===S.year?" selected":""}>${y}</option>`).join("")}</select>
       <p class="gt">계절</p>${chips("season", ["봄","여름","가을","겨울"].map(s=>[s,s]))}
-      <p class="gt">만난 곳</p>${chips("meet", [...MEET.map((m,i)=>[String(i),m[0]]), ["direct","직접 적기"]])}
-      ${S.meet==="direct" ? `<input id="place" class="inp" value="${esc(S.place)}" placeholder="예: 강남역 스터디카페" autocomplete="off">` : ""}`; } },
-  { title:"그날, 서로 어떤 모습이었나요?", desc:"신랑이 기억하는 신부, 신부가 기억하는 신랑을 하나씩 골라요.", sec:["meet"], body:()=>`
-      <p class="gt">그날의 신부</p>${chips("impB", [...IMP.map((t,i)=>[String(i),t]), ["direct","직접 적기"]])}
-      ${S.impB==="direct" ? `<input id="impBText" class="inp" value="${esc(S.impBText)}" placeholder="예: 커피를 쏟던" autocomplete="off"><p class="warn" id="impBWarn"></p>` : ""}
-      <p class="gt">그날의 신랑</p>${chips("impG", [...IMP.map((t,i)=>[String(i),t]), ["direct","직접 적기"]])}
-      ${S.impG==="direct" ? `<input id="impGText" class="inp" value="${esc(S.impGText)}" placeholder="예: 커피를 쏟던" autocomplete="off"><p class="warn" id="impGWarn"></p>` : ""}` },
-  { title:"누가 먼저 좋아한다고 했나요?", desc:"", sec:["conf"], body:()=>chips("conf", [["b","신랑이 먼저"],["g","신부가 먼저"],["diff","서로 다르게 기억해요"]]) },
-  { title:"우리 연애를 한마디로 하면?", desc:"하나만 골라요.", sec:["love"], body:()=>chips("love", LOVE.map((l,i)=>[String(i),l[0]])) },
-  { title:"서로에게 어떤 약속을 할까요?", desc:"신랑이 할 약속, 신부가 할 약속을 1~2개씩 골라요. 같은 걸 골라도 돼요.", sec:["prom"], body:()=>`
-      <p class="gt">신랑의 약속</p>${chips("promG", PROM.map((p,i)=>[String(i),p[0]]), 2)}
-      <p class="gt">신부의 약속</p>${chips("promB", PROM.map((p,i)=>[String(i),p[0]]), 2)}` },
-  { title:"서로 어떤 사람인가요?", desc:"고르면 웃음 포인트 약속이 들어가요. 신부를 고르면 신랑이, 신랑을 고르면 신부가 말해요.", sec:["trait"], body:()=>`
-      <p class="gt">신부는 이런 사람이에요 <small>2개까지</small></p>${chips("traitB", TRAITS.map((t,i)=>[String(i),t[0]]), 2)}
-      <p class="gt">신랑은 이런 사람이에요 <small>2개까지</small></p>${chips("traitG", TRAITS.map((t,i)=>[String(i),t[0]]), 2)}` }
+      <p class="gt">만난 곳</p>${chips("meet", [...idx(MEET.map(m=>m[0])), ["direct","직접 적기"]])}
+      ${S.meet==="direct" ? `<input id="place" class="inp" value="${esc(S.place)}" placeholder="예: 강남역 스터디카페" autocomplete="off" enterkeyhint="done" aria-label="만난 곳">` : ""}`; } },
+  { title:"그날, 서로 어떤 모습이었나요?", desc:"신랑이 기억하는 신부, 신부가 기억하는 신랑을 하나씩 골라요.", sec:["meet"],
+    clear:()=>{ S.impB=""; S.impG=""; }, body:()=>`
+      <p class="gt">그날의 신부</p>${chips("impB", [...idx(IMP), ["direct","직접 적기"]])}
+      ${S.impB==="direct" ? `<input id="impBText" class="inp" value="${esc(S.impBText)}" placeholder="예: 커피를 쏟던" autocomplete="off" enterkeyhint="done" aria-label="그날의 신부 직접 적기"><p class="warn" id="impBWarn"></p>` : ""}
+      <p class="gt">그날의 신랑</p>${chips("impG", [...idx(IMP), ["direct","직접 적기"]])}
+      ${S.impG==="direct" ? `<input id="impGText" class="inp" value="${esc(S.impGText)}" placeholder="예: 커피를 쏟던" autocomplete="off" enterkeyhint="done" aria-label="그날의 신랑 직접 적기"><p class="warn" id="impGWarn"></p>` : ""}` },
+  { title:"누가 먼저 좋아한다고 했나요?", desc:"", sec:["conf"],
+    clear:()=>{ S.conf=""; }, body:()=>chips("conf", [["b","신랑이 먼저"],["g","신부가 먼저"],["diff","서로 다르게 기억해요"]]) },
+  { title:"우리 연애를 한마디로 하면?", desc:"하나만 골라요.", sec:["love"],
+    clear:()=>{ S.love=""; }, body:()=>chips("love", idx(LOVE.map(l=>l[0]))) },
+  { title:"서로에게 어떤 약속을 할까요?", desc:"신랑이 할 약속, 신부가 할 약속을 1~2개씩 골라요. 같은 걸 골라도 돼요.", sec:["prom"],
+    clear:()=>{ S.promG=[]; S.promB=[]; }, body:()=>`
+      <p class="gt">신랑의 약속 <small>${S.promG.length} / 2</small></p>${chips("promG", idx(PROM.map(p=>p[0])), 2)}
+      <p class="gt">신부의 약속 <small>${S.promB.length} / 2</small></p>${chips("promB", idx(PROM.map(p=>p[0])), 2)}` },
+  { title:"서로 어떤 사람인가요?", desc:"고르면 웃음 포인트 약속이 들어가요. 신부를 고르면 신랑이, 신랑을 고르면 신부가 말해요.", sec:["trait"],
+    clear:()=>{ S.traitB=[]; S.traitG=[]; }, body:()=>`
+      <p class="gt">신부는 이런 사람이에요 <small>${S.traitB.length} / 2</small></p>${chips("traitB", idx(TRAITS.map(t=>t[0])), 2)}
+      <p class="gt">신랑은 이런 사람이에요 <small>${S.traitG.length} / 2</small></p>${chips("traitG", idx(TRAITS.map(t=>t[0])), 2)}` }
 ];
 
 function previewHtml(){
-  const sec = QS[step].sec;
+  const sec = QS[S.step].sec;
   const lines = build().filter(l=>sec.includes(l.sec));
   if(!lines.length) return `<p class="pv-empty">고르면 여기에 문장이 보여요.</p>`;
   return lines.map(l=>`<p><b>(${l.who})</b> ${esc(l.text)}</p>`).join("");
@@ -310,13 +373,13 @@ function refreshPreview(){ const p = document.getElementById("pv"); if(p) p.inne
 function ask(){
   document.body.classList.remove("is-cover");
   app.className = "wrap";
-  const q = QS[step];
+  const q = QS[S.step];
   app.innerHTML = `
-    ${topBar(`질문 ${step+1} / ${QS.length}`)}
+    ${topBar(`질문 ${S.step+1} / ${QS.length}`)}
     <h2 class="qt">${esc(q.title)}</h2>
     ${q.desc ? `<p class="qd">${esc(q.desc)}</p>` : ""}
     <div class="panel">${q.body()}</div>
-    <div class="pv-box"><p class="pv-title">이렇게 들어가요</p><div id="pv">${previewHtml()}</div></div>
+    <div class="pv-box"><p class="pv-title">이렇게 들어가요</p><div id="pv" aria-live="polite">${previewHtml()}</div></div>
     <div class="nav">
       <button class="text-btn" id="prev">이전</button>
       <span class="nav-r"><button class="text-btn" id="skip">건너뛰기</button><button class="btn main" id="next">다음</button></span>
@@ -328,11 +391,11 @@ function ask(){
       const arr = S[k], i = arr.indexOf(v);
       if(i>=0) arr.splice(i,1); else { if(arr.length>=max) arr.shift(); arr.push(v); }
     } else S[k] = S[k]===v ? "" : v;
-    const y = window.scrollY; ask(); window.scrollTo(0,y);
-    const inp = document.querySelector(`#${k==="meet"?"place":k+"Text"}`);
+    save(); redraw();
+    const inp = document.getElementById(k==="meet" ? "place" : k+"Text");
     if(inp && v==="direct" && S[k]==="direct") inp.focus();
   });
-  const bind = (id, fn)=>{ const el = document.getElementById(id); if(el) el.oninput = e=>{ fn(e.target.value); refreshPreview(); }; };
+  const bind = (id, fn)=>{ const el = document.getElementById(id); if(el) el.oninput = el.onchange = e=>{ fn(e.target.value); save(); refreshPreview(); }; };
   bind("year", v=>S.year=v);
   bind("place", v=>S.place=v);
   ["impB","impG"].forEach(k=>bind(k+"Text", v=>{
@@ -340,31 +403,48 @@ function ask(){
     const w = document.getElementById(k+"Warn");
     if(w) w.textContent = v.trim() && !/던$/.test(v.trim()) ? "끝을 '~던'으로 적어 주세요 (예: 커피를 쏟던)" : "";
   }));
-  const go = d=>{ step += d; if(step<0){ names(); return; } if(step>=QS.length){ result(); return; } ask(); window.scrollTo(0,0); };
-  document.getElementById("prev").onclick = ()=>go(-1);
-  document.getElementById("next").onclick = ()=>go(1);
-  document.getElementById("skip").onclick = ()=>{
-    ({0:()=>{S.year="";S.season="";S.meet="";S.place="";}, 1:()=>{S.impB="";S.impG="";}, 2:()=>{S.conf="";}, 3:()=>{S.love="";},
-      4:()=>{S.promG=[];S.promB=[];}, 5:()=>{S.traitB=[];S.traitG=[];}})[step]();
-    go(1);
-  };
+  ["place","impBText","impGText"].forEach(id=>{ const el = document.getElementById(id); if(el) el.onkeydown = e=>{ if(e.key==="Enter"){ e.preventDefault(); el.blur(); } }; });
+  ["impB","impG"].forEach(k=>{ const el = document.getElementById(k+"Text"); if(el) el.oninput({ target:el }); });
+  const next = ()=> S.step < QS.length-1 ? nav("q", S.step+1, "push") : nav("result", undefined, "push");
+  document.getElementById("prev").onclick = goBack;
+  document.getElementById("next").onclick = next;
+  document.getElementById("skip").onclick = ()=>{ q.clear(); next(); };
 }
+
+// ===== 결과 =====
+function timeHtml(lines){
+  const sec = seconds(lines);
+  return `읽는 데 약 ${timeText(sec)} 걸려요${sec>LIMIT_SEC ? `<span class="over">2분이 넘어요. 약속을 하나 빼 보세요.</span>` : ""}`;
+}
+let imgTimer = null;
+function fileName(){ return `혼인서약서-${S.groom.trim()||"신랑"}-${S.bride.trim()||"신부"}`; }
 
 function result(){
   document.body.classList.remove("is-cover");
   app.className = "wrap";
   const lines = build();
-  const sec = seconds(lines);
   let prev = "";
   const rows = lines.map(l=>{
     const lab = l.who===prev ? "" : `(${l.who})`; prev = l.who;
-    const tools = S.editing ? "" : `<span class="tools" data-html2canvas-ignore>${l.cyc ? `<button class="tool" data-cyc="${l.cyc}" data-id="${l.id}" aria-label="다른 문장">↻</button>` : ""}<button class="tool" data-off="${l.id}" aria-label="빼기">✕</button></span>`;
-    return `<div class="row"><span class="who">${lab}</span><span class="txt"${S.editing?` contenteditable="true" data-id="${l.id}"`:""}>${esc(l.text)}</span>${tools}</div>`;
+    const on = sel===l.id;
+    // 누른 줄 아래 상자는 저장 이미지에서 빠져요 (data-html2canvas-ignore)
+    const box = !on ? "" : `
+      <div class="edit-box" data-html2canvas-ignore>
+        <textarea class="inp" id="editTxt" rows="3" aria-label="문장 고치기">${esc(l.text)}</textarea>
+        <div class="edit-btns">
+          ${l.cyc ? `<button class="eb" id="cyc" data-cyc="${l.cyc}">↻ 다른 문장</button>` : ""}
+          <button class="eb" id="offLine">✕ 빼기</button>
+          <button class="eb main" id="doneLine">완료</button>
+        </div>
+      </div>`;
+    return `<div class="row${on?" on":""}" data-row="${l.id}" role="button" tabindex="0" aria-expanded="${on}"><span class="who">${lab}</span><span class="txt">${esc(l.text)}</span></div>${box}`;
   }).join("");
   const offCount = Object.keys(S.off).length;
+  const flow = (SITES.flow.reel || SITES.flow.direct) ? siteLink("flow","btn ghost","식순표 만들기") : "";  // 식순표 릴스가 생기면 버튼이 나와요
   app.innerHTML = `
     ${topBar(S.mode==="basic" ? "기본 서약서" : "우리 이야기")}
-    ${S.mode==="basic" ? `<div class="tabs">${BASIC.map((b,i)=>`<button class="chip${i===S.tpl?" on":""}" data-tpl="${i}">${b.name}</button>`).join("")}</div>` : ""}
+    ${S.mode==="basic" ? `<div class="tabs" role="group" aria-label="기본 서약서 고르기">${BASIC.map((b,i)=>`<button class="chip${i===S.tpl?" on":""}" data-tpl="${i}" aria-pressed="${i===S.tpl}">${b.name}</button>`).join("")}</div>` : ""}
+    <p class="edit-hint">문장을 누르면 바꾸거나, 고치거나, 뺄 수 있어요.</p>
     <article class="card vow" id="card">
       <div class="head"><span class="kind">MARRIAGE VOWS</span><span class="handle">@wed_voice.su</span></div>
       <h2>혼인서약서</h2>
@@ -373,55 +453,77 @@ function result(){
       <p class="names">신랑 ${esc(S.groom.trim()||"○○○")} · 신부 ${esc(S.bride.trim()||"○○○")}</p>
       ${sign()}
     </article>
-    <p class="time${sec>LIMIT_SEC?" over":""}">읽는 데 약 ${timeText(sec)} 걸려요${sec>LIMIT_SEC?" · 2분이 넘어요. 약속을 하나 빼 보세요.":""}</p>
-    <div class="row-btns">
-      <button class="btn ghost" id="edit">${S.editing ? "고치기 끝" : "직접 고치기"}</button>
-      ${offCount ? `<button class="text-btn" id="restore">뺀 줄 ${offCount}개 되돌리기</button>` : ""}
-    </div>
-    <div class="tip"><b>사회자 팁</b>${TIPS.map(t=>`<p>· ${esc(t)}</p>`).join("")}</div>
+    <p class="time" id="time">${timeHtml(lines)}</p>
+    ${offCount ? `<button class="text-btn btn-link" id="restore">뺀 줄 ${offCount}개 되돌리기</button>` : ""}
     <div class="after">
       <div class="btns">
         <button class="btn main" id="save">이미지로 저장하기</button>
-        <button class="btn ghost" id="copyText">글로 복사하기 · 웨딩홀·플래너에게 보낼 때</button>
+        <button class="btn ghost" id="copyText">글로 복사하기<span class="sub">웨딩홀·플래너에게 보낼 때</span></button>
         <p class="msg" id="msg" role="status"></p>
-        ${S.mode==="basic" ? `<button class="btn ghost" id="toStory">우리 이야기 넣기 · 질문 6개</button>` : `<button class="btn ghost" id="back">질문 다시 고르기</button>`}
-        <details class="ai">
-          <summary class="btn ghost">AI로 더 다듬기</summary>
-          <p class="gt">우리 이야기 메모</p>
-          <p class="qd">기억나는 일을 편하게 적어요. AI에게 보낼 글에만 들어가고, 서약서에는 들어가지 않아요.</p>
-          <textarea id="memo" class="inp" rows="4" placeholder="예: 첫 데이트 때 비가 와서 우산 하나를 같이 썼어요">${esc(S.memo)}</textarea>
-          <button class="btn main" id="copyAi">AI에게 보낼 글 복사하기</button>
-          <p class="qd">챗GPT 같은 AI 앱에 붙여 넣으면 다듬어 줘요.</p>
-        </details>
-        ${siteLink("flow","btn ghost","식순표 만들기")}
-        <a class="btn insta" href="${INSTA}" target="_blank" rel="noopener">인스타에서 결혼 준비 꿀팁 보기</a>
-        <button class="text-btn btn-link" id="home">처음으로</button>
       </div>
-    </div>`;
-  if(!S.editing) prepareImage(`혼인서약서-${S.groom.trim()||"신랑"}-${S.bride.trim()||"신부"}`);
-  const rerender = ()=>{ const y = window.scrollY; result(); window.scrollTo(0,y); };
-  app.querySelectorAll("[data-tpl]").forEach(b=>b.onclick = ()=>{ S.tpl = +b.dataset.tpl; S.off = {}; S.edit = {}; rerender(); });
-  app.querySelectorAll("[data-cyc]").forEach(b=>b.onclick = ()=>{
-    const c = b.dataset.cyc, id = b.dataset.id;
-    delete S.edit[id];
-    if(c==="open"){ S.open = (S.open+1) % OPENS.length; delete S.edit.open; }
-    if(c==="close"){ S.close = (S.close+1) % CLOSES.length; }
-    if(c==="flip"){ S.flip[id] = !S.flip[id]; }
-    rerender();
+    </div>
+    <div class="tip"><b>사회자 팁</b>${TIPS.map(t=>`<p>· ${esc(t)}</p>`).join("")}</div>
+    <div class="btns more">
+      <button class="btn ghost" id="aiBtn" aria-expanded="${aiOpen}">AI로 더 다듬기 ${aiOpen ? "▴" : "▾"}</button>
+      ${!aiOpen ? "" : `
+      <div class="panel ai-panel">
+        <p class="gt">우리 이야기 메모</p>
+        <p class="qd">기억나는 일을 편하게 적어요. AI에게 보낼 글에만 들어가고, 서약서에는 들어가지 않아요.</p>
+        <textarea id="memo" class="inp" rows="4" placeholder="예: 첫 데이트 때 비가 와서 우산 하나를 같이 썼어요">${esc(S.memo)}</textarea>
+        <button class="btn main" id="copyAi">AI에게 보낼 글 복사하기</button>
+        <p class="msg" id="msgAi" role="status"></p>
+        <p class="qd small">챗GPT 같은 AI 앱에 붙여 넣으면 다듬어 줘요.</p>
+      </div>`}
+      ${S.mode==="basic" ? `<button class="btn ghost" id="toStory">우리 이야기 넣기 · 질문 6개</button>` : `<button class="btn ghost" id="again">질문 다시 고르기</button>`}
+      ${flow}
+      <a class="btn insta" href="${INSTA}" target="_blank" rel="noopener">인스타에서 결혼 준비 꿀팁 보기</a>
+      <button class="text-btn btn-link" id="home">처음으로</button>
+    </div>
+    ${foot()}`;
+  prepareImage(fileName());
+  const $ = id=>document.getElementById(id);
+  app.querySelectorAll("[data-tpl]").forEach(b=>b.onclick = ()=>{ S.tpl = +b.dataset.tpl; S.off = {}; S.edit = {}; sel = null; save(); redraw(); });
+  app.querySelectorAll("[data-row]").forEach(r=>{
+    const open = ()=>{ const id = r.dataset.row; if(sel===id) closeLine(); else { closeLine(true); sel = id; redraw(); } };
+    r.onclick = open;
+    r.onkeydown = e=>{ if(e.key==="Enter" || e.key===" "){ e.preventDefault(); open(); } };
   });
-  app.querySelectorAll("[data-off]").forEach(b=>b.onclick = ()=>{ S.off[b.dataset.off] = true; rerender(); });
-  app.querySelectorAll(".txt[contenteditable]").forEach(el=>el.oninput = ()=>{ S.edit[el.dataset.id] = el.textContent; });
-  document.getElementById("edit").onclick = ()=>{ S.editing = !S.editing; rerender(); };
-  const rs = document.getElementById("restore"); if(rs) rs.onclick = ()=>{ S.off = {}; rerender(); };
-  document.getElementById("save").onclick = saveCard;
-  if(S.editing) document.getElementById("save").disabled = true;
-  document.getElementById("copyText").onclick = ()=>copy(plain(build()), "서약서 글을 복사했어요.");
-  document.getElementById("memo").oninput = e=>{ S.memo = e.target.value; };
-  document.getElementById("copyAi").onclick = ()=>copy(aiPrompt(), "AI에게 보낼 글을 복사했어요.");
-  const ts = document.getElementById("toStory"); if(ts) ts.onclick = ()=>{ S.mode = "story"; S.off = {}; S.edit = {}; step = 0; ask(); window.scrollTo(0,0); };
-  const bk = document.getElementById("back"); if(bk) bk.onclick = ()=>{ step = 0; ask(); window.scrollTo(0,0); };
-  document.getElementById("home").onclick = home;
-  if(!S.editing) window.scrollTo(0, window.scrollY);
+  if(sel){
+    const ta = $("editTxt");
+    ta.oninput = ()=>{
+      S.edit[sel] = ta.value; save();
+      const row = app.querySelector(`[data-row="${sel}"] .txt`); if(row) row.textContent = ta.value;
+      $("time").innerHTML = timeHtml(build());
+      clearTimeout(imgTimer); imgTimer = setTimeout(()=>prepareImage(fileName()), 600);
+    };
+    const cyc = $("cyc");
+    if(cyc) cyc.onclick = ()=>{
+      const c = cyc.dataset.cyc;
+      delete S.edit[sel];
+      if(c==="open") S.open = (S.open+1) % OPENS.length;
+      if(c==="close") S.close = (S.close+1) % CLOSES.length;
+      if(c==="flip") S.flip[sel] = !S.flip[sel];
+      save(); redraw();
+    };
+    $("offLine").onclick = ()=>{ S.off[sel] = true; delete S.edit[sel]; sel = null; save(); redraw(); };
+    $("doneLine").onclick = ()=>closeLine();
+  }
+  const rs = $("restore"); if(rs) rs.onclick = ()=>{ S.off = {}; save(); redraw(); };
+  $("save").onclick = saveCard;
+  $("copyText").onclick = ()=>copy(plain(build()), "서약서 글을 복사했어요.", "msg");
+  $("aiBtn").onclick = ()=>{ aiOpen = !aiOpen; redraw(); };
+  if(aiOpen){
+    $("memo").oninput = e=>{ S.memo = e.target.value; save(); };
+    $("copyAi").onclick = ()=>copy(aiPrompt(), "AI에게 보낼 글을 복사했어요. AI 앱에 붙여 넣어 보세요.", "msgAi");
+  }
+  const ts = $("toStory"); if(ts) ts.onclick = ()=>{ S.mode = "story"; S.off = {}; S.edit = {}; nav("q", 0, "push"); };
+  const ag = $("again"); if(ag) ag.onclick = ()=>nav("q", 0, "jump");
+  $("home").onclick = ()=>nav("home", undefined, "jump");
+}
+// 누른 줄 닫기. 글을 다 지웠으면 그 줄은 빼요. keep=true면 다시 그리지 않음
+function closeLine(keep){
+  if(sel && S.edit[sel]!==undefined && !S.edit[sel].trim()){ delete S.edit[sel]; S.off[sel] = true; }
+  if(!keep){ sel = null; save(); redraw(); }
 }
 
 function aiPrompt(){
@@ -441,10 +543,18 @@ ${plain(build())}
 [우리 이야기 메모]
 ${S.memo.trim() || "(없음)"}`;
 }
-async function copy(text, done){
-  const msg = document.getElementById("msg");
+async function copy(text, done, msgId){
+  const msg = document.getElementById(msgId);
   try{ await navigator.clipboard.writeText(text); msg.textContent = done; }
-  catch(e){ msg.textContent = "복사하지 못했어요. 길게 눌러 직접 복사해 주세요."; }
+  catch(e){
+    // 클립보드를 못 쓰는 브라우저: 숨긴 칸에 넣고 복사
+    const ta = document.createElement("textarea");
+    ta.value = text; ta.setAttribute("readonly",""); ta.style.cssText = "position:fixed;top:0;left:0;opacity:0;font-size:16px";
+    document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, text.length);
+    let ok = false; try{ ok = document.execCommand("copy"); }catch(_){}
+    ta.remove();
+    msg.textContent = ok ? done : "복사하지 못했어요. 화면을 길게 눌러 직접 복사해 주세요.";
+  }
 }
 
 function soon(){
@@ -460,5 +570,14 @@ function soon(){
     ${foot()}`;
 }
 
-const preview = new URLSearchParams(location.search).has("preview");
-if(!OPEN && !preview) soon(); else home();
+// ===== 시작 =====
+// 새로 불러왔을 때(다른 앱에 다녀오는 사이 새로고침 등) 보던 화면이 기록에 있으면 그 화면으로
+(function start(){
+  const preview = new URLSearchParams(location.search).has("preview");
+  if(!OPEN && !preview){ soon(); return; }
+  const saved = load(); if(saved) S = saved;
+  const st = history.state;
+  if(st && st.sc && st.sc!=="home" && S.mode){ S.sc = st.sc; S.step = st.step || 0; }
+  else { S.sc = "home"; history.replaceState({ sc:"home", step:0, back:false }, ""); }
+  render();
+})();
