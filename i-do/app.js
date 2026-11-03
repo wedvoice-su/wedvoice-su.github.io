@@ -224,7 +224,7 @@ function plain(lines){
 }
 
 // ===== 화면 =====
-function top(right){ return `<div class="top"><span>혼인서약서</span><span class="count">${right||""}</span></div>`; }
+function topBar(right){ return `<div class="top"><span>혼인서약서</span><span class="count">${right||""}</span></div>`; }
 
 function home(){
   document.body.classList.add("is-cover");
@@ -249,7 +249,7 @@ function names(){
   document.body.classList.remove("is-cover");
   app.className = "wrap";
   app.innerHTML = `
-    ${top()}
+    ${topBar()}
     <h2 class="qt">두 분 이름을 알려 주세요</h2>
     <p class="qd">이름 맹세와 서명에 들어가요. 비워 두면 ○○○로 나와서 손으로 적을 수 있어요.</p>
     <div class="panel">
@@ -312,7 +312,7 @@ function ask(){
   app.className = "wrap";
   const q = QS[step];
   app.innerHTML = `
-    ${top(`질문 ${step+1} / ${QS.length}`)}
+    ${topBar(`질문 ${step+1} / ${QS.length}`)}
     <h2 class="qt">${esc(q.title)}</h2>
     ${q.desc ? `<p class="qd">${esc(q.desc)}</p>` : ""}
     <div class="panel">${q.body()}</div>
@@ -363,7 +363,7 @@ function result(){
   }).join("");
   const offCount = Object.keys(S.off).length;
   app.innerHTML = `
-    ${top(S.mode==="basic" ? "기본 서약서" : "우리 이야기")}
+    ${topBar(S.mode==="basic" ? "기본 서약서" : "우리 이야기")}
     ${S.mode==="basic" ? `<div class="tabs">${BASIC.map((b,i)=>`<button class="chip${i===S.tpl?" on":""}" data-tpl="${i}">${b.name}</button>`).join("")}</div>` : ""}
     <article class="card vow" id="card">
       <div class="head"><span class="kind">MARRIAGE VOWS</span><span class="handle">@wed_voice.su</span></div>
