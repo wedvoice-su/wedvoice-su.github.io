@@ -1,4 +1,4 @@
-// 결혼식 식순표: 기본 식순(11개 · 30분)이 미리 들어 있고, 넣고 빼고 순서를 바꾸면 웨딩홀·사회자·부모님께 보낼 식순표가 나와요.
+// 결혼식 식순표: 기본 식순(11개 · 29분)이 미리 들어 있고, 넣고 빼고 순서를 바꾸면 웨딩홀·사회자·부모님께 보낼 식순표가 나와요.
 // 공통 기능은 shared/common.js. 식순은 이 휴대폰 브라우저 안에만 보관되고(STORE), 어디에도 올라가지 않아요.
 
 // ===== 공개 설정 ==========================================
@@ -11,112 +11,97 @@ const OPEN = false;
 const LIMIT = 30;
 // 식순을 어디에 보관할지: localStorage = 탭을 닫아도 이 휴대폰에 남아요 / sessionStorage = 탭을 닫으면 사라져요
 const STORE = window.localStorage;
-const KEY = "in-good-order.v1";
+const KEY = "in-good-order.v2";   // 2차 검토(11/3)로 방식·순서가 바뀌어 v1 보관분은 버려요
 
 // ===== 순서 목록 (문구를 바꾸려면 여기만 고치면 돼요) =====
 // 적은 순서가 곧 식의 순서예요. 순서를 넣을 때 이 순서에 맞는 자리에 끼워져요.
 //   title    : 식순 이름
 //   min      : 기본 분
-//   base     : 기본 식순에 들어 있는 순서면 true (11개 · 총 30분, 사회자님 확정 2026-11-03)
+//   base     : 기본 식순에 들어 있는 순서면 true (11개 · 총 29분, 사회자님 확정 2026-11-03, 2차 검토 반영)
 //   c        : 진행 내용 (방식이 없는 순서)
 //   desc     : 무엇을 하는 순서인지 한 줄 (순서를 펼치거나 넣을 때 보여요)
 //   ways     : 방식 고르기. 고르면 내용(c)과 분(min)이 채워져요. todo가 있으면 그 방식의 챙길 것으로 바뀌어요 (null이면 안 적혀요)
 //   way      : 처음에 골라져 있는 방식(v). null이면 "정해 주세요"로 보이고 챙길 것에 올라가요
 //   undecided: way가 null일 때 보여 줄 말
 //   todo     : 식순표 "챙길 것"에 적히는 한 줄
+//   tip      : 사회자 팁. 순서를 펼쳤을 때만 보이고 식순표 카드·문자에는 안 들어가요 (방식에 tip이 있으면 그 방식의 팁)
+//   music    : 입장곡·행진곡이 필요한 순서면 true → 챙길 것에 "입장곡·행진곡과 음원 타이밍" 한 줄로 합쳐져요 (MUSIC_TODO)
 const CATALOG = {
-  open:     { title:"개식사", min:2, base:true, c:"사회자의 안내",
+  open:     { title:"개식사", min:1, base:true, c:"사회자",
               desc:"사회자가 식의 시작을 알리고 하객께 인사해요." },
-  parents:  { title:"양가 부모님 입장", min:3, c:"신랑 부모님 → 신부 부모님",
-              desc:"양가 부모님이 먼저 입장하는 식이면 화촉점화 앞에 넣어요.",
+  parents:  { title:"양가 부모님 입장", min:2, c:"신랑 부모님 → 신부 부모님",
+              desc:"양가 부모님이 먼저 입장하는 식이면 화촉점화 앞에 넣어요. 넣으면 화촉점화가 2분으로 줄어요.",
               todo:"양가 부모님께 입장 순서와 동선 알려드리기" },
-  candle:   { title:"화촉점화", min:4, base:true, c:"양가 어머님",
-              desc:"양가 어머님이 촛불을 켜고, 맞절과 하객 인사를 해요.",
-              todo:"양가 어머님께 화촉점화 순서 알려드리기" },
-  kids:     { title:"화동 입장", min:2, c:"",
-              desc:"꽃을 뿌리며 먼저 걸어 들어와요. 아이가 멈춰도 사회자가 자연스럽게 이어 가요.",
-              todo:"화동 아이와 보호자께 들어오는 순간 알려드리기" },
-  groom:    { title:"신랑 입장", min:2, base:true, c:"",
+  candle:   { title:"화촉점화", min:4, base:true,
+              desc:"촛불을 켜고, 맞절과 하객 인사를 해요. 양가 부모님이 입장하는 식이면 아버님도 같이 하실지 정해요.",
+              ways:[
+                { v:"mothers", t:"양가 어머님", c:"양가 어머님", todo:"양가 어머님께 화촉점화 순서 알려드리기" },
+                { v:"both",    t:"양가 부모님 모두", c:"양가 부모님", todo:"양가 부모님께 화촉점화 순서 알려드리기" }
+              ], way:"mothers", undecided:"아버님도 같이 하실지 정해 주세요" },
+  groom:    { title:"신랑 입장", min:2, base:true, c:"", music:true,
               desc:"신랑이 입장곡에 맞춰 버진로드를 걸어 단상까지 가요.",
-              todo:"신랑 입장곡 정하기" },
-  bride:    { title:"신부 입장", min:3, base:true,
+              tip:"입장곡에 맞춰 천천히 입장해요." },
+  bride:    { title:"신부 입장", min:3, base:true, music:true,
               desc:"누구와 입장할지 고르면 내용이 채워져요.",
               ways:[
-                { v:"father", t:"아버님과 입장", c:"아버님과 입장" },
-                { v:"alone",  t:"혼자 입장", c:"혼자 입장" },
-                { v:"groom",  t:"신랑과 함께 입장", c:"신랑과 함께 입장" },
-                { v:"mother", t:"어머님과 입장", c:"어머님과 입장" }
-              ], way:"father",
-              todo:"신부 입장곡과 입장 타이밍 정하기" },
+                { v:"father", t:"아버님과 입장", c:"아버님과 입장",
+                  todo:"아버님께 동선(버진로드 앞에서 만나 신랑과 인사·악수·포옹 뒤 자리로) 알려드리고, 같이 한 번 걸어 보기",
+                  tip:"아버님은 보통 버진로드 앞에서 만나요. 문(커튼) 뒤에서는 신부 혼자 나와요. 걷다가 신랑과 만나면 신랑과 아버님이 인사·악수·포옹을 하고 아버님은 자리로 가세요. 드레스 때문에 아버님 걸음이 빠르면 신부가 못 따라가요. 인사할 때는 아버님과 같은 곳을 보면 좋아요." },
+                { v:"alone",  t:"혼자 입장", c:"혼자 입장", todo:"신랑이 부케 프로포즈를 할지 정하기" },
+                { v:"groom",  t:"신랑과 함께 입장", c:"신랑과 함께 입장", todo:null }
+              ], way:"father" },
   bow:      { title:"맞절", min:2, base:true, c:"",
               desc:"신랑 신부가 마주 보고 인사해요." },
   vows:     { title:"혼인서약", min:2, base:true,
-              desc:"어떻게 할지 고르면 내용이 채워져요.",
+              desc:"신랑 신부가 서약문을 읽어요. 어느 쪽을 보고 읽을지 고르면 내용이 채워져요.",
               ways:[
-                { v:"read",   t:"신랑 신부가 낭독", c:"신랑 신부 낭독", todo:"서약문 준비하기" },
-                { v:"answer", t:"사회자가 묻고 “네”로 답해요", c:"사회자 질문 → 신랑 신부 대답", todo:null },
-                { v:"own",    t:"각자 쓴 서약을 낭독", c:"각자 쓴 서약 낭독", min:3, todo:"서약문 각자 써 두기 (1분 안)" }
-              ], way:"read" },
+                { v:"front", t:"하객을 바라보고", c:"신랑 신부 낭독 (하객을 바라보고)", todo:"서약문 준비하기" },
+                { v:"face",  t:"마주 보고", c:"신랑 신부 낭독 (마주 보고)", todo:"마주 보고 한다고 웨딩홀·사회자에게 알리고, 서약서 2장 준비하기. 마이크 2개는 웨딩홀에 부탁하기" }
+              ], way:"front" },
+  kids:     { title:"화동 입장", min:2, c:"",
+              desc:"화동이 혼인서약서나 예물을 들고 들어와 전해요. 예물 교환 앞에, 예물 교환이 없으면 혼인서약 앞에 들어가요.",
+              todo:"화동이 준비되면 사회자에게 신호를 보내 달라고 보호자께 부탁하기" },
   rings:    { title:"예물 교환", min:2, c:"",
-              desc:"반지를 주고받아요. 혼인서약 뒤에 들어가요.",
-              todo:"반지 챙길 사람 정하기" },
+              desc:"반지를 주고받아요. 신랑이 신부에게, 그다음 신부가 신랑에게. 혼인서약 뒤·성혼선언 앞에 들어가요." },
   declare:  { title:"성혼선언", min:1, base:true,
               desc:"두 사람이 부부가 되었음을 선언해요.",
               ways:[
                 { v:"mc",     t:"사회자 낭독", c:"사회자 낭독", todo:null },
                 { v:"father", t:"양가 아버님 중 한 분 낭독", c:"아버님 낭독", min:2, todo:"성혼선언문 낭독하실 아버님께 미리 드리기" }
               ], way:"mc" },
-  sermon:   { title:"주례사", min:5, c:"",
-              desc:"주례가 있는 식이면 덕담 대신 넣어요.",
-              todo:"주례 선생님께 5분 안으로 부탁드리기" },
   blessing: { title:"덕담", min:3, base:true,
               desc:"양가 어른이 두 사람에게 당부의 말을 해요.",
               ways:[
                 { v:"gfather", t:"신랑 측 아버님", c:"신랑 측 아버님" },
-                { v:"bfather", t:"신부 측 아버님", c:"신부 측 아버님" },
-                { v:"both",    t:"양가 아버님 모두", c:"신랑 측 아버님 → 신부 측 아버님", min:5 }
+                { v:"bfather", t:"신부 측 아버님", c:"신부 측 아버님" }
               ], way:null, undecided:"누가 하실지 정해 주세요",
               todo:"덕담하실 분께 3분 안으로 부탁드리기" },
-  speech:   { title:"축사", min:3,
-              desc:"친구나 지인이 축하의 말을 해요.",
-              ways:[
-                { v:"one", t:"한 분", c:"축사 1명", min:3 },
-                { v:"two", t:"두 분", c:"축사 2명", min:5 }
-              ], way:"one",
-              todo:"축사하실 분께 3분 안으로 부탁드리기" },
+  speech:   { title:"축사", min:3, c:"",
+              desc:"친구나 지인, 가족이 축하의 말을 해요. 덕담 뒤·축가 앞에 들어가요.",
+              tip:"“기억나?” 한마디에 눈물이 쏟아질 수 있어요. 사회자가 미리 알면 자연스럽게 이어 가요.",
+              todo:"축사하실 분께 3분 안으로 부탁드리기. 신부 자매·친구가 하면 눈물이 많은지 사회자에게 미리 알려 주기" },
   song:     { title:"축가", min:4, base:true,
               desc:"누가 부를지 고르면 시간이 채워져요. 2곡을 넘기지 않는 게 좋아요.",
               ways:[
                 { v:"one",   t:"친구 1곡", c:"친구 1곡", min:4 },
-                { v:"two",   t:"친구 2곡", c:"친구 2곡", min:7 },
+                { v:"two",   t:"친구 2곡", c:"친구 2곡", min:6 },
                 { v:"groom", t:"신랑이 직접", c:"신랑 축가", min:4 }
               ], way:null, undecided:"누가 부를지 정해 주세요",
-              todo:"축가 부를 분께 곡 정하고 MR 보내기" },
-  letter:   { title:"편지 낭독", min:3,
-              desc:"마음을 담은 편지를 읽어요.",
-              ways:[
-                { v:"each",    t:"신랑 신부 서로에게", c:"신랑 → 신부 편지" },
-                { v:"parents", t:"부모님께", c:"부모님께 드리는 편지" }
-              ], way:"each",
-              todo:"편지 써 두기 (3분 안)" },
-  event:    { title:"이벤트 · 영상", min:3, c:"",
-              desc:"영상 상영이나 깜짝 이벤트. 홀에서 영상이 나오는지 먼저 확인해요.",
+              todo:"축가 부를 분께 곡 정해 MR 보내고, 리허설을 위해 식 30분 전 도착 부탁하기" },
+  event:    { title:"영상 상영", min:3, c:"부모님 감사 영상",
+              desc:"홀에서 영상이 나오는지 먼저 확인해요. 부모님 인사 앞에 들어가요.",
               todo:"영상 파일과 재생 방법 웨딩홀에 확인하기" },
-  greet:    { title:"부모님 인사 · 하객 인사", min:4, base:true,
-              desc:"양가 부모님께 인사하고, 하객을 향해 인사해요.",
-              ways:[
-                { v:"bride", t:"신부 부모님 먼저", c:"신부 부모님 → 신랑 부모님 → 하객" },
-                { v:"groom", t:"신랑 부모님 먼저", c:"신랑 부모님 → 신부 부모님 → 하객" }
-              ], way:"bride" },
-  bouquet:  { title:"부케 전달", min:2, c:"",
-              desc:"행진 전에 부케를 받을 친구에게 전해요.",
-              todo:"부케 받을 친구 정하고 자리 알려 주기" },
-  march:    { title:"행진", min:3, base:true, c:"",
-              desc:"신랑 신부가 행진곡에 맞춰 함께 걸어 나가요.",
-              todo:"행진곡 정하기" }
+  greet:    { title:"부모님 인사 · 하객 인사", min:4, base:true, c:"신부 부모님 → 신랑 부모님 → 하객",
+              desc:"신부 부모님, 신랑 부모님 순서로 인사하고, 하객을 향해 인사해요.",
+              tip:"신랑이 부모님께 절을 할지는 선택이에요. 보통은 절해요. 하객 인사 때는 절하지 않아요.",
+              todo:"인사 받으신 뒤 나오셔서 신랑 신부와 포옹한다고 부모님께 알려드리기 (눈물이 걱정되면 손을 모아 ‘화이팅’으로 바꿔도 돼요)" },
+  march:    { title:"행진", min:3, base:true, c:"", music:true,
+              desc:"신랑 신부가 행진곡에 맞춰 함께 걸어 나가요." }
 };
 const ORDER = Object.keys(CATALOG);
 const BASE  = ORDER.filter(k=>CATALOG[k].base);
+// 신랑 입장·신부 입장·행진의 곡·타이밍은 챙길 것에 한 줄로 (사회자님 2026-11-03)
+const MUSIC_TODO = "입장 · 행진: 입장곡·행진곡과 음원 타이밍 정하기 (입장 타이밍 큐시트에서)";
 
 // 사회자 한마디 (식순표 카드 맨 아래)
 const TIP_OK = `대부분의 웨딩홀이 본식을 ${LIMIT}분 안에 마쳐요. ${LIMIT}분 안에 들어오면 사진 촬영까지 쫓기지 않아요. 정해진 식순은 웨딩홀과 사회자에게 미리 보내 주세요.`;
@@ -138,6 +123,7 @@ function makeItem(k){
   return { k, title:"", min:(w && w.min) || c.min, way:c.way || null, note:null };
 }
 function defaults(){ return BASE.map(makeItem); }
+function baseTotal(){ return defaults().reduce((a,it)=>a+it.min,0); }
 
 function load(){
   try{
@@ -169,20 +155,36 @@ function contentOf(it){
 }
 function undecided(it){ const c=cat(it); return !!(c && c.ways && !it.way); }
 function todoOf(it){
-  const c=cat(it); if(!c) return null;
-  if(undecided(it)) return `${c.title}: ${c.undecided}`;
+  const c=cat(it); if(!c) return [];
+  if(undecided(it)) return [`${c.title}: ${c.undecided}`];
   const w=wayOf(it);
   const t = (w && "todo" in w) ? w.todo : c.todo;
-  return t ? `${c.title}: ${t}` : null;
+  return t ? [`${c.title}: ${t}`] : [];
 }
+function tipOf(it){ const c=cat(it); if(!c) return null; const w=wayOf(it); return (w && "tip" in w) ? w.tip : (c.tip || null); }
 function total(){ return S.items.reduce((a,it)=>a+(it.min||0),0); }
 function over(){ return total()-LIMIT; }
 // 순서 k를 끼울 자리: 목록 순서(ORDER)에서 뒤에 오는 첫 순서 앞. 직접 적는 순서는 행진 앞
 function insertAt(k){
+  if(k==="kids"){   // 화동 입장: 예물 교환이 있으면 그 앞, 없으면 혼인서약 앞 (사회자님 2026-11-03)
+    const r=S.items.findIndex(it=>it.k==="rings"); if(r>=0) return r;
+    const v=S.items.findIndex(it=>it.k==="vows"); if(v>=0) return v;
+  }
   const ci = ORDER.indexOf(k);
   if(ci<0){ const m=S.items.findIndex(it=>it.k==="march"); return m<0 ? S.items.length : m; }
   for(let i=0;i<S.items.length;i++){ const oi=ORDER.indexOf(S.items[i].k); if(oi>ci) return i; }
   return S.items.length;
+}
+// 화동 입장을 규칙대로 다시 끼워요 (예물 교환을 넣거나 뺄 때, 화동이 그 자리에 붙어 있었으면)
+function placeKids(){
+  const ki=S.items.findIndex(it=>it.k==="kids"); if(ki<0) return;
+  const [kid]=S.items.splice(ki,1);
+  S.items.splice(insertAt("kids"),0,kid);
+}
+// 양가 부모님 입장을 넣으면 화촉점화는 2분·"아버님도 같이 하실지" 비움, 빼면 4분·양가 어머님으로 (사회자님 2026-11-03)
+function coupleCandle(withParents){
+  const cd=S.items.find(it=>it.k==="candle"); if(!cd) return;
+  if(withParents){ cd.way=null; cd.min=2; } else { cd.way=CATALOG.candle.way; cd.min=CATALOG.candle.min; }
 }
 
 // ===== 시간 =====
@@ -215,7 +217,7 @@ function topBar(right){ return `<div class="top"><span>결혼식 식순표</span
 function statusBox(){
   const t=total(), o=over(), pct=Math.min(100, Math.round(t/LIMIT*100));
   const inner = o<=0
-    ? `<b>총 ${t}분 · ${LIMIT}분 안에 들어와요</b>여유 ${-o}분. 대부분의 웨딩홀이 본식을 ${LIMIT}분 안에 마쳐요.`
+    ? `<b>총 ${t}분 · ${LIMIT}분 안에 들어와요</b>여유 ${-o}분. 대부분의 웨딩홀이 본식을 ${LIMIT}분 안에 마쳐요. 이후 30분은 원판 사진 촬영(가족 → 친지 → 지인·친구 순)이에요.`
     : `<b>총 ${t}분 · ${LIMIT}분을 ${o}분 넘어요</b>축가는 2곡 안, 혼인서약·덕담·축사는 각 3분 안으로 줄여 보세요.`;
   return `<div class="status ${o<=0?"ok":"warn"}" id="status">${inner}<div class="bar2"><div style="width:${pct}%"></div></div></div>`;
 }
@@ -233,7 +235,7 @@ function home(){
     <div class="bar"></div>
     <p class="lead">기본 식순이 미리 들어 있어요. 넣고 빼고 순서만 바꾸면 웨딩홀·사회자·부모님께 보낼 식순표가 나와요.</p>
     <div class="pick">
-      <button id="start"><span>${saved?"이어서 만들기":"식순표 만들기"}</span><span class="q">${saved?"만들던 식순":"기본 식순 11개 · 30분"}</span></button>
+      <button id="start"><span>${saved?"이어서 만들기":"식순표 만들기"}</span><span class="q">${saved?"만들던 식순":`기본 식순 ${BASE.length}개 · ${baseTotal()}분`}</span></button>
       ${saved?`<button id="new"><span>새로 만들기</span><span class="q">기본 식순부터</span></button>`:""}
     </div>
     <p class="note">※ ${SAFE}</p>
@@ -292,7 +294,7 @@ function paintStatus(){
   document.getElementById("count").textContent = `총 ${total()}분`;
 }
 function rowHtml(it, i){
-  const c=cat(it), w=wayOf(it), content=contentOf(it), need=undecided(it), tm=rowClock(i), open=S.open===i;
+  const c=cat(it), w=wayOf(it), content=contentOf(it), need=undecided(it), tm=rowClock(i), open=S.open===i, tip=tipOf(it);
   const sub = content || (need ? c.undecided : "");
   let editPanel="";
   if(open){
@@ -300,6 +302,7 @@ function rowHtml(it, i){
       <div class="edit">
         ${c && c.desc ? `<p class="desc2">${esc(c.desc)}</p>` : ""}
         ${c && c.ways ? `<div class="chips" role="group" aria-label="방식 고르기">${c.ways.map(x=>`<button type="button" class="chip${it.way===x.v?" on":""}" data-w="${x.v}">${esc(x.t)}${x.min && x.min!==c.min?` · ${x.min}분`:""}</button>`).join("")}</div>` : ""}
+        ${tip ? `<div class="tip2"><b>사회자 팁</b>${esc(tip)}</div>` : ""}
         ${it.k==="custom" ? `<input class="in" data-title placeholder="순서 이름" value="${esc(it.title)}" autocomplete="off">` : ""}
         <input class="in" data-note placeholder="진행 내용 · 메모 (선택)" value="${esc(content)}" autocomplete="off">
         <div class="ctrl">
@@ -328,8 +331,11 @@ function paintRows(){
     const i=+li.dataset.i, it=S.items[i];
     li.querySelector(".rowbtn").onclick = ()=>{ S.open = S.open===i ? -1 : i; paintRows(); };
     li.querySelectorAll(".chip").forEach(b=>b.onclick=()=>{
-      const c=cat(it), w=c.ways.find(x=>x.v===b.dataset.w);
-      it.way=w.v; it.min=w.min||c.min; it.note=null; save(); paintRows();
+      const c=cat(it), prev=wayOf(it), w=c.ways.find(x=>x.v===b.dataset.w);
+      it.way=w.v; it.note=null;
+      // 방식에 분이 있으면 그 분으로, 분 있는 방식에서 돌아오면 기본 분으로, 아니면 손본 분 그대로 (화촉점화 2분 등)
+      if(w.min) it.min=w.min; else if(prev && prev.min) it.min=c.min;
+      save(); paintRows();
     });
     const note=li.querySelector("[data-note]");
     if(note) note.oninput = ()=>{ it.note=note.value; save(); li.querySelector(".c").textContent = note.value || (undecided(it)?cat(it).undecided:""); };
@@ -342,7 +348,13 @@ function paintRows(){
       const el=document.querySelector(`.row[data-i="${j}"]`); if(el) el.scrollIntoView({block:"nearest"});
     });
     const del=li.querySelector("[data-del]");
-    if(del) del.onclick = ()=>{ S.items.splice(i,1); S.open=-1; save(); paintRows(); };
+    if(del) del.onclick = ()=>{
+      const kidBefore = it.k==="rings" && i>0 && S.items[i-1].k==="kids";
+      S.items.splice(i,1); S.open=-1;
+      if(it.k==="parents") coupleCandle(false);
+      if(kidBefore) placeKids();
+      save(); paintRows();
+    };
   });
   const lib=document.getElementById("lib"); if(lib && !lib.hidden) paintLib();
 }
@@ -365,8 +377,12 @@ function paintLib(){
   lib.querySelectorAll(".libitem").forEach(b=>b.onclick=()=>{
     const k=b.dataset.k;
     const it = k==="custom" ? { k:"custom", title:"", min:3, way:null, note:"" } : makeItem(k);
+    if(k==="candle" && S.items.some(x=>x.k==="parents")){ it.way=null; it.min=2; }
     const at=insertAt(k);
-    S.items.splice(at,0,it); S.open=at; save();
+    S.items.splice(at,0,it);
+    if(k==="parents") coupleCandle(true);
+    if(k==="rings"){ const ki=S.items.findIndex(x=>x.k==="kids"), vi=S.items.findIndex(x=>x.k==="vows"); if(ki>=0 && ki===vi-1) placeKids(); }
+    S.open=at; save();
     toggleLib(); paintRows();
     const el=document.querySelector(`.row[data-i="${at}"]`);
     if(el){ el.scrollIntoView({block:"center", behavior: reduce?"auto":"smooth"}); const t=el.querySelector("[data-title]"); if(t) t.focus(); }
@@ -374,7 +390,15 @@ function paintLib(){
 }
 
 // ===== 식순표 =====
-function todos(){ return S.items.map(todoOf).filter(Boolean); }
+function todos(){
+  const L=[]; let music=false;
+  S.items.forEach(it=>{
+    const c=cat(it);
+    if(c && c.music && !music){ music=true; L.push(MUSIC_TODO); }
+    L.push(...todoOf(it));
+  });
+  return L;
+}
 function sheetText(){
   const L=[], names=namesLine(), info=infoLine(), t=total(), o=over(), s=startMin();
   L.push(`[결혼식 식순표]${names?" "+names:""}`);
