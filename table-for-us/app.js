@@ -132,7 +132,7 @@ function askStation(){
     <h2 class="question">어느 역에서\n만나요?</h2>
     <p class="lead2">환승역 ${COVERED.length}곳부터 모았어요.</p>
     <div class="regions">
-      ${REGIONS.map(r => `<div class="reg"><p class="reg-n">${esc(r.name)}</p><div class="stations">${r.st.map(n => `<button class="stn${S.st === n ? " on" : ""}" data-st="${esc(n)}"><b>${esc(n)}</b><small>${esc(lineOf(n, true))}</small></button>`).join("")}</div></div>`).join("")}
+      ${REGIONS.map(r => `<div class="reg"><p class="reg-n">${esc(r.name)}</p><div class="stations">${r.st.map(n => `<button class="stn${S.st === n ? " on" : ""}" data-st="${esc(n)}" aria-label="${esc(n)}역 · ${esc(lineOf(n))}"><b>${esc(n)}</b></button>`).join("")}</div></div>`).join("")}
     </div>
     <div class="find">
       <label class="lbl" for="q">다른 역에서 만나요</label>

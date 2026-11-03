@@ -11,10 +11,10 @@
 /* 역 고르기 */
 .regions{display:flex;flex-direction:column;gap:14px}
 .reg-n{font-size:13px;font-weight:700;color:var(--sub);margin:0 2px 8px}
-.stations{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-.stn{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-height:64px;background:var(--card);border:2px solid transparent;border-radius:16px;padding:11px 12px;text-align:left}
-.stn b{font-size:17px;font-weight:900;letter-spacing:-.01em;line-height:1.25}
-.stn small{font-size:11.5px;color:var(--sub);font-weight:500;line-height:1.35}
+/* 버튼이 가장 긴 이름("고속터미널" 78px + 여백)보다 좁아지지 않게: 보통 폰은 한 줄에 3개, 좁은 폰은 2개 */
+.stations{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px}
+.stn{display:flex;align-items:center;min-height:56px;background:var(--card);border:2px solid transparent;border-radius:16px;padding:0 10px;text-align:left}
+.stn b{font-size:17px;font-weight:900;letter-spacing:-.01em;line-height:1.25;white-space:nowrap}
 .stn.on{border-color:var(--accent)}
 @media (hover:hover){.stn:hover{border-color:var(--line)}.stn.on:hover{border-color:var(--accent)}}
 .find{margin-top:20px;background:var(--card);border-radius:20px;padding:14px}
