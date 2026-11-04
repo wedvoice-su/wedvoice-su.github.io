@@ -110,6 +110,7 @@ const Movie = (() => {
         soon.forEach(i => { load(i).catch(() => {}); });
         await Promise.all(now.map(load));
       },
+      drop(i){ const v = ready.get(i); if (v && v.img.close) v.img.close(); ready.delete(i); pending.delete(i); },   // 사진을 바꿨을 때
       close(){ for (const v of ready.values()) if (v.img.close) v.img.close(); ready.clear(); }
     };
   }
@@ -363,9 +364,10 @@ const Movie = (() => {
       for (const n of names) await dir.removeEntry(n).catch(() => {});
     } catch (e) {}
   }
-  async function target(mb, name, info){
+  // force: 'memory'면 저장 공간을 안 쓰고 메모리에 모아요 (저장 공간 쓰기가 멈춘 기기에서 다시 만들 때)
+  async function target(mb, name, info, force){
     try {
-      if (navigator.storage && navigator.storage.getDirectory) {
+      if (force !== 'memory' && navigator.storage && navigator.storage.getDirectory) {
         await cleanup();
         const dir = await navigator.storage.getDirectory();
         if (await diskOK(dir)) {
@@ -383,66 +385,104 @@ const Movie = (() => {
   }
 
   // ===== 만들기 =====
-  // job: { P, tpl, d, bank, ratio, q, music(AudioBuffer|null), name, stop(취소하면 true) }
+  // job: { P, tpl, d, bank, ratio, q, music(AudioBuffer|null), name, stop(취소하면 true),
+  //        wake(버튼을 누른 순간 요청한 화면 꺼짐 방지), store('memory' 강제), onStage(단계, info), tries }
+  // 멈춤 감지: 화면이 켜져 있는데 한동안 한 걸음도 못 나가면 'stall' 오류로 끝내요 → app.js가 다른 방식으로 한 번 더 만들어요
+  const PATIENCE = { '라이브러리': 60, '글꼴': 60, '음악': 60, '저장 준비': 60, '음악 압축': 150, '영상': 25, '마무리': 120 };
   async function make(job, onp){
-    const mb = await MB();
-    const [W, H] = size(job.ratio, job.q), vbr = bitrate(job.q, job.P.total);
-    const info = { W, H, bitrate: vbr, webkit: WEBKIT };
-    if (!(await mb.canEncodeVideo('avc', { width: W, height: H, bitrate: vbr, frameRate: FPS }))) {
-      throw Object.assign(new Error(`이 기기에서는 ${W}×${H} 영상을 만들 수 없어요`), { code: 'size' });
-    }
-    if (WEBKIT || !(await mb.canEncodeAudio('aac', { numberOfChannels: 2, sampleRate: SR, bitrate: ABR }))) { await wasmAac(); info.audio = '보조 인코더(WASM AAC)'; }
-    else info.audio = '내장 AAC';
-    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
-    const ctx = cv.getContext('2d', { alpha: false });
-    const M = scene(job.P, W, H, job.tpl, job.d, job.bank);
-    const total = job.P.total, frames = Math.round(total * FPS);
-    await fonts(job.tpl, job.sample || '');
-    const audio = await mix(job.music, total);
-    const tg = await target(mb, job.name, info);
-    const output = new mb.Output({ format: new mb.Mp4OutputFormat({ fastStart: tg.fastStart }), target: tg.target });
-    const vs = new mb.CanvasSource(cv, { codec: 'avc', bitrate: vbr, keyFrameInterval: 2, onEncoderConfig: c => { info.codec = c.codec; } });
-    output.addVideoTrack(vs, { frameRate: FPS, maximumPacketCount: frames + 60 });
-    const as = new mb.AudioBufferSource({ codec: 'aac', bitrate: ABR });
-    output.addAudioTrack(as, { maximumPacketCount: Math.ceil(total * 100 * 1.4) + 200 });
-    let wake = null;
-    const lock = async () => { try { wake = navigator.wakeLock ? await navigator.wakeLock.request('screen') : null; } catch (e) {} };
-    const vis = () => { if (document.visibilityState === 'visible') lock(); else info.left = (info.left || 0) + 1; };
+    const info = { webkit: WEBKIT, tries: job.tries || 1 };
+    let wake = job.wake ? await Promise.resolve(job.wake).catch(() => null) : null;
+    info.wake = wake ? '켜짐' : (navigator.wakeLock ? '못 켬' : '없음');
+    const relock = async () => {
+      try { if (navigator.wakeLock && (!wake || wake.released)) { wake = await navigator.wakeLock.request('screen'); job.wakeNow = wake; info.wake = '다시 켬'; } } catch (e) {}
+    };
+    let last = performance.now(), tickAt = last, stage = '라이브러리', stallReject = null;
+    const stall = new Promise((_, rej) => { stallReject = rej; });
+    stall.catch(() => {});
+    const beat = s => { last = performance.now(); if (s && s !== stage) { stage = s; info.stage = s; if (job.onStage) job.onStage(s, info); } };
+    const dog = setInterval(() => {
+      const now = performance.now();
+      // 화면이 꺼졌다 켜졌거나(타이머가 한참 멈춤) 다른 앱에 있었으면 처음부터 다시 셈
+      if (now - tickAt > 6000 || document.visibilityState !== 'visible') last = now;
+      tickAt = now;
+      if (now - last > (PATIENCE[stage] || 60) * 1000) {
+        clearInterval(dog);
+        stallReject(Object.assign(new Error(`진행이 멈췄어요 (${stage}${info.at ? ' ' + info.at : ''})`), { code: 'stall', stage }));
+      }
+    }, 2000);
+    const w = p => Promise.race([p, stall]);
+    const vis = () => { last = performance.now(); if (document.visibilityState === 'visible') relock(); else info.left = (info.left || 0) + 1; };
     document.addEventListener('visibilitychange', vis);
-    await lock();
-    const T0 = performance.now();
+    let output = null;
     try {
-      await output.start();
-      await as.add(audio); as.close();
-      let key = '', posterJob = null;
+      const mb = await w(MB());
+      const [W, H] = size(job.ratio, job.q), vbr = bitrate(job.q, job.P.total);
+      Object.assign(info, { W, H, bitrate: vbr });
+      if (!(await w(mb.canEncodeVideo('avc', { width: W, height: H, bitrate: vbr, frameRate: FPS })))) {
+        throw Object.assign(new Error(`이 기기에서는 ${W}×${H} 영상을 만들 수 없어요`), { code: 'size' });
+      }
+      if (WEBKIT || !(await w(mb.canEncodeAudio('aac', { numberOfChannels: 2, sampleRate: SR, bitrate: ABR })))) { await w(wasmAac()); info.audio = '보조 인코더(WASM AAC)'; }
+      else info.audio = '내장 AAC';
+      beat('글꼴');
+      const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+      const ctx = cv.getContext('2d', { alpha: false });
+      const M = scene(job.P, W, H, job.tpl, job.d, job.bank);
+      const total = job.P.total, frames = Math.round(total * FPS);
+      await w(fonts(job.tpl, job.sample || ''));
+      beat('음악');
+      const audio = await w(mix(job.music, total));
+      beat('저장 준비');
+      const tg = await w(target(mb, job.name, info, job.store));
+      if (job.onStage) job.onStage('저장 준비', info);
+      output = new mb.Output({ format: new mb.Mp4OutputFormat({ fastStart: tg.fastStart }), target: tg.target });
+      const vs = new mb.CanvasSource(cv, { codec: 'avc', bitrate: vbr, keyFrameInterval: 2, onEncoderConfig: c => { info.codec = c.codec; } });
+      output.addVideoTrack(vs, { frameRate: FPS, maximumPacketCount: frames + 60 });
+      const as = new mb.AudioBufferSource({ codec: 'aac', bitrate: ABR });
+      output.addAudioTrack(as, { maximumPacketCount: Math.ceil(total * 100 * 1.4) + 200 });
+      if (!wake) await relock();
+      const T0 = performance.now();
+      await w(output.start());
+      beat('음악 압축');
+      await w(as.add(audio)); as.close();
+      beat('영상');
+      let key = '', posterJob = null, drawT = 0, addT = 0;
       const posterAt = Math.round(Math.min(job.P.segs[0].dur * .75, total / 2) * FPS);   // 완성 화면 영상 칸에 보일 장면
       for (let i = 0; i < frames; i++) {
         if (job.stop) throw Object.assign(new Error('그만 만들었어요'), { code: 'cancel' });
         const t = i / FPS, need = photosAt(job.P, t, job.tpl.xf);
-        if (need.key !== key) { await job.bank.need(need.now, need.soon); key = need.key; }
+        if (need.key !== key) { await w(job.bank.need(need.now, need.soon)); key = need.key; }
+        if (job.simStall && job.tries === 1 && i === 60) await w(new Promise(() => {}));   // 시험용(?debug&stalltest): 첫 번째는 일부러 멈춰 보기
+        const a = performance.now();
         frame(ctx, t, M);
+        const b = performance.now();
         if (i === posterAt) posterJob = new Promise(r => cv.toBlob(r, 'image/jpeg', .85));
-        await vs.add(t, 1 / FPS);
+        await w(vs.add(t, 1 / FPS));
+        drawT += b - a; addT += performance.now() - b;
+        beat();
         if (i % 10 === 9 || i === frames - 1) {
+          info.at = `${i + 1}/${frames}`;
           if (onp) onp({ done: (i + 1) / frames, elapsed: (performance.now() - T0) / 1000, canvas: cv });
           await new Promise(r => setTimeout(r, 0));
         }
       }
+      info.drawMs = +(drawT / frames).toFixed(1); info.addMs = +(addT / frames).toFixed(1);   // 한 장 그리는 데 / 압축에 넘기는 데 걸린 시간
       vs.close();
+      beat('마무리');
       if (onp) onp({ done: 1, finishing: true, elapsed: (performance.now() - T0) / 1000 });
-      await output.finalize();
+      await w(output.finalize());
       const pb = posterJob ? await posterJob : null;
       if (pb) info.poster = URL.createObjectURL(pb);
+      const file = await w(tg.file());
+      Object.assign(info, { seconds: +((performance.now() - T0) / 1000).toFixed(1), frames, size: file.size, length: total });
+      return { file, info };
     } catch (e) {
-      try { await output.cancel(); } catch (_) {}
+      if (output) { try { await Promise.race([output.cancel(), new Promise(r => setTimeout(r, 3000))]); } catch (_) {} }
+      if (e && typeof e === 'object') e.info = info;
       throw e;
     } finally {
+      clearInterval(dog);
       document.removeEventListener('visibilitychange', vis);
-      try { if (wake) await wake.release(); } catch (e) {}
     }
-    const file = await tg.file();
-    Object.assign(info, { seconds: (performance.now() - T0) / 1000, frames, size: file.size, length: total });
-    return { file, info };
   }
 
   // ===== 미리보기: 화면용 작은 캔버스에 실제 속도로 재생 =====

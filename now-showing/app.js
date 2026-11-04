@@ -298,7 +298,8 @@ function stepPhotos(){
     <div class="photos">${PH.map((p, i) => `<button data-i="${i}" class="${i === SEL ? "on" : ""}" aria-label="${i + 1}번 사진"><img src="${p.url}" alt=""><span class="no">${i + 1}</span>${p.caption ? `<span class="tag">글</span>` : edited(p) ? `<span class="tag">✎</span>` : ""}</button>`).join("")}</div>
     ${SEL >= 0 && PH[SEL] ? `<div class="photo-tools">
       <p class="which">${SEL + 1}번 사진</p>
-      <button class="btn main wide" id="edit">편집하기 · 위치 · 크기 · 글</button>
+      <button class="btn main half" id="edit">편집하기</button>
+      <label class="btn ghost add half"><input type="file" id="swap" accept="image/*">사진 바꾸기</label>
       <button class="btn ghost" id="mvl"${SEL === 0 ? " disabled" : ""}>← 앞으로</button>
       <button class="btn ghost" id="mvr"${SEL === PH.length - 1 ? " disabled" : ""}>뒤로 →</button>
       <button class="btn ghost" id="rm">빼기</button></div>` : ""}
@@ -308,6 +309,12 @@ function stepPhotos(){
   app.querySelectorAll(".photos button").forEach(b => b.onclick = () => { const i = +b.dataset.i; SEL = SEL === i ? -1 : i; stepPhotos(); });
   const move = d => { const j = SEL + d; if (j < 0 || j >= PH.length) return; [PH[SEL], PH[j]] = [PH[j], PH[SEL]]; SEL = j; saveOrder(); stepPhotos(); };
   if ($("#edit")) $("#edit").onclick = () => editPhoto(SEL);
+  if ($("#swap")) $("#swap").onchange = async e => {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    say("사진 바꾸는 중…", "#busy");
+    try { await replacePhoto(SEL, f); stepPhotos(); say(`${SEL + 1}번 사진을 바꿨어요. 넣어 둔 글은 그대로예요.`, "#busy"); }
+    catch (x) { say("이 사진은 열 수 없어요.", "#busy"); }
+  };
   if ($("#mvl")) $("#mvl").onclick = () => move(-1);
   if ($("#mvr")) $("#mvr").onclick = () => move(1);
   if ($("#rm")) $("#rm").onclick = () => {
@@ -320,6 +327,12 @@ function stepPhotos(){
 const DRAG_HINT = "사진을 끌어서 옮기고, 두 손가락으로 벌려서 확대할 수 있어요";
 const ZMAX = 3;
 let RESUME_AT = null;   // 미리 보기에서 편집하러 갔다 오면 그 장면부터
+async function replacePhoto(i, file){
+  const p = await Movie.shrink(file), old = PH[i];
+  URL.revokeObjectURL(old.url);
+  Object.assign(old, { blob: p.blob, thumb: p.thumb, w: p.w, h: p.h, url: URL.createObjectURL(p.thumb), meta: null });
+  savePhoto(old);
+}
 function savePhoto(p){ DB.set("ph:" + p.id, { id: p.id, blob: p.blob, thumb: p.thumb, w: p.w, h: p.h, meta: p.meta || null, caption: p.caption || "" }); }
 const edited = p => !!(p.meta && (p.meta.z > 1.01 || Math.abs(p.meta.cx - .5) > .005 || Math.abs(p.meta.cy - .5) > .005 || (p.meta.fit && p.meta.fit !== "auto")));
 function editPhoto(start){
@@ -369,7 +382,8 @@ function editPhoto(start){
       ${introHere ? `<p class="note" style="margin-top:-4px">1·2번 사진에는 신랑·신부 소개가 나와서, 여기 쓴 글은 영상에 안 나와요.</p>` : ""}
       <div class="ed-nav"><button class="btn ghost" id="edprev"${i === 0 ? " disabled" : ""}>← 이전 사진</button><button class="btn ghost" id="ednext"${i === PH.length - 1 ? " disabled" : ""}>다음 사진 →</button></div>
       <button class="btn main" id="eddone">완료</button>
-      <button class="text-btn btn-link" id="edreset">처음 위치로</button>
+      <div class="ed-nav"><label class="btn ghost add"><input type="file" id="edswap" accept="image/*">다른 사진으로 바꾸기</label><button class="btn ghost" id="edreset">처음 위치로</button></div>
+      <p class="msg" id="edmsg" role="status"></p>
     </div>`;
     const c = box.querySelector("canvas"), q$ = s => box.querySelector(s);
     const toV = e => { const r = c.getBoundingClientRect(), k = W / r.width; return { x: e.clientX * k, y: e.clientY * k }; };
@@ -422,6 +436,12 @@ function editPhoto(start){
     q$("#edprev").onclick = () => { if (i > 0) go2(i - 1); };
     q$("#ednext").onclick = () => { if (i < PH.length - 1) go2(i + 1); };
     q$("#eddone").onclick = () => history.back();
+    q$("#edswap").onchange = async e => {
+      const f = e.target.files && e.target.files[0]; if (!f) return;
+      q$("#edmsg").textContent = "사진 바꾸는 중…";
+      try { await replacePhoto(i, f); bank.drop(i); shell(); }
+      catch (x) { q$("#edmsg").textContent = "이 사진은 열 수 없어요."; }
+    };
     q$("#edreset").onclick = () => { PH[i].meta = { cx: .5, cy: .5, z: 1, fit: "auto" }; q$("#edzoom").value = 1; syncFit(); draw(); later(); };
     replan();
     await Movie.fonts(T, sampleText(data()));
@@ -681,7 +701,9 @@ async function preview(){
   $("#play").onclick = toggle; cv.onclick = toggle;
   const mb = Math.round((Movie.bitrate(S.q, P.total) + 192000) * P.total / 8 / 1e6);
   $("#facts").innerHTML = `<b>${lenKo(P.total)}</b><span>사진 ${PH.length}장 · 한 장에 약 ${P.per.toFixed(1)}초</span><span>${buf ? "음악 " + lenKo(buf.duration) : "음악 없음"}</span><span>파일 약 ${mb}MB</span>`;
-  say(P.total > 300 ? "영상이 5분을 넘어요. 식전영상은 3~5분이 알맞고, 길면 하객이 지루해할 수 있어요. 사진을 줄여 보세요."
+  const crash = lastCrash();
+  say(crash ? "지난번에 영상을 만들다 멈추고 페이지가 다시 열렸어요. 화면을 켠 채로 다시 만들어 주세요. 계속 멈추면 720p로 바꾸거나 컴퓨터에서 만들어 주세요."
+    : P.total > 300 ? "영상이 5분을 넘어요. 식전영상은 3~5분이 알맞고, 길면 하객이 지루해할 수 있어요. 사진을 줄여 보세요."
     : buf && buf.duration < P.total - .5 ? "사진이 많아서 음악이 한 번 더 이어져요. 사진을 줄이면 음악 한 곡에 맞출 수 있어요." : "");
   $("#make").disabled = !PH.length || !!Movie.inApp();
   if (!PH.length) say("사진을 먼저 넣어 주세요.");
@@ -691,6 +713,12 @@ function fileName(){
   const who = [S.groom.trim(), S.bride.trim()].filter(Boolean).join("_").replace(/[\\/:*?"<>|]/g, "");
   return ["식전영상", (S.date || "").replace(/-/g, ""), who].filter(Boolean).join("_") + ".mp4";
 }
+// 만들다가 페이지가 통째로 다시 열리면(휴대폰 메모리 부족 등) 다음에 알 수 있게 표시를 남겨 둬요
+const RENDER_KEY = "nowShowing.rendering";
+function markRender(info){ try { localStorage.setItem(RENDER_KEY, JSON.stringify({ t: Date.now(), store: (info && info.store) || "", at: (info && info.at) || "", q: S.q })); } catch (e) {} }
+function clearRender(){ try { localStorage.removeItem(RENDER_KEY); } catch (e) {} }
+function lastCrash(){ try { const v = JSON.parse(localStorage.getItem(RENDER_KEY)); return v && Date.now() - v.t < 6 * 3600e3 ? v : null; } catch (e) { return null; } }
+const infoLines = info => Object.entries(info || {}).filter(([k]) => k !== "poster").map(([k, v]) => `${k}: ${v}`).join("\n");
 function overlay(job, W, H){
   const box = document.createElement("div");
   box.className = "making"; box.setAttribute("role", "dialog"); box.setAttribute("aria-label", "영상 만드는 중");
@@ -702,6 +730,7 @@ function overlay(job, W, H){
     <button class="text-btn" id="mkstop">그만 만들기</button></div>`;
   document.body.appendChild(box);
   const cv = box.querySelector("canvas"), bar = box.querySelector("progress"), st = box.querySelector(".st");
+  let note = "";
   box.querySelector("#mkstop").onclick = () => { job.stop = true; st.textContent = "멈추는 중…"; };
   return {
     progress(p){
@@ -709,37 +738,63 @@ function overlay(job, W, H){
       if (p.finishing) st.textContent = "마무리 중…";
       else {
         const left = p.done > .03 ? Math.max(0, p.elapsed / p.done - p.elapsed) : null;
-        st.textContent = `만드는 중 ${Math.floor(p.done * 100)}%${left != null ? ` · 약 ${left > 60 ? Math.ceil(left / 60) + "분" : Math.ceil(left) + "초"} 남음` : ""}`;
+        st.textContent = `${note}만드는 중 ${Math.floor(p.done * 100)}%${left != null ? ` · 약 ${left > 60 ? Math.ceil(left / 60) + "분" : Math.ceil(left) + "초"} 남음` : ""}`;
       }
       if (p.canvas) cv.getContext("2d").drawImage(p.canvas, 0, 0, cv.width, cv.height);
     },
+    retry(){ note = "다시 "; bar.value = 0; st.textContent = "멈춰서 다른 방식으로 다시 만들고 있어요…"; },
     fail(e){
       const msg = e && e.code === "size" ? e.message + ". 화질을 낮춰서 다시 만들어 주세요."
+        : e && e.code === "stall" ? "이 휴대폰에서 영상 만들기가 계속 멈춰요. 화질을 720p로 바꾸거나, 컴퓨터에서 만들어 주세요."
         : "영상을 만들다 멈췄어요. 화면을 켠 채로 이 화면에서 다시 만들어 주세요.";
-      box.querySelector(".in").innerHTML = `<p class="err">${esc(msg)}</p>${DEBUG ? `<pre class="report">${esc((e && (e.stack || e.message)) || e)}</pre>` : ""}<button class="btn main" id="mkok">확인</button>`;
+      const rep = [(e && e.message) || String(e), infoLines(e && e.info), navigator.userAgent].filter(Boolean).join("\n");
+      box.querySelector(".in").innerHTML = `<p class="err">${esc(msg)}</p>${DEBUG ? `<pre class="report" id="failrep">${esc(rep)}</pre><button class="text-btn" id="failcopy" style="color:#bbb;align-self:center">결과 복사하기</button>` : ""}<button class="btn main" id="mkok">확인</button>`;
+      if (box.querySelector("#failcopy")) box.querySelector("#failcopy").onclick = async () => { try { await navigator.clipboard.writeText(rep); box.querySelector("#failcopy").textContent = "복사했어요"; } catch (x) {} };
       box.querySelector("#mkok").onclick = () => box.remove();
     },
     close(){ box.remove(); }
   };
 }
 async function makeIt(){
-  if (!CUR || !PH.length) return;
-  if (Movie.inApp()) { say("앱 안에서는 저장할 수 없어요. 사파리·크롬에서 열어 주세요."); return; }
+  // 화면 꺼짐 방지는 누른 바로 그 순간에 요청해요 (사파리는 누른 직후에만 허락해 줄 수 있어요)
+  const wake = navigator.wakeLock ? navigator.wakeLock.request("screen").catch(() => null) : null;
+  const release = () => { [wake, job && job.wakeNow].forEach(x => Promise.resolve(x).then(w => w && !w.released && w.release()).catch(() => {})); };
+  let job = null;
+  if (!CUR || !PH.length) { release(); return; }
+  if (Movie.inApp()) { release(); say("앱 안에서는 저장할 수 없어요. 사파리·크롬에서 열어 주세요."); return; }
   const { T, d, P, buf, W, H } = CUR;
   stopAll();
-  if (RESULT) { URL.revokeObjectURL(RESULT.url); RESULT = null; }
-  const job = { P, tpl: T, d, bank: Movie.bank(PH), ratio: S.ratio, q: S.q, music: buf, name: fileName(), sample: sampleText(d), stop: false };
+  if (RESULT) { URL.revokeObjectURL(RESULT.url); if (RESULT.info.poster) URL.revokeObjectURL(RESULT.info.poster); RESULT = null; }
+  // 지난번에 만들다 페이지가 다시 열렸으면(메모리 부족일 수 있어요) 이번엔 메모리를 덜 쓰는 쪽으로
+  const crash = lastCrash();
+  job = { P, tpl: T, d, bank: Movie.bank(PH), ratio: S.ratio, q: S.q, music: buf, name: fileName(), sample: sampleText(d), stop: false, wake,
+    store: crash && crash.store === "메모리" ? "disk" : undefined, onStage: (s, info) => markRender(info), simStall: DEBUG && QS.has("stalltest") };
+  markRender({});
   const ov = overlay(job, W, H);
   try {
-    const { file, info } = await Movie.make(job, p => ov.progress(p));
-    ov.close();
-    RESULT = { file, info, url: URL.createObjectURL(file) };
-    S.step = 6; history.pushState({ step: 6 }, "");
-    render(); window.scrollTo(0, 0);
-  } catch (e) {
-    if (e && e.code === "cancel") { ov.close(); preview(); }
-    else { ov.fail(e); preview(); }
-  } finally { job.bank.close(); }
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      job.tries = attempt; job.stop = false;
+      try {
+        const { file, info } = await Movie.make(job, p => ov.progress(p));
+        if (crash) info.before = `지난번 멈춤: ${crash.store || "?"} ${crash.at || ""}`;
+        clearRender(); ov.close();
+        RESULT = { file, info, url: URL.createObjectURL(file) };
+        S.step = 6; history.pushState({ step: 6 }, "");
+        render(); window.scrollTo(0, 0);
+        return;
+      } catch (e) {
+        if (e && e.code === "cancel") { clearRender(); ov.close(); preview(); return; }
+        // 멈췄으면 한 번은 다른 저장 방식으로 다시 (저장 공간 ↔ 메모리)
+        if (e && e.code === "stall" && attempt === 1 && !job.stop) {
+          job.store = e.info && e.info.store === "휴대폰 저장 공간" ? "memory" : "disk";
+          job.bank.close(); job.bank = Movie.bank(PH);
+          ov.retry();
+          continue;
+        }
+        clearRender(); ov.fail(e); preview(); return;
+      }
+    }
+  } finally { job.bank.close(); release(); }
 }
 
 // ===== 완성 =====
@@ -764,7 +819,7 @@ function done(){
       ${siteLink("flow", "btn ghost", "결혼식 식순표 만들기")}
       <a class="btn insta" href="${INSTA}" target="_blank" rel="noopener">인스타에서 결혼 준비 꿀팁 보기</a>
     </div>
-    ${DEBUG ? `<p class="note" style="margin-top:18px">시험용 정보예요. 주소에 debug가 있을 때만 보여요.</p><pre class="report" id="report">${esc([navigator.userAgent, ...Object.entries(info).map(([k, v]) => `${k}: ${v}`)].join("\n"))}</pre><button class="text-btn btn-link" id="copyrep">결과 복사하기</button>` : ""}
+    ${DEBUG ? `<p class="note" style="margin-top:18px">시험용 정보예요. 주소에 debug가 있을 때만 보여요.</p><pre class="report" id="report">${esc([navigator.userAgent, infoLines(info)].join("\n"))}</pre><button class="text-btn btn-link" id="copyrep">결과 복사하기</button>` : ""}
     ${foot()}`;
   if ($("#copyrep")) $("#copyrep").onclick = async () => { try { await navigator.clipboard.writeText($("#report").textContent); $("#copyrep").textContent = "복사했어요"; } catch (e) {} };
   if ($("#save")) $("#save").onclick = async () => {
