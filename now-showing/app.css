@@ -161,3 +161,6 @@
 
 .editor .ed-nav .add{display:flex;justify-content:center;align-items:center}
 .editor .msg{margin:-4px 0 0}
+
+/* 앱 안 안내: 가장 중요한 "크롬·사파리에서 열기"가 제일 눈에 띄게 */
+.inapp .btn.main{background:var(--cover-accent);color:#fff}

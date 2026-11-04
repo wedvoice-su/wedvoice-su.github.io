@@ -61,9 +61,12 @@ const TEMPLATES = [];
     const m = mm(M), a = K.rise(u, .5, .9) * fadeOut(u, s);
     if (a <= 0) return;
     K.scrim(ctx, M, tall(M) ? .55 : .5, .66 * a);
-    if (o.chapter && s.ch) K.text(ctx, `CHAPTER ${["I", "II", "III", "IV", "V", "VI", "VII", "VIII"][s.ch - 1] || s.ch}`, M.W / 2, M.H * (tall(M) ? .74 : .72), { family: F.caps, weight: 500, size: m * .028, spacing: m * .012, color: o.chapter, alpha: a });
-    K.block(ctx, s.caption, M.W / 2, M.H * (tall(M) ? .8 : .82), { family: F.serif, weight: 400, size: m * .05, color: "#fff", maxW: M.W * .84, lh: 1.45,
-      rise: m * .014, shadow: "rgba(0,0,0,.45)", alpha: a, reveal: i => K.rise(u, .5 + i * .35, .9) });
+    const opt = { family: F.serif, weight: 400, size: m * .05, color: "#fff", maxW: M.W * .84, lh: 1.45,
+      rise: m * .014, shadow: "rgba(0,0,0,.45)", alpha: a, reveal: i => K.rise(u, .5 + i * .35, .9) };
+    const half = K.wrap(ctx, s.caption, opt.maxW, opt).length * opt.size * opt.lh / 2;
+    const y = Math.min(M.H * (tall(M) ? .8 : .82), (o.bottom != null ? o.bottom : M.H) - m * .06 - half);   // 줄이 많아도 아래 칸 안에
+    if (o.chapter && s.ch) K.text(ctx, `CHAPTER ${["I", "II", "III", "IV", "V", "VI", "VII", "VIII"][s.ch - 1] || s.ch}`, M.W / 2, y - half - m * .035, { family: F.caps, weight: 500, size: m * .028, spacing: m * .012, color: o.chapter, alpha: a });
+    K.block(ctx, s.caption, M.W / 2, y, opt);
   }
   // 신랑·신부 소개: 왼쪽 아래 이름표 + 해시태그
   function intro(ctx, M, s, u, o = {}){
@@ -72,8 +75,8 @@ const TEMPLATES = [];
     K.scrim(ctx, M, .45, .7 * a);
     const y = o.y != null ? o.y : M.H * (tall(M) ? .78 : .74);
     K.text(ctx, it.en ? (it.who === "신랑" ? "GROOM" : "BRIDE") : it.who, x, y, { family: it.en ? F.caps : F.sans, weight: 500, size: m * .03, spacing: m * .012, color: o.accent || "#F2C9D2", align: "left", alpha: a * K.rise(u, .3, .7) });
-    K.text(ctx, it.name || it.who, x, y + m * .085, { family: F.serif, weight: 700, size: m * .085, color: "#fff", align: "left", alpha: a * K.rise(u, .6, .8), shadow: "rgba(0,0,0,.35)" });
-    if (it.tags) K.text(ctx, it.tags, x, y + m * .17, { family: F.sans, weight: 500, size: m * .038, color: "rgba(255,255,255,.92)", align: "left", alpha: a * K.rise(u, 1.1, .8) });
+    if (it.name) K.text(ctx, it.name, x, y + m * .085, { family: F.serif, weight: 700, size: m * .085, color: "#fff", align: "left", alpha: a * K.rise(u, .6, .8), shadow: "rgba(0,0,0,.35)" });
+    if (it.tags) K.text(ctx, it.tags, x, y + m * (it.name ? .17 : .085), { family: F.sans, weight: 500, size: m * .038, color: "rgba(255,255,255,.92)", align: "left", alpha: a * K.rise(u, 1.1, .8) });
   }
   // 인사 장면: 흐린 사진 위에 문장이 한 줄씩
   function message(ctx, M, s, u, o = {}){
@@ -152,7 +155,7 @@ const TEMPLATES = [];
     photo(ctx, M, s, u){
       const p = ph(M, s), box = area(M);
       if (p) K.photo(ctx, M, p, s, u, { box, zoom: .06 });
-      if (s.intro) intro(ctx, M, s, u, { accent: "#D9C08C", y: box[1] + box[3] - mm(M) * .26 }); else if (s.caption) caption(ctx, M, s, u, { chapter: "#D9C08C" });
+      if (s.intro) intro(ctx, M, s, u, { accent: "#D9C08C", y: box[1] + box[3] - mm(M) * .26 }); else if (s.caption) caption(ctx, M, s, u, { chapter: "#D9C08C", bottom: box[1] + box[3] });
     },
     parents(ctx, M, s, u){ message(ctx, M, s, u); },
     thanks(ctx, M, s, u){ message(ctx, M, s, u); },
@@ -162,7 +165,7 @@ const TEMPLATES = [];
       const a = K.rise(u, .5, 1.2), b = K.rise(u, 2, 1.2);
       title(ctx, M, M.d.close, cx, M.H * .42, a, { size: .062, enFamily: F.caps, enWeight: 500, enSize: .07, caps: true });
       // 엔딩 크레딧
-      const rows = [[nameEn(M.d) ? "GROOM" : "신랑", M.d.groomEn || M.d.groom || "신랑"], [nameEn(M.d) ? "BRIDE" : "신부", M.d.brideEn || M.d.bride || "신부"]];
+      const rows = [[nameEn(M.d) ? "GROOM" : "신랑", M.d.groomEn || M.d.groom || ""], [nameEn(M.d) ? "BRIDE" : "신부", M.d.brideEn || M.d.bride || ""]].filter(([, v]) => v);   // 이름을 안 쓰면 크레딧 줄은 빼요
       rows.forEach(([k, v], i) => {
         const y = M.H * .42 + m * (.15 + i * .065);
         K.text(ctx, k, cx - m * .03, y, { family: nameEn(M.d) ? F.caps : F.sans, weight: 500, size: m * .026, spacing: m * .008, color: "#D9C08C", align: "right", alpha: b });

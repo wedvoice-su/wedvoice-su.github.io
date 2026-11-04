@@ -65,23 +65,30 @@ const DB = (() => {
   const open = () => job || (job = new Promise((res, rej) => {
     const r = indexedDB.open("nowShowing", 1);
     r.onupgradeneeded = () => r.result.createObjectStore("kv");
-    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    r.onsuccess = () => { const db = r.result; db.onclose = () => { job = null; }; db.onversionchange = () => { db.close(); job = null; }; res(db); };
+    r.onerror = () => { job = null; rej(r.error); };
   }));
   const run = (mode, fn) => open().then(db => new Promise((res, rej) => {
-    const tx = db.transaction("kv", mode), rq = fn(tx.objectStore("kv"));
+    let tx;
+    try { tx = db.transaction("kv", mode); } catch (e) { job = null; rej(e); return; }   // 연결이 끊겼으면 다음에 다시 열어요
+    const rq = fn(tx.objectStore("kv"));
     tx.oncomplete = () => res(rq ? rq.result : undefined);
     tx.onerror = tx.onabort = () => rej(tx.error);
   }));
+  const again = (mode, fn) => run(mode, fn).catch(() => run(mode, fn));   // 한 번 끊겨도 다시 열어서 한 번 더
   return {
-    get: k => run("readonly", s => s.get(k)).catch(() => undefined),
-    set: (k, v) => run("readwrite", s => s.put(v, k)).catch(() => {}),
-    del: k => run("readwrite", s => s.delete(k)).catch(() => {}),
-    clear: () => run("readwrite", s => s.clear()).catch(() => {})
+    get: k => again("readonly", s => s.get(k)).catch(() => undefined),
+    set: (k, v) => again("readwrite", s => s.put(v, k)).then(() => true, () => false),   // 저장 공간이 부족하면 false
+    del: k => again("readwrite", s => s.delete(k)).catch(() => {}),
+    clear: () => again("readwrite", s => s.clear()).catch(() => {})
   };
 })();
 
 let PH = [];        // 사진 { id, bytes, thumbBytes, w, h, url, meta, caption } — 바이트로 들고 있어요(아이폰에서 오래 들고 있던 Blob을 못 읽는 일이 있었어요)
 let MINE = null;    // 내가 넣은 음악 { name, bytes, type }
+let MINE_URL = null;
+const mineUrl = () => MINE_URL || (MINE_URL = URL.createObjectURL(new Blob([MINE.bytes], { type: MINE.type })));
+const dropMineUrl = () => { if (MINE_URL) URL.revokeObjectURL(MINE_URL); MINE_URL = null; };
 let AUD = { key: "", buf: null };   // 풀어 둔 음악
 let SEL = -1;       // 고른 사진
 let PLAYER = null, CUR = null, SAMPLE = null, RESULT = null;
@@ -94,7 +101,7 @@ async function restore(){
   const order = await DB.get("order");
   if (Array.isArray(order)) for (const id of order) {
     const p = await DB.get("ph:" + id), m = await DB.get("pm:" + id);
-    if (!p) continue;
+    if (!p) { LOST++; continue; }
     const bytes = await bytesOf(p.bytes || p.blob), thumbBytes = (await bytesOf(p.thumbBytes || p.thumb)) || bytes;
     if (!bytes) { LOST++; continue; }
     const item = { id, bytes, thumbBytes, w: p.w, h: p.h, meta: (m ? m.meta : p.meta) || null, caption: (m ? m.caption : p.caption) || "" };
@@ -115,7 +122,7 @@ function ymd(s){ const [y, m, d] = String(s).split("-").map(Number); return new 
 function fillWord(w){
   if (typeof w === "string") return w;
   if (!S.met) return w.alt;
-  const met = ymd(S.met), end = S.date ? ymd(S.date) : new Date();
+  const today = new Date(), met = ymd(S.met), end = S.date ? ymd(S.date) : new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const days = Math.round((end - met) / 864e5) + 1;
   if (!(days > 0)) return w.alt;
   const months = (end.getFullYear() - met.getFullYear()) * 12 + end.getMonth() - met.getMonth() - (end.getDate() < met.getDate() ? 1 : 0);
@@ -140,12 +147,15 @@ function sampleText(d){
   return [d.groom, d.bride, d.groomEn, d.brideEn, d.venue, ...d.open, ...d.story.map(s => s.text), d.intro ? d.intro.groom + d.intro.bride : "", d.parents, d.thanks, d.close,
     "민준 서연 신랑 신부 0123456789 .,:·#♥& ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 년 월 일 요일 오전 오후 시 분"].join(" ");
 }
-const mmss = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
-const lenKo = s => { const m = Math.floor(s / 60), r = Math.round(s % 60); return m ? `${m}분${r ? ` ${r}초` : ""}` : `${r}초`; };
+const mmss = s => { const t = Math.round(s); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`; };
+const lenKo = s => { const t = Math.round(s), m = Math.floor(t / 60), r = t % 60; return m ? `${m}분${r ? ` ${r}초` : ""}` : `${r}초`; };
 
 // ===== 화면 이동 (휴대폰 뒤로 가기 = 한 화면 전) =====
 const $ = s => app.querySelector(s);
+let ED = null;       // 열린 사진 편집 창 { close }
+let MAKING = null;   // 만드는 중 화면 { hint }
 function stopAll(){
+  previewJob++;      // 준비 중이던 미리 보기는 버려요
   if (PLAYER) { PLAYER.destroy(); PLAYER = null; }
   if (CUR && CUR.bank) { CUR.bank.close(); }
   CUR = null;
@@ -158,6 +168,14 @@ function go(step){
   render(); window.scrollTo(0, 0);
 }
 window.addEventListener("popstate", e => {
+  // 만드는 중에는 뒤로 가지 않아요 (그만 만들기로 멈춰요)
+  if (MAKING) { history.pushState({ step: 5 }, ""); MAKING.hint(); return; }
+  // 사진 편집 창만 닫고, 보던 목록 위치·고른 사진은 그대로
+  if (ED) {
+    const st = e.state && e.state.step;
+    ED.close(); ED = null;
+    if (st === S.step) { if (S.step === 2) stepPhotos(); else if (S.step === 5) preview(); return; }
+  }
   stopAll(); SEL = -1;
   S.step = e.state && e.state.step != null ? e.state.step : 0;
   if (S.step === 6 && !RESULT) S.step = 5;
@@ -223,7 +241,7 @@ function home(){
     ${DEBUG ? `<p class="note" style="color:var(--cover-sub);margin-top:18px">시험용 정보예요. 주소에 debug가 있을 때만 보여요.</p><pre class="report" id="report">기기 점검 중…</pre><button class="text-btn" id="copyrep" style="color:var(--cover-sub)">결과 복사하기</button>` : ""}
     ${foot()}`;
   if ($("#copyurl")) $("#copyurl").onclick = async () => {
-    try { await navigator.clipboard.writeText(location.href); say("링크를 복사했어요. 사파리 주소창에 붙여 넣어 주세요.", "#iamsg"); }
+    try { await navigator.clipboard.writeText(location.href); say(`링크를 복사했어요. ${Movie.ANDROID ? "크롬" : "사파리"} 주소창에 붙여 넣어 주세요.`, "#iamsg"); }
     catch (e) { say(location.href, "#iamsg"); }
   };
   if ($("#resume")) $("#resume").onclick = () => go(1);
@@ -231,7 +249,7 @@ function home(){
   $("#start").onclick = async () => {
     if (started && !armed) { armed = true; say("만들던 사진과 글이 지워져요. 한 번 더 누르면 새로 시작해요."); return; }
     if (started) {
-      PH.forEach(p => URL.revokeObjectURL(p.url)); PH = []; MINE = null; AUD = { key: "", buf: null };
+      PH.forEach(p => URL.revokeObjectURL(p.url)); PH = []; MINE = null; dropMineUrl(); AUD = { key: "", buf: null };
       await DB.clear();
       S = fresh(); save();
     }
@@ -317,6 +335,7 @@ function stepPhotos(){
     ${navBar("이전", "다음: 글 넣기", PH.length === 0)}`;
   $("#pick").onchange = e => addPhotos(e.target.files);
   if (LOST) { say(`예전에 넣은 사진 ${LOST}장을 다시 불러오지 못했어요. 다시 넣어 주세요.`, "#busy"); LOST = 0; }
+  if (ADDING) lockPhotos();
   app.querySelectorAll(".photos button").forEach(b => b.onclick = () => { const i = +b.dataset.i; SEL = SEL === i ? -1 : i; stepPhotos(); });
   const move = d => { const j = SEL + d; if (j < 0 || j >= PH.length) return; [PH[SEL], PH[j]] = [PH[j], PH[SEL]]; SEL = j; saveOrder(); stepPhotos(); };
   if ($("#edit")) $("#edit").onclick = () => editPhoto(SEL);
@@ -403,7 +422,8 @@ function editPhoto(start){
     c.onpointerdown = e => {
       const g = geom(); if (!g) return;
       if (whole(g)) { meta().fit = "cover"; syncFit(); draw(); }   // 사진 전체로 보이는 중에 끌면 꽉 채우기로 바꿔요
-      c.setPointerCapture(e.pointerId); touches.set(e.pointerId, toV(e));
+      try { c.setPointerCapture(e.pointerId); } catch (x) {}   // 일부 브라우저는 붙잡기를 거절해요 — 그래도 끌기는 돼요
+      touches.set(e.pointerId, toV(e));
     };
     c.onpointermove = e => {
       if (!touches.has(e.pointerId)) return;
@@ -461,33 +481,36 @@ function editPhoto(start){
     await bank.need([i], [i + 1, i - 1].filter(j => j >= 0 && j < PH.length));
     draw();
   }
-  const onPop = () => {
-    window.removeEventListener("popstate", onPop);
-    clearTimeout(saveT); savePhoto(PH[i]);
-    bank.close(); box.remove(); document.body.style.overflow = "";
-  };
-  window.addEventListener("popstate", onPop);
+  ED = { close(){ clearTimeout(saveT); if (PH[i]) savePhoto(PH[i]); bank.close(); box.remove(); document.body.style.overflow = ""; } };   // 닫기는 뒤로 가기(전체 popstate)에서
   shell();
 }
 
+let ADDING = false;
+const lockPhotos = () => app.querySelectorAll(".photos button, #pick, #next, #prev, .photo-tools button, .photo-tools input").forEach(b => { b.disabled = true; });
 async function addPhotos(files){
+  if (ADDING) return;
+  ADDING = true;
   const arr = [...(files || [])], room = MAX_PHOTOS - PH.length, use = arr.slice(0, Math.max(0, room));
-  let bad = 0;
-  $("#pick").disabled = true;
-  for (let i = 0; i < use.length; i++) {
-    say(`사진 정리 중… ${i + 1} / ${use.length}`, "#busy");
-    try {
-      const p = await Movie.shrink(use[i]);
-      p.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-      await DB.set("ph:" + p.id, { id: p.id, bytes: p.bytes, thumbBytes: p.thumbBytes, w: p.w, h: p.h });
-      PH.push({ ...p, url: URL.createObjectURL(jpg(p.thumbBytes)) });
-    } catch (e) { bad++; }
-  }
-  saveOrder();
+  let bad = 0, unsaved = 0;
+  lockPhotos();
+  try {
+    for (let i = 0; i < use.length; i++) {
+      if (S.step === 2) say(`사진 정리 중… ${i + 1} / ${use.length}`, "#busy");
+      try {
+        const p = await Movie.shrink(use[i]);
+        p.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+        if (!(await DB.set("ph:" + p.id, { id: p.id, bytes: p.bytes, thumbBytes: p.thumbBytes, w: p.w, h: p.h }))) unsaved++;
+        PH.push({ ...p, url: URL.createObjectURL(jpg(p.thumbBytes)) });
+        saveOrder();   // 한 장마다 (중간에 페이지가 닫혀도 넣은 데까지는 남게)
+      } catch (e) { bad++; }
+    }
+  } finally { ADDING = false; }
+  if (S.step !== 2) return;   // 그사이 다른 화면으로 갔으면 그 화면을 덮지 않아요
   stepPhotos();
   const notes = [];
   if (arr.length > use.length) notes.push(`사진은 ${MAX_PHOTOS}장까지 넣을 수 있어요.`);
   if (bad) notes.push(`${bad}장은 열 수 없어서 뺐어요.`);
+  if (unsaved) notes.push("휴대폰 저장 공간이 부족해서 일부 사진을 이 폰에 보관하지 못했어요. 새로고침하면 사라질 수 있어요.");
   say(notes.join(" "), "#busy");
 }
 
@@ -510,8 +533,8 @@ function stepWords(){
         <label class="field">신부 이름<input id="bride" value="${esc(S.bride)}" placeholder="예: 서연" maxlength="12" autocomplete="off"></label>
       </div>
       <div class="row2">
-        <label class="field"><span>영문 이름 <em>(선택)</em></span><input id="groomEn" value="${esc(S.groomEn)}" placeholder="MINJUN" maxlength="16" autocomplete="off" autocapitalize="characters"></label>
-        <label class="field"><span>영문 이름 <em>(선택)</em></span><input id="brideEn" value="${esc(S.brideEn)}" placeholder="SEOYEON" maxlength="16" autocomplete="off" autocapitalize="characters"></label>
+        <label class="field"><span>영문 이름 <em>(선택)</em></span><input id="groomEn" value="${esc(S.groomEn)}" placeholder="MINJUN" maxlength="16" autocomplete="off" autocapitalize="characters" style="text-transform:uppercase"></label>
+        <label class="field"><span>영문 이름 <em>(선택)</em></span><input id="brideEn" value="${esc(S.brideEn)}" placeholder="SEOYEON" maxlength="16" autocomplete="off" autocapitalize="characters" style="text-transform:uppercase"></label>
       </div>
       <div class="row2 dates">
         <label class="field">예식 날짜<input type="date" id="date" value="${esc(S.date)}"></label>
@@ -604,7 +627,7 @@ function stepMusic(){
     ${navBar("이전", "다음: 미리 보기")}`;
   app.querySelectorAll("[data-t]").forEach(b => b.onclick = () => { S.track = b.dataset.t; save(); PREV.pause(); stepMusic(); });
   app.querySelectorAll("[data-p]").forEach(b => b.onclick = () => {
-    const id = b.dataset.p, src = id === "mine" ? URL.createObjectURL(new Blob([MINE.bytes], { type: MINE.type })) : (LIST.find(x => x.id === id) || {}).file;
+    const id = b.dataset.p, src = id === "mine" ? mineUrl() : (LIST.find(x => x.id === id) || {}).file;
     if (!src) return;
     const same = PREV.dataset.id === id && !PREV.paused;
     app.querySelectorAll("[data-p]").forEach(x => x.innerHTML = PLAY);
@@ -619,6 +642,7 @@ function stepMusic(){
     try {
       const bytes = await f.arrayBuffer();
       const buf = await Movie.decode(bytes.slice(0));
+      dropMineUrl(); PREV.removeAttribute("src");
       MINE = { name: f.name.replace(/\.[^.]+$/, ""), bytes, type: f.type || "audio/mpeg" };
       await DB.set("music", MINE);
       AUD = { key: `mine:${MINE.name}:${bytes.byteLength}`, buf };
@@ -653,8 +677,7 @@ function stepMake(){
     ${ia ? `<div class="block-inapp"><b>${esc(ia)} 안에서는 저장할 수 없어요</b><p>${Movie.ANDROID ? "크롬" : "사파리"}에서 이 주소를 열어 다시 만들어 주세요.</p></div>` : ""}
     <div class="navbar"><button class="btn ghost" id="prev">이전</button><button class="btn main" id="make" disabled>동영상 만들기</button></div>
     <p class="msg" id="msg" role="status"></p>
-    <p class="note">만드는 동안 화면을 켠 채로 이 화면에 있어 주세요. 다른 앱에 다녀오면 멈출 수 있어요.</p>
-    ${DEBUG ? `<pre class="report" id="report"></pre>` : ""}`;
+    <p class="note">만드는 동안 화면을 켠 채로 이 화면에 있어 주세요. 다른 앱에 다녀오면 멈출 수 있어요.</p>`;
   $("#prev").onclick = () => history.back();
   const pick = (id, key) => app.querySelectorAll(`#${id} button`).forEach(b => b.onclick = () => {
     if (b.disabled || String(S[key]) === b.dataset.v) return;
@@ -668,59 +691,72 @@ function stepMake(){
 }
 let previewJob = 0;
 async function preview(){
-  const job = ++previewJob;
   stopAll();
-  const T = tpl(), d = data(), [W, H] = Movie.size(S.ratio, S.q), tall = H > W;
+  const job = ++previewJob;
   const stage = $("#stage"), cv = $("#pv");
+  if (!stage || !cv) return;
+  const alive = () => job === previewJob && S.step === 5 && cv.isConnected;   // 준비하는 사이 다른 화면으로 갔거나 다시 준비하면 그만
+  const T = tpl(), d = data(), [W, H] = Movie.size(S.ratio, S.q), tall = H > W;
   stage.classList.toggle("tall", tall); stage.classList.remove("playing");
   $("#play").innerHTML = PLAY;
   $("#make").disabled = true;
   say("미리 보기 준비 중…");
-  let buf = null;
-  try { buf = await music(); } catch (e) { say("음악을 열지 못했어요. 음악 없이 만들어져요."); }
-  if (job !== previewJob) return;
-  const P = Movie.plan(T, d, PH.length, buf ? buf.duration : 0);
-  const dpr = Math.min(2, window.devicePixelRatio || 1), cssW = stage.clientWidth || 400;
-  cv.width = Math.round(Math.min(W, cssW * dpr)); cv.height = Math.round(cv.width * H / W);
-  await Movie.fonts(T, sampleText(d));
-  const bank = Movie.bank(PH), mixed = await Movie.mix(buf, P.total);
-  if (job !== previewJob) { bank.close(); return; }
-  const M = Movie.scene(P, W, H, T, d, bank);
-  CUR = { T, d, P, buf, bank, W, H };
-  const start = RESUME_AT != null ? Math.min(RESUME_AT, P.total - .1) : Math.min(3.2, P.total / 2);
-  RESUME_AT = null;
-  await bank.need(Movie.photosAt(P, start, T.xf).now);
-  if (job !== previewJob) return;
-  PLAYER = Movie.player(cv, M, mixed);
-  PLAYER.draw(start);
-  const seek = $("#seek"), curEl = $("#cur");
-  $("#len").textContent = mmss(P.total);
-  const sceneBtn = $("#sceneEdit");
-  const scene = t => {   // 멈춰 있고 사진 장면이면 그 사진 편집
-    const g = Movie.segAt(P, t), ok = !PLAYER.playing && g && g.kind === "photo";
-    sceneBtn.disabled = !ok;
-    sceneBtn.textContent = ok ? `${g.i + 1}번 사진 편집하기` : (PLAYER.playing ? "멈추면 그 장면의 사진을 편집할 수 있어요" : "사진 장면에서 멈추면 편집할 수 있어요");
-    sceneBtn.dataset.i = ok ? g.i : "";
-  };
-  const tick = t => { curEl.textContent = mmss(t); if (!seek.matches(":active")) seek.value = Math.round(t / P.total * 1000); scene(t); };
-  PLAYER.ontick = tick;
-  tick(start);
-  sceneBtn.onclick = () => { if (sceneBtn.dataset.i === "") return; RESUME_AT = PLAYER.time(); PLAYER.pause(); editPhoto(+sceneBtn.dataset.i); };
-  PLAYER.onend = () => { stage.classList.remove("playing"); $("#play").innerHTML = PLAY; };
-  seek.oninput = () => PLAYER.seek(seek.value / 1000 * P.total);
-  const toggle = () => {
-    if (PLAYER.playing) { PLAYER.pause(); stage.classList.remove("playing"); $("#play").innerHTML = PLAY; scene(PLAYER.time()); }
-    else { PLAYER.play(); stage.classList.add("playing"); $("#play").innerHTML = PAUSE; }
-  };
-  $("#play").onclick = toggle; cv.onclick = toggle;
-  const mb = Math.round((Movie.bitrate(S.q, P.total) + 192000) * P.total / 8 / 1e6);
-  $("#facts").innerHTML = `<b>${lenKo(P.total)}</b><span>사진 ${PH.length}장 · 한 장에 약 ${P.per.toFixed(1)}초</span><span>${buf ? "음악 " + lenKo(buf.duration) : "음악 없음"}</span><span>파일 약 ${mb}MB</span>`;
-  const crash = lastCrash();
-  say(crash ? "지난번에 영상을 만들다 멈추고 페이지가 다시 열렸어요. 화면을 켠 채로 다시 만들어 주세요. 계속 멈추면 720p로 바꾸거나 컴퓨터에서 만들어 주세요."
-    : P.total > 300 ? "영상이 5분을 넘어요. 식전영상은 3~5분이 알맞고, 길면 하객이 지루해할 수 있어요. 사진을 줄여 보세요."
-    : buf && buf.duration < P.total - .5 ? "사진이 많아서 음악이 한 번 더 이어져요. 사진을 줄이면 음악 한 곡에 맞출 수 있어요." : "");
-  $("#make").disabled = !PH.length || !!Movie.inApp();
-  if (!PH.length) say("사진을 먼저 넣어 주세요.");
+  let bank = null;
+  try {
+    let buf = null;
+    try { buf = await music(); } catch (e) { say("음악을 열지 못했어요. 음악 없이 만들어져요."); }
+    if (!alive()) return;
+    const P = Movie.plan(T, d, PH.length, buf ? buf.duration : 0);
+    const dpr = Math.min(2, window.devicePixelRatio || 1), cssW = stage.clientWidth || 400;
+    cv.width = Math.round(Math.min(W, cssW * dpr)); cv.height = Math.round(cv.width * H / W);
+    await Movie.fonts(T, sampleText(d));
+    if (!alive()) return;
+    bank = Movie.bank(PH);
+    const mixed = await Movie.mix(buf, P.total);
+    if (!alive()) { bank.close(); return; }
+    const M = Movie.scene(P, W, H, T, d, bank);
+    CUR = { T, d, P, buf, bank, W, H };
+    const start = RESUME_AT != null ? Math.min(RESUME_AT, P.total - .1) : Math.min(3.2, P.total / 2);
+    RESUME_AT = null;
+    await bank.need(Movie.photosAt(P, start, T.xf).now);
+    if (!alive()) return;
+    PLAYER = Movie.player(cv, M, mixed);
+    PLAYER.seek(start);   // 보이는 장면 = 재생이 시작되는 장면
+    const seek = $("#seek"), curEl = $("#cur");
+    $("#len").textContent = mmss(P.total);
+    const sceneBtn = $("#sceneEdit");
+    const scene = t => {   // 멈춰 있고 사진 장면이면 그 사진 편집
+      const g = Movie.segAt(P, t), ok = !PLAYER.playing && g && g.kind === "photo";
+      sceneBtn.disabled = !ok;
+      sceneBtn.textContent = ok ? `${g.i + 1}번 사진 편집하기` : (PLAYER.playing ? "멈추면 그 장면의 사진을 편집할 수 있어요" : "사진 장면에서 멈추면 편집할 수 있어요");
+      sceneBtn.dataset.i = ok ? g.i : "";
+    };
+    const tick = t => { curEl.textContent = mmss(t); if (!seek.matches(":active")) seek.value = Math.round(t / P.total * 1000); scene(t); };
+    PLAYER.ontick = tick;
+    tick(start);
+    sceneBtn.onclick = () => { if (sceneBtn.dataset.i === "" || !PLAYER) return; RESUME_AT = PLAYER.time(); PLAYER.pause(); editPhoto(+sceneBtn.dataset.i); };
+    PLAYER.onend = () => { stage.classList.remove("playing"); $("#play").innerHTML = PLAY; };
+    seek.oninput = () => { if (PLAYER) PLAYER.seek(seek.value / 1000 * P.total); };
+    const toggle = () => {
+      if (!PLAYER) return;
+      if (PLAYER.playing) { PLAYER.pause(); stage.classList.remove("playing"); $("#play").innerHTML = PLAY; scene(PLAYER.time()); }
+      else { PLAYER.play(); stage.classList.add("playing"); $("#play").innerHTML = PAUSE; }
+    };
+    $("#play").onclick = toggle; cv.onclick = toggle;
+    const mb = Math.round((Movie.bitrate(S.q, P.total) + 192000) * P.total / 8 / 1e6);
+    $("#facts").innerHTML = `<b>${lenKo(P.total)}</b><span>사진 ${PH.length}장 · 한 장에 약 ${P.per.toFixed(1)}초</span><span>${buf ? "음악 " + lenKo(buf.duration) : "음악 없음"}</span><span>파일 약 ${mb}MB</span>`;
+    const crash = lastCrash();
+    say(crash ? "지난번에 영상을 만들다 멈추고 페이지가 다시 열렸어요. 화면을 켠 채로 다시 만들어 주세요. 계속 멈추면 720p로 바꾸거나 컴퓨터에서 만들어 주세요."
+      : P.total > 300 ? "영상이 5분을 넘어요. 식전영상은 3~5분이 알맞고, 길면 하객이 지루해할 수 있어요. 사진을 줄여 보세요."
+      : buf && buf.duration < P.total - .5 ? "사진이 많아서 음악이 한 번 더 이어져요. 사진을 줄이면 음악 한 곡에 맞출 수 있어요." : "");
+    $("#make").disabled = !PH.length || !!Movie.inApp();
+    if (!PH.length) say("사진을 먼저 넣어 주세요.");
+  } catch (e) {
+    if (bank && !(CUR && CUR.bank === bank)) bank.close();
+    if (!alive()) return;
+    say(e && e.code === "photo" ? `${e.photo}번 사진을 읽지 못했어요. 사진 목록에서 그 사진을 눌러 '사진 바꾸기'로 다시 넣어 주세요.` : "미리 보기를 준비하지 못했어요. 새로고침해 주세요.");
+    $("#make").disabled = true;
+  }
 }
 // 파일 이름에 예식 날짜와 이름 (식장에서 여러 파일 사이에서 찾기 쉽게)
 function fileName(){
@@ -756,6 +792,7 @@ function overlay(job, W, H){
       }
       if (p.canvas) cv.getContext("2d").drawImage(p.canvas, 0, 0, cv.width, cv.height);
     },
+    hint(){ box.querySelector(".warn").textContent = "만드는 중에는 뒤로 갈 수 없어요. 멈추려면 '그만 만들기'를 눌러 주세요."; },
     retry(){ note = "다시 "; bar.value = 0; st.textContent = "멈춰서 다른 방식으로 다시 만들고 있어요…"; },
     fail(e){
       const msg = e && e.code === "size" ? e.message + ". 화질을 낮춰서 다시 만들어 주세요."
@@ -786,6 +823,7 @@ async function makeIt(){
     store: crash && crash.store === "메모리" ? "disk" : undefined, onStage: (s, info) => markRender(info), simStall: DEBUG && QS.has("stalltest") };
   markRender({});
   const ov = overlay(job, W, H);
+  MAKING = ov;
   try {
     for (let attempt = 1; attempt <= 2; attempt++) {
       job.tries = attempt; job.stop = false;
@@ -809,7 +847,7 @@ async function makeIt(){
         clearRender(); ov.fail(e); preview(); return;
       }
     }
-  } finally { job.bank.close(); release(); }
+  } finally { MAKING = null; job.bank.close(); release(); }
 }
 
 // ===== 완성 =====
@@ -852,10 +890,18 @@ function done(){
   if (S.track && S.track !== "mine" && !LIST.some(t => t.id === S.track)) S.track = LIST.length ? LIST[0].id : "";
   if (S.track === "mine" && !MINE) S.track = "";
   if (!["720", "1080"].includes(String(S.q))) S.q = "1080";   // 4K는 뺐어요 (11/4)
-  let step = Math.max(0, Math.min(5, S.step || 0));
-  if (step > 2 && !PH.length) step = 2;
-  history.replaceState({ step: 0 }, "");
-  for (let i = 1; i <= step; i++) history.pushState({ step: i }, "");
+  const hs = history.state;
+  let step;
+  if (hs && hs.step != null) {   // 새로고침: 화면 기록이 이미 있어요 → 그대로 두고 그 화면만 다시 그려요
+    step = Math.max(0, Math.min(5, hs.step));   // 완성 화면(6)은 영상이 사라져서 미리 보기로
+    if (step > 2 && !PH.length) step = 2;
+    if (step !== hs.step || hs.ed) history.replaceState({ step }, "");
+  } else {                        // 처음 열기: 이어서 만들던 단계까지 기록을 쌓아 뒤로 가기가 한 화면씩 되게
+    step = Math.max(0, Math.min(5, S.step || 0));
+    if (step > 2 && !PH.length) step = 2;
+    history.replaceState({ step: 0 }, "");
+    for (let i = 1; i <= step; i++) history.pushState({ step: i }, "");
+  }
   S.step = step; save();
   render();
   Movie.cleanup();   // 지난번에 만든 영상 파일은 휴대폰 저장 공간에서 지워요

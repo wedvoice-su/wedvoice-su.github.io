@@ -47,7 +47,7 @@ const Movie = (() => {
   let mbJob = null, aacOn = false;
   const HERE = document.currentScript ? new URL('.', document.currentScript.src).href : document.baseURI;  // engine.js가 있는 폴더
   const libUrl = f => new URL('lib/' + f, HERE).href;
-  function MB(){ return mbJob || (mbJob = import(libUrl('mediabunny.min.mjs'))); }
+  function MB(){ return mbJob || (mbJob = import(libUrl('mediabunny.min.mjs')).catch(e => { mbJob = null; throw e; })); }
   async function wasmAac(){
     if (aacOn) return;
     const m = await import(libUrl('mediabunny-aac-encoder.min.mjs'));
@@ -105,11 +105,14 @@ const Movie = (() => {
     }
   }
   function bank(items){   // items: [{ bytes, w, h, meta }]
-    const ready = new Map(), pending = new Map();
+    const ready = new Map(), pending = new Map(), gen = new Map();
+    let closed = false;
     function load(i){
       if (ready.has(i)) return Promise.resolve(ready.get(i));
       if (pending.has(i)) return pending.get(i);
+      const g = gen.get(i) || 0;
       const pr = decodePhoto(items[i]).then(img => {
+        if (closed || (gen.get(i) || 0) !== g) { if (img.close) img.close(); return null; }   // 그사이 닫혔거나 사진이 바뀌었으면 버려요
         const v = { img, bg: blurred(img), w: img.width, h: img.height };
         pending.delete(i); ready.set(i, v); return v;
       }, e => {
@@ -127,10 +130,11 @@ const Movie = (() => {
         const keep = new Set([...now, ...soon]);
         for (const [i, v] of ready) if (!keep.has(i)) { if (v.img.close) v.img.close(); ready.delete(i); }
         soon.forEach(i => { load(i).catch(() => {}); });
+        if (closed) return;
         await Promise.all(now.map(load));
       },
-      drop(i){ const v = ready.get(i); if (v && v.img.close) v.img.close(); ready.delete(i); pending.delete(i); },   // 사진을 바꿨을 때
-      close(){ for (const v of ready.values()) if (v.img.close) v.img.close(); ready.clear(); }
+      drop(i){ gen.set(i, (gen.get(i) || 0) + 1); const v = ready.get(i); if (v && v.img.close) v.img.close(); ready.delete(i); pending.delete(i); },   // 사진을 바꿨을 때
+      close(){ closed = true; for (const v of ready.values()) if (v.img.close) v.img.close(); ready.clear(); pending.clear(); }
     };
   }
 
@@ -141,8 +145,9 @@ const Movie = (() => {
     const T = tpl.time, parentsDur = T.parents || T.thanks;
     const fixed = T.open + (d.parents ? parentsDur : 0) + (d.thanks ? T.thanks : 0) + T.close;
     // 무빙포스터처럼 사진이 적은 템플릿(fill)은 곡이 끝날 때까지 사진을 처음부터 다시 돌려요
-    const target = (musicDur || fixed + n * 5) - fixed;
-    const reps = tpl.fill && n && musicDur ? Math.max(1, Math.ceil(target / (n * T.max))) : 1;
+    const md = Math.min(musicDur || 0, 600);   // 아주 긴 음악은 10분까지만 써요
+    const target = (md || fixed + n * 5) - fixed;
+    const reps = tpl.fill && n && md ? Math.max(1, Math.floor(target / (n * T.min))) : 1;
     let per = n ? target / (n * reps) : 0;
     per = Math.max(T.min, Math.min(T.max, per));
     const segs = [{ kind: 'open', dur: T.open, i: tpl.openPhoto && n ? 0 : null }];
@@ -155,7 +160,8 @@ const Movie = (() => {
     for (let i = 0; i < n; i++) if (own[i] && own[i].trim()) segs[i + 1].caption = own[i];
     const story = (d.story || []).filter(s => s && s.text), free = [];
     for (let i = intro ? 2 : 0; i < n; i++) if (!(own[i] && own[i].trim())) free.push(i);
-    if (free.length) story.forEach((s, j) => { const g = segs[free[Math.min(free.length - 1, Math.floor(j * free.length / story.length))] + 1]; g.caption = s.text; g.ch = j + 1; });
+    const use = story.slice(0, free.length);
+    use.forEach((s, j) => { const g = segs[free[Math.floor(j * free.length / use.length)] + 1]; g.caption = s.text; g.ch = j + 1; });
     if (d.parents) segs.push({ kind: tpl.parents ? 'parents' : 'thanks', dur: parentsDur, text: d.parents, i: tpl.thanksPhoto && n ? Math.max(0, n - 1) : null });
     if (d.thanks) segs.push({ kind: 'thanks', dur: T.thanks, text: d.thanks, i: tpl.thanksPhoto && n ? Math.max(0, n - 1) : null });
     // closePhoto: 'first'면 1번 사진으로 끝나요 (반복 재생할 때 처음으로 자연스럽게 이어지게)
@@ -507,28 +513,36 @@ const Movie = (() => {
   // ===== 미리보기: 화면용 작은 캔버스에 실제 속도로 재생 =====
   function player(canvas, M, audio){
     const ctx = canvas.getContext('2d', { alpha: false }), sc = canvas.width / M.W;
-    let ac = null, node = null, t0 = 0, pos = 0, on = false, raf = 0, ended = null, ticker = null;
+    let ac = null, node = null, t0 = 0, pos = 0, on = false, dead = false, starting = false, raf = 0, ended = null, ticker = null;
     const now = () => on ? pos + (ac.currentTime - t0) : pos;
     function draw(t){
+      if (dead) return;
       const need = photosAt(M.P, t, M.tpl.xf);
       const job = M.bank.need(need.now, need.soon);
       ctx.setTransform(sc, 0, 0, sc, 0, 0);
       frame(ctx, t, M);
       if (ticker) ticker(t);
       // 멈춘 채 장면을 옮기면 사진이 아직 안 풀려 있을 수 있어요 → 풀리면 그 장면을 다시 그려요
-      job.then(() => { if (!on && Math.abs(pos - t) < 1e-3) { ctx.setTransform(sc, 0, 0, sc, 0, 0); frame(ctx, t, M); } }).catch(() => {});
+      job.then(() => { if (!dead && !on && Math.abs(pos - t) < 1e-3) { ctx.setTransform(sc, 0, 0, sc, 0, 0); frame(ctx, t, M); } }).catch(() => {});
     }
     function loop(){
+      if (!on || dead) return;   // 멈췄거나 닫혔으면 그리기를 끝내요
       const t = now();
       if (t >= M.P.total) { stop(); pos = 0; draw(0); if (ended) ended(); return; }
       draw(t); raf = requestAnimationFrame(loop);
     }
     async function play(){
-      if (on) return;
-      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
-      try { await ac.resume(); } catch (e) {}
-      if (audio) { node = ac.createBufferSource(); node.buffer = audio; node.connect(ac.destination); node.start(0, pos); }
-      t0 = ac.currentTime; on = true; loop();
+      if (on || dead || starting) return;   // 빠르게 두 번 눌러도 한 번만
+      starting = true;
+      try {
+        // 아이폰 무음 스위치를 켜 둬도 미리 보기 소리가 나게 (지원하는 브라우저만)
+        try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
+        ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+        try { await ac.resume(); } catch (e) {}
+        if (on || dead) return;
+        if (audio) { node = ac.createBufferSource(); node.buffer = audio; node.connect(ac.destination); node.start(0, pos); }
+        t0 = ac.currentTime; on = true; loop();
+      } finally { starting = false; }
     }
     function stop(){
       if (!on) return;
@@ -541,7 +555,7 @@ const Movie = (() => {
       get playing(){ return on; },
       seek(t){ const was = on; stop(); pos = Math.max(0, Math.min(M.P.total - .05, t)); draw(pos); if (was) play(); },
       set onend(f){ ended = f; }, set ontick(f){ ticker = f; },
-      destroy(){ stop(); if (ac) ac.close().catch(() => {}); }
+      destroy(){ stop(); dead = true; cancelAnimationFrame(raf); if (ac) ac.close().catch(() => {}); }
     };
   }
 
