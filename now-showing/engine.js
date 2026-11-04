@@ -70,9 +70,10 @@ const Movie = (() => {
       tc.width = Math.round(c.width * tk); tc.height = Math.round(c.height * tk);
       const tx = tc.getContext('2d'); tx.imageSmoothingQuality = 'high'; tx.drawImage(c, 0, 0, tc.width, tc.height);
       const [blob, thumb] = [await toBlob(c, 'image/jpeg', .9), await toBlob(tc, 'image/jpeg', .82)];
-      const out = { blob, thumb, w: c.width, h: c.height };
+      if (!blob || !thumb) throw new Error('사진을 줄이지 못했어요');
+      // 바이트(ArrayBuffer)로 들고 있어요. 아이폰에서 오래 들고 있던 Blob을 못 읽는 일이 있었어요
+      const out = { bytes: await blob.arrayBuffer(), thumbBytes: await thumb.arrayBuffer(), w: c.width, h: c.height };
       c.width = c.height = tc.width = tc.height = 0;
-      if (!blob) throw new Error('사진을 줄이지 못했어요');
       return out;
     } finally { URL.revokeObjectURL(url); }
   }
@@ -88,14 +89,32 @@ const Movie = (() => {
     }
     return c;
   }
-  function bank(items){   // items: [{ blob, w, h }]
+  // 사진 풀기: 바이트로 새 Blob을 만들어 createImageBitmap, 안 되면 <img>로 한 번 더
+  // (11/4 아이폰 iOS 26.6: "An error occurred reading the Blob argument to createImageBitmap" — 저장 공간에 큰 덩어리를 쓴 직후)
+  async function decodePhoto(it){
+    const bytes = it.bytes || (it.blob && await it.blob.arrayBuffer());
+    try { return await createImageBitmap(new Blob([bytes], { type: 'image/jpeg' })); }
+    catch (e) {
+      const url = URL.createObjectURL(new Blob([bytes], { type: 'image/jpeg' }));
+      try {
+        const img = new Image(); img.src = url; await img.decode();
+        const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
+        c.getContext('2d').drawImage(img, 0, 0);
+        return c;
+      } finally { URL.revokeObjectURL(url); }
+    }
+  }
+  function bank(items){   // items: [{ bytes, w, h, meta }]
     const ready = new Map(), pending = new Map();
     function load(i){
       if (ready.has(i)) return Promise.resolve(ready.get(i));
       if (pending.has(i)) return pending.get(i);
-      const pr = createImageBitmap(items[i].blob).then(img => {
+      const pr = decodePhoto(items[i]).then(img => {
         const v = { img, bg: blurred(img), w: img.width, h: img.height };
         pending.delete(i); ready.set(i, v); return v;
+      }, e => {
+        pending.delete(i);
+        throw Object.assign(new Error(`${i + 1}번 사진을 읽지 못했어요`), { code: 'photo', photo: i + 1, cause: e && e.message });
       });
       pending.set(i, pr);
       return pr;
@@ -374,7 +393,7 @@ const Movie = (() => {
           const h = await dir.getFileHandle(name, { create: true });
           const w = await h.createWritable();
           info.store = '휴대폰 저장 공간';
-          return { fastStart: 'reserve', target: new mb.StreamTarget(w, { chunked: true }),
+          return { fastStart: 'reserve', target: new mb.StreamTarget(w, { chunked: true, chunkSize: 4 * 1024 * 1024 }),   // 4MB씩 나눠 써요 (16MB씩 쓸 때 아이폰에서 사진을 못 읽는 일이 있었어요)
             file: async () => new File([await h.getFile()], name, { type: 'video/mp4' }) };
         }
       }
@@ -477,7 +496,7 @@ const Movie = (() => {
       return { file, info };
     } catch (e) {
       if (output) { try { await Promise.race([output.cancel(), new Promise(r => setTimeout(r, 3000))]); } catch (_) {} }
-      if (e && typeof e === 'object') e.info = info;
+      if (e && typeof e === 'object') { e.info = info; if (e.cause) info.cause = e.cause; }
       throw e;
     } finally {
       clearInterval(dog);

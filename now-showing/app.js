@@ -80,21 +80,31 @@ const DB = (() => {
   };
 })();
 
-let PH = [];        // 사진 { id, blob, thumb, w, h, url }
-let MINE = null;    // 내가 넣은 음악 { name, blob }
+let PH = [];        // 사진 { id, bytes, thumbBytes, w, h, url, meta, caption } — 바이트로 들고 있어요(아이폰에서 오래 들고 있던 Blob을 못 읽는 일이 있었어요)
+let MINE = null;    // 내가 넣은 음악 { name, bytes, type }
 let AUD = { key: "", buf: null };   // 풀어 둔 음악
 let SEL = -1;       // 고른 사진
 let PLAYER = null, CUR = null, SAMPLE = null, RESULT = null;
 const PREV = new Audio();           // 음원 미리듣기
 
+const jpg = b => new Blob([b], { type: "image/jpeg" });
+const bytesOf = async v => { try { return v instanceof ArrayBuffer ? v : v ? await v.arrayBuffer() : null; } catch (e) { return null; } };
+let LOST = 0;       // 다시 불러오지 못한 사진 수
 async function restore(){
   const order = await DB.get("order");
   if (Array.isArray(order)) for (const id of order) {
-    const p = await DB.get("ph:" + id);
-    if (p && p.blob) PH.push({ ...p, url: URL.createObjectURL(p.thumb || p.blob) });
+    const p = await DB.get("ph:" + id), m = await DB.get("pm:" + id);
+    if (!p) continue;
+    const bytes = await bytesOf(p.bytes || p.blob), thumbBytes = (await bytesOf(p.thumbBytes || p.thumb)) || bytes;
+    if (!bytes) { LOST++; continue; }
+    const item = { id, bytes, thumbBytes, w: p.w, h: p.h, meta: (m ? m.meta : p.meta) || null, caption: (m ? m.caption : p.caption) || "" };
+    item.url = URL.createObjectURL(jpg(thumbBytes));
+    PH.push(item);
+    if (!p.bytes) { DB.set("ph:" + id, { id, bytes, thumbBytes, w: p.w, h: p.h }); savePhoto(item); }   // 예전 방식으로 저장된 사진은 새 방식으로 옮겨 둬요
   }
+  if (LOST) saveOrder();
   const m = await DB.get("music");
-  if (m && m.blob) MINE = m;
+  if (m) { const bytes = await bytesOf(m.bytes || m.blob); if (bytes) { MINE = { name: m.name, bytes, type: m.type || (m.blob && m.blob.type) || "audio/mpeg" }; if (!m.bytes) DB.set("music", MINE); } }
 }
 const saveOrder = () => DB.set("order", PH.map(p => p.id));
 
@@ -306,6 +316,7 @@ function stepPhotos(){
     <p class="safe">${LOCK}<span>${SAFE}</span></p>
     ${navBar("이전", "다음: 글 넣기", PH.length === 0)}`;
   $("#pick").onchange = e => addPhotos(e.target.files);
+  if (LOST) { say(`예전에 넣은 사진 ${LOST}장을 다시 불러오지 못했어요. 다시 넣어 주세요.`, "#busy"); LOST = 0; }
   app.querySelectorAll(".photos button").forEach(b => b.onclick = () => { const i = +b.dataset.i; SEL = SEL === i ? -1 : i; stepPhotos(); });
   const move = d => { const j = SEL + d; if (j < 0 || j >= PH.length) return; [PH[SEL], PH[j]] = [PH[j], PH[SEL]]; SEL = j; saveOrder(); stepPhotos(); };
   if ($("#edit")) $("#edit").onclick = () => editPhoto(SEL);
@@ -318,7 +329,7 @@ function stepPhotos(){
   if ($("#mvl")) $("#mvl").onclick = () => move(-1);
   if ($("#mvr")) $("#mvr").onclick = () => move(1);
   if ($("#rm")) $("#rm").onclick = () => {
-    const [p] = PH.splice(SEL, 1); URL.revokeObjectURL(p.url); DB.del("ph:" + p.id);
+    const [p] = PH.splice(SEL, 1); URL.revokeObjectURL(p.url); DB.del("ph:" + p.id); DB.del("pm:" + p.id);
     SEL = Math.min(SEL, PH.length - 1); saveOrder(); stepPhotos();
   };
   bindNav(() => go(3));
@@ -330,10 +341,12 @@ let RESUME_AT = null;   // 미리 보기에서 편집하러 갔다 오면 그 �
 async function replacePhoto(i, file){
   const p = await Movie.shrink(file), old = PH[i];
   URL.revokeObjectURL(old.url);
-  Object.assign(old, { blob: p.blob, thumb: p.thumb, w: p.w, h: p.h, url: URL.createObjectURL(p.thumb), meta: null });
+  Object.assign(old, { bytes: p.bytes, thumbBytes: p.thumbBytes, w: p.w, h: p.h, url: URL.createObjectURL(jpg(p.thumbBytes)), meta: null });
+  DB.set("ph:" + old.id, { id: old.id, bytes: p.bytes, thumbBytes: p.thumbBytes, w: p.w, h: p.h });
   savePhoto(old);
 }
-function savePhoto(p){ DB.set("ph:" + p.id, { id: p.id, blob: p.blob, thumb: p.thumb, w: p.w, h: p.h, meta: p.meta || null, caption: p.caption || "" }); }
+// 위치·글은 사진 파일과 다른 칸(pm:)에 따로 저장해요. 바꿀 때마다 큰 사진 기록을 다시 쓰지 않으려고요
+function savePhoto(p){ DB.set("pm:" + p.id, { meta: p.meta || null, caption: p.caption || "" }); }
 const edited = p => !!(p.meta && (p.meta.z > 1.01 || Math.abs(p.meta.cx - .5) > .005 || Math.abs(p.meta.cy - .5) > .005 || (p.meta.fit && p.meta.fit !== "auto")));
 function editPhoto(start){
   if (!PH[start]) return;
@@ -466,8 +479,8 @@ async function addPhotos(files){
     try {
       const p = await Movie.shrink(use[i]);
       p.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-      await DB.set("ph:" + p.id, { id: p.id, blob: p.blob, thumb: p.thumb, w: p.w, h: p.h });
-      PH.push({ ...p, url: URL.createObjectURL(p.thumb) });
+      await DB.set("ph:" + p.id, { id: p.id, bytes: p.bytes, thumbBytes: p.thumbBytes, w: p.w, h: p.h });
+      PH.push({ ...p, url: URL.createObjectURL(jpg(p.thumbBytes)) });
     } catch (e) { bad++; }
   }
   saveOrder();
@@ -552,11 +565,11 @@ function stepWords(){
 
 // ===== 4. 음악 =====
 async function music(){
-  const key = S.track === "mine" ? (MINE ? `mine:${MINE.name}:${MINE.blob.size}` : "") : S.track;
+  const key = S.track === "mine" ? (MINE ? `mine:${MINE.name}:${MINE.bytes.byteLength}` : "") : S.track;
   if (!key) return null;
   if (AUD.key === key) return AUD.buf;
   let ab;
-  if (S.track === "mine") ab = await MINE.blob.arrayBuffer();
+  if (S.track === "mine") ab = MINE.bytes.slice(0);
   else {
     const t = LIST.find(x => x.id === S.track);
     if (!t) return null;
@@ -591,7 +604,7 @@ function stepMusic(){
     ${navBar("이전", "다음: 미리 보기")}`;
   app.querySelectorAll("[data-t]").forEach(b => b.onclick = () => { S.track = b.dataset.t; save(); PREV.pause(); stepMusic(); });
   app.querySelectorAll("[data-p]").forEach(b => b.onclick = () => {
-    const id = b.dataset.p, src = id === "mine" ? URL.createObjectURL(MINE.blob) : (LIST.find(x => x.id === id) || {}).file;
+    const id = b.dataset.p, src = id === "mine" ? URL.createObjectURL(new Blob([MINE.bytes], { type: MINE.type })) : (LIST.find(x => x.id === id) || {}).file;
     if (!src) return;
     const same = PREV.dataset.id === id && !PREV.paused;
     app.querySelectorAll("[data-p]").forEach(x => x.innerHTML = PLAY);
@@ -604,10 +617,11 @@ function stepMusic(){
     if (!f) return;
     say("음악 확인 중…", "#busy");
     try {
-      const buf = await Movie.decode(await f.arrayBuffer());
-      MINE = { name: f.name.replace(/\.[^.]+$/, ""), blob: f };
+      const bytes = await f.arrayBuffer();
+      const buf = await Movie.decode(bytes.slice(0));
+      MINE = { name: f.name.replace(/\.[^.]+$/, ""), bytes, type: f.type || "audio/mpeg" };
       await DB.set("music", MINE);
-      AUD = { key: `mine:${MINE.name}:${f.size}`, buf };
+      AUD = { key: `mine:${MINE.name}:${bytes.byteLength}`, buf };
       S.track = "mine"; save(); PREV.pause(); PREV.dataset.id = "";
       stepMusic();
       say(`${lenKo(buf.duration)}짜리 음악을 넣었어요.`, "#busy");
@@ -746,6 +760,7 @@ function overlay(job, W, H){
     fail(e){
       const msg = e && e.code === "size" ? e.message + ". 화질을 낮춰서 다시 만들어 주세요."
         : e && e.code === "stall" ? "이 휴대폰에서 영상 만들기가 계속 멈춰요. 화질을 720p로 바꾸거나, 컴퓨터에서 만들어 주세요."
+        : e && e.code === "photo" ? `${e.photo}번 사진을 읽지 못했어요. 사진 목록에서 그 사진을 눌러 '사진 바꾸기'로 다시 넣어 주세요.`
         : "영상을 만들다 멈췄어요. 화면을 켠 채로 이 화면에서 다시 만들어 주세요.";
       const rep = [(e && e.message) || String(e), infoLines(e && e.info), navigator.userAgent].filter(Boolean).join("\n");
       box.querySelector(".in").innerHTML = `<p class="err">${esc(msg)}</p>${DEBUG ? `<pre class="report" id="failrep">${esc(rep)}</pre><button class="text-btn" id="failcopy" style="color:#bbb;align-self:center">결과 복사하기</button>` : ""}<button class="btn main" id="mkok">확인</button>`;
@@ -785,7 +800,7 @@ async function makeIt(){
       } catch (e) {
         if (e && e.code === "cancel") { clearRender(); ov.close(); preview(); return; }
         // 멈췄으면 한 번은 다른 저장 방식으로 다시 (저장 공간 ↔ 메모리)
-        if (e && e.code === "stall" && attempt === 1 && !job.stop) {
+        if (e && (e.code === "stall" || e.code === "photo") && attempt === 1 && !job.stop) {
           job.store = e.info && e.info.store === "휴대폰 저장 공간" ? "memory" : "disk";
           job.bank.close(); job.bank = Movie.bank(PH);
           ov.retry();
