@@ -1,0 +1,83 @@
+/* 덕담 만들기 (공통 스타일은 shared/brand.css, 질문·칩·줄 손보기는 성혼선언문 i-now-pronounce/app.css와 같음) */
+button,a{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.nw{white-space:nowrap}
+.cover .pick button{display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+
+/* 질문 화면 */
+.qt{font-weight:900;font-size:clamp(24px,7vw,30px);line-height:1.3;letter-spacing:-.02em;margin:0 0 8px}
+.qd{font-size:15px;color:var(--sub);margin:0 0 16px}
+.qd.small{font-size:13.5px;margin:0}
+.panel{background:var(--card);border-radius:24px;padding:18px 16px;min-width:0}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;font-size:14px;font-weight:700}
+.field:last-child{margin-bottom:0}
+/* 입력칸 글씨는 16px 이상 (작으면 아이폰이 화면을 확대해요) */
+.field input,.inp,.sel{display:block;width:100%;max-width:100%;min-width:0;font:inherit;font-size:16px;font-weight:500;padding:12px 14px;border:1.5px solid var(--line);border-radius:14px;background:var(--paper);color:var(--ink);-webkit-appearance:none;appearance:none}
+.field input[type="date"]{min-height:50px;text-align:left}
+.field input[type="date"]::-webkit-date-and-time-value{text-align:left}
+.sel{padding-right:40px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23888' stroke-width='2'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 16px center}
+.inp{margin:8px 0 6px}
+textarea.inp{resize:vertical;line-height:1.55}
+.gt{font-size:14px;font-weight:700;margin:18px 0 8px}
+.gt:first-child{margin-top:0}
+.gt small{font-weight:500;color:var(--sub);margin-left:4px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1.5px solid var(--line);background:transparent;color:var(--ink);border-radius:999px;padding:9px 13px;font:inherit;font-size:14.5px;font-weight:700;line-height:1.3;cursor:pointer;min-height:40px}
+.chip.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.warn{font-size:13px;color:var(--accent);margin:0}
+.warn:empty{display:none}
+/* 칩 바로 아래 미리보기 */
+.pv-inline{margin:10px 0 4px;border-left:3px solid var(--accent);background:var(--paper);border-radius:0 12px 12px 0;padding:9px 12px}
+.pv-inline p{margin:0 0 4px;font-size:14.5px;line-height:1.6}
+.pv-inline p:last-child{margin-bottom:0}
+.pv-inline b{color:var(--sub);font-weight:700}
+.pv-title{font-size:12.5px;font-weight:700;color:var(--accent)}
+.pv-empty{color:var(--sub);font-size:13.5px!important}
+.gt small.full{color:var(--accent)}
+.cover .pick button.armed{border-color:var(--cover-accent)}
+.cover .pick button.armed .q{color:var(--cover-accent)}
+.nav{display:flex;justify-content:space-between;align-items:center;margin-top:18px;gap:8px}
+.nav .btn{width:auto;padding:14px 28px}
+/* 질문 화면 아래에 붙는 막대 (스크롤해도 늘 보임) */
+.qbar{position:sticky;bottom:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:8px;
+  margin:16px -20px 0;padding:10px 20px calc(10px + env(safe-area-inset-bottom,0px));background:var(--paper);border-top:1px solid var(--line)}
+.qbar .btn{width:auto;padding:13px 22px;font-size:16px;white-space:nowrap}
+.qbar .text-btn{white-space:nowrap}
+.qtime{flex:1;text-align:center;font-size:13px;font-weight:700;color:var(--sub);font-variant-numeric:tabular-nums}
+.qtime .over{color:var(--accent)}
+.nav-r{display:flex;align-items:center;gap:6px}
+
+.qt.sub{font-size:clamp(20px,6vw,24px);margin:24px 0 10px}
+.qd.small{margin-top:8px}
+
+/* 결과: 덕담 카드 (제목·날짜·서명은 가운데, 글은 길어서 왼쪽 정렬) */
+.tabs{display:flex;gap:6px;margin-bottom:12px}
+.edit-hint{font-size:14px;color:var(--sub);text-align:center;margin:0 0 10px}
+.decl h2{text-align:center;font-size:clamp(30px,9vw,38px);letter-spacing:.06em;margin:12px 0 10px}
+.decl .rule{width:40px;height:3px;border-radius:2px;background:var(--accent);margin:0 auto 16px}
+.decl .rows{display:flex;flex-direction:column;gap:4px}
+.decl .row{padding:5px 4px;border-radius:10px;cursor:pointer}
+.decl .row.on{background:var(--paper)}
+.decl .txt{display:block;margin:0;text-align:left;font-size:16px;line-height:1.75;font-weight:500;white-space:pre-line;text-wrap:pretty;overflow-wrap:anywhere}
+@media (hover:hover){.decl .row:hover .txt{text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:4px}}
+.edit-box{margin:2px 0 10px;padding:10px;border-radius:16px;background:var(--paper);border:1.5px solid var(--accent)}
+.edit-box .inp{margin:0 0 8px;background:var(--card)}
+.edit-btns{display:flex;flex-wrap:wrap;gap:6px}
+.eb{flex:1 1 auto;min-height:44px;padding:0 12px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-size:14.5px;font-weight:700;cursor:pointer}
+.eb.main{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.decl .date{margin:24px 0 2px;text-align:center;font-weight:700;white-space:pre}
+.decl .names{margin:0;text-align:center;font-weight:700}
+.time{font-size:14px;font-weight:700;text-align:center;margin:12px 0 4px;color:var(--sub)}
+.time .over{display:block;color:var(--accent)}
+.btn .sub{display:block;font-size:13px;font-weight:500;color:var(--sub);margin-top:2px}
+.btn.main .sub{color:inherit;opacity:.75}
+.btns .msg:empty{display:none}
+.after{margin-top:14px}
+.tip{margin-top:14px}
+.tip p + p{margin-top:4px}
+.more{margin-top:14px}
+.ai-panel{display:flex;flex-direction:column;gap:0}
+.ai-panel .btn.main{margin:4px 0 8px}
+.ai-panel .msg{margin-bottom:6px}
+.field.gap{margin-top:18px}
+.decl .head{gap:8px}
+.decl .head span{white-space:nowrap;font-size:12.5px}
