@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>식전영상 만들기 | 결혼식사회자 이상운</title>
+<meta name="description" content="템플릿을 고르고 사진과 글을 넣으면 식장 스크린에 틀 식전영상(MP4)이 휴대폰에서 바로 만들어져요. 사진은 휴대폰 밖으로 나가지 않아요.">
+<meta property="og:title" content="식전영상 만들기">
+<meta property="og:description" content="사진만 고르면 식장 스크린에 틀 식전영상이 휴대폰에서 바로 만들어져요.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://wedvoice-su.github.io/shared/img/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" href="../shared/img/icon-180.png">
+<link rel="apple-touch-icon" href="../shared/img/icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<!-- 영상 글꼴 (templates.js): 명조 Gowun Batang · 영문 Cormorant Garamond · 영화 포스터 대문자 Cinzel -->
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Cinzel:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/brand.css">
+<link rel="stylesheet" href="app.css">
+<!-- 영상 라이브러리(Mediabunny)는 만들기를 누를 때 engine.js가 불러와요. 보조 음악 인코더가 같은 파일을 찾도록 주소를 알려 둬요 -->
+<script type="importmap">{"imports":{"mediabunny":"./lib/mediabunny.min.mjs"}}</script>
+<script src="../shared/common.js" defer></script>
+<script src="engine.js" defer></script>
+<script src="templates.js" defer></script>
+<script src="music/tracks.js" defer></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<main class="wrap" id="app" aria-live="polite"></main>
+</body>
+</html>

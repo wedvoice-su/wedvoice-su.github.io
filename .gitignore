@@ -7,3 +7,9 @@ docs/
 
 # 식순표 참고용 옛 사이트 (Express+SQLite, 실제 신부 데이터·.env 포함) — 절대 올리지 않음, 새 식순표 사이트 완성 후 삭제
 wedding-flow-reference/
+
+# 음원 파일: 재배포(저작권) 확인 전에는 올리지 않음. 확인된 곡만 git add -f 로 올림
+*.mp3
+*.m4a
+*.wav
+*.aac
