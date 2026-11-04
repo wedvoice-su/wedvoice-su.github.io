@@ -208,7 +208,7 @@ function home(){
     </div>
     <p class="msg" id="msg" role="status" style="color:var(--cover-sub);margin-top:10px"></p>
     <p class="safe">${LOCK}<span>${SAFE}</span></p>
-    ${DEBUG ? `<pre class="report" id="report">기기 점검 중…</pre><button class="text-btn" id="copyrep" style="color:var(--cover-sub)">결과 복사하기</button>` : ""}
+    ${DEBUG ? `<p class="note" style="color:var(--cover-sub);margin-top:18px">시험용 정보예요. 주소에 debug가 있을 때만 보여요.</p><pre class="report" id="report">기기 점검 중…</pre><button class="text-btn" id="copyrep" style="color:var(--cover-sub)">결과 복사하기</button>` : ""}
     ${foot()}`;
   if ($("#copyurl")) $("#copyurl").onclick = async () => {
     try { await navigator.clipboard.writeText(location.href); say("링크를 복사했어요. 사파리 주소창에 붙여 넣어 주세요.", "#iamsg"); }
@@ -295,6 +295,7 @@ function stepPhotos(){
     <div class="count-line"><span>${PH.length}장${PH.length >= MAX_PHOTOS ? " (최대)" : ""}</span><span>${guess(PH.length)}</span></div>
     <div class="photos">${PH.map((p, i) => `<button data-i="${i}" class="${i === SEL ? "on" : ""}" aria-label="${i + 1}번 사진"><img src="${p.url}" alt=""><span class="no">${i + 1}</span></button>`).join("")}</div>
     ${SEL >= 0 && PH[SEL] ? `<div class="photo-tools">
+      <p class="which">${SEL + 1}번 사진</p>
       <button class="btn ghost" id="mvl"${SEL === 0 ? " disabled" : ""}>← 앞으로</button>
       <button class="btn ghost" id="mvr"${SEL === PH.length - 1 ? " disabled" : ""}>뒤로 →</button>
       <button class="btn ghost" id="rm">빼기</button></div>` : ""}
@@ -354,7 +355,7 @@ function stepWords(){
         <label class="field"><span>영문 이름 <em>(선택)</em></span><input id="groomEn" value="${esc(S.groomEn)}" placeholder="MINJUN" maxlength="16" autocomplete="off" autocapitalize="characters"></label>
         <label class="field"><span>영문 이름 <em>(선택)</em></span><input id="brideEn" value="${esc(S.brideEn)}" placeholder="SEOYEON" maxlength="16" autocomplete="off" autocapitalize="characters"></label>
       </div>
-      <div class="row2">
+      <div class="row2 dates">
         <label class="field">예식 날짜<input type="date" id="date" value="${esc(S.date)}"></label>
         <label class="field"><span>사귄 날 <em>(선택)</em></span><input type="date" id="met" value="${esc(S.met)}"></label>
       </div>
@@ -365,7 +366,7 @@ function stepWords(){
     <h3 class="sec">신랑·신부 소개<em>1번 사진은 신랑, 2번 사진은 신부</em></h3>
     <div class="line${S.introOn ? "" : " off"}">
       <div class="head"><label class="toggle"><input type="checkbox" id="introOn"${S.introOn ? " checked" : ""}>넣기</label><span></span></div>
-      <div class="row2">
+      <div class="intro-fields">
         <label class="field">신랑 소개<input id="introGroom" value="${esc(S.introGroom)}" placeholder="#다정함 #ENFJ #요리왕" maxlength="30" autocomplete="off"${S.introOn ? "" : " disabled"}></label>
         <label class="field">신부 소개<input id="introBride" value="${esc(S.introBride)}" placeholder="#웃음많음 #INFP #여행" maxlength="30" autocomplete="off"${S.introOn ? "" : " disabled"}></label>
       </div>
@@ -472,7 +473,7 @@ function stepMusic(){
 
 // ===== 5. 미리 보고 만들기 =====
 function seg(id, items, cur){
-  return `<div class="seg${items.length > 3 ? " wrap" : ""}" id="${id}">${items.map(([v, label, small, dis]) =>
+  return `<div class="seg${items.length > 3 ? " grid2" : ""}" id="${id}">${items.map(([v, label, small, dis]) =>
     `<button data-v="${v}" class="${String(v) === String(cur) ? "on" : ""}"${dis ? " disabled" : ""}>${label}${small ? `<small>${small}</small>` : ""}</button>`).join("")}</div>`;
 }
 function stepMake(){
@@ -487,7 +488,7 @@ function stepMake(){
     ${seg("ratio", [["16:9", "가로 16:9", "식장 스크린"], ["9:16", "세로 9:16", "인스타·휴대폰"]], S.ratio)}
     <p class="note">식장 화면 비율을 모르면 가로 16:9로 만들어요. 아주 넓은 LED 화면이라면 어떤 크기로 받는지 식장에 물어봐 주세요.</p>
     <h3 class="sec">화질</h3>
-    ${seg("q", [["720", "720p", "빠르게"], ["1080", "1080p", "식장용 추천"], ["2160", "4K", Movie.MOBILE ? "컴퓨터에서만" : "카톡으론 못 보내요", Movie.MOBILE && !DEBUG]], S.q)}
+    ${seg("q", [["720", "720p", "빠르게"], ["1080", "1080p", "식장용 추천"], ["2160", "4K", Movie.MOBILE ? "컴퓨터에서만" : "USB·메일용", Movie.MOBILE && !DEBUG]], S.q)}
     <div class="facts" id="facts"></div>
     ${ia ? `<div class="block-inapp"><b>${esc(ia)} 안에서는 저장할 수 없어요</b><p>${Movie.ANDROID ? "크롬" : "사파리"}에서 이 주소를 열어 다시 만들어 주세요.</p></div>` : ""}
     <div class="navbar"><button class="btn ghost" id="prev">이전</button><button class="btn main" id="make" disabled>동영상 만들기</button></div>
@@ -614,7 +615,7 @@ function done(){
   app.innerHTML = `
     <div class="top"><span>식전영상 만들기</span><span class="count">완성</span></div>
     <h2 class="title">식전영상이 완성됐어요</h2>
-    <div class="result"><video src="${url}" controls playsinline preload="metadata"></video></div>
+    <div class="result"><video src="${url}"${info.poster ? ` poster="${info.poster}"` : ""} controls playsinline preload="metadata"></video></div>
     <p class="meta">${info.W}×${info.H} · ${lenKo(info.length)} · ${Math.round(file.size / 1048576)}MB</p>
     <div class="btns">
       ${share ? `<button class="btn main" id="save">사진첩에 저장하기</button>` : ""}
@@ -628,7 +629,7 @@ function done(){
       ${siteLink("flow", "btn ghost", "결혼식 식순표 만들기")}
       <a class="btn insta" href="${INSTA}" target="_blank" rel="noopener">인스타에서 결혼 준비 꿀팁 보기</a>
     </div>
-    ${DEBUG ? `<pre class="report" id="report">${esc([navigator.userAgent, ...Object.entries(info).map(([k, v]) => `${k}: ${v}`)].join("\n"))}</pre><button class="text-btn btn-link" id="copyrep">결과 복사하기</button>` : ""}
+    ${DEBUG ? `<p class="note" style="margin-top:18px">시험용 정보예요. 주소에 debug가 있을 때만 보여요.</p><pre class="report" id="report">${esc([navigator.userAgent, ...Object.entries(info).map(([k, v]) => `${k}: ${v}`)].join("\n"))}</pre><button class="text-btn btn-link" id="copyrep">결과 복사하기</button>` : ""}
     ${foot()}`;
   if ($("#copyrep")) $("#copyrep").onclick = async () => { try { await navigator.clipboard.writeText($("#report").textContent); $("#copyrep").textContent = "복사했어요"; } catch (e) {} };
   if ($("#save")) $("#save").onclick = async () => {

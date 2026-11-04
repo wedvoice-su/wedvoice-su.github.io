@@ -396,12 +396,14 @@ const Movie = (() => {
     try {
       await output.start();
       await as.add(audio); as.close();
-      let key = '';
+      let key = '', posterJob = null;
+      const posterAt = Math.round(Math.min(job.P.segs[0].dur * .75, total / 2) * FPS);   // 완성 화면 영상 칸에 보일 장면
       for (let i = 0; i < frames; i++) {
         if (job.stop) throw Object.assign(new Error('그만 만들었어요'), { code: 'cancel' });
         const t = i / FPS, need = photosAt(job.P, t, job.tpl.xf);
         if (need.key !== key) { await job.bank.need(need.now, need.soon); key = need.key; }
         frame(ctx, t, M);
+        if (i === posterAt) posterJob = new Promise(r => cv.toBlob(r, 'image/jpeg', .85));
         await vs.add(t, 1 / FPS);
         if (i % 10 === 9 || i === frames - 1) {
           if (onp) onp({ done: (i + 1) / frames, elapsed: (performance.now() - T0) / 1000, canvas: cv });
@@ -411,6 +413,8 @@ const Movie = (() => {
       vs.close();
       if (onp) onp({ done: 1, finishing: true, elapsed: (performance.now() - T0) / 1000 });
       await output.finalize();
+      const pb = posterJob ? await posterJob : null;
+      if (pb) info.poster = URL.createObjectURL(pb);
     } catch (e) {
       try { await output.cancel(); } catch (_) {}
       throw e;
