@@ -122,6 +122,7 @@ function data(){
   return { groom: S.groom.trim(), bride: S.bride.trim(), groomEn: S.groomEn.trim().toUpperCase(), brideEn: S.brideEn.trim().toUpperCase(),
     date: S.date, time: S.time, venue: S.venue.trim(),
     open: [lineOf("open"), ""], story: S.story.map((x, i) => x.on ? { text: lineOf("story" + i) } : null).filter(x => x && x.text.trim()),
+    captions: PH.map(p => p.caption || ""),
     intro: S.introOn ? { groom: S.introGroom.trim(), bride: S.introBride.trim() } : null,
     parents: S.parentsOn ? lineOf("parents") : "", thanks: S.thanksOn ? lineOf("thanks") : "", close: lineOf("close") };
 }
@@ -201,6 +202,7 @@ function home(){
     <h1>식전영상,<br>사진만 고르면<br>완성돼요</h1>
     <div class="bar"></div>
     <p class="lead">템플릿을 고르고 사진과 글을 넣으면, 식장 스크린에 틀 영상(MP4)이 휴대폰에서 바로 만들어져요.</p>
+    ${Movie.MOBILE ? `<p class="note pc">컴퓨터에서 열면 사진 고르기와 파일 저장이 더 편하고, 영상도 더 빨리 만들어져요.</p>` : ""}
     ${ia ? inAppBox(ia) : ""}
     <div class="pick">
       ${started ? `<button id="resume"><span>이어서 만들기</span><span class="q">사진 ${PH.length}장</span></button>` : ""}
@@ -289,13 +291,14 @@ function guess(n){
 function stepPhotos(){
   app.innerHTML = `${topBar(2)}
     <h2 class="title">사진을 넣어 주세요</h2>
-    <p class="sub">넣은 순서대로 나와요. 사진을 누르면 순서를 바꾸거나 뺄 수 있어요.</p>
+    <p class="sub">넣은 순서대로 나와요. 사진을 누르면 순서를 바꾸거나, 위치·크기를 맞추고 글을 넣을 수 있어요.</p>
     <label class="btn main add"><input type="file" id="pick" accept="image/*" multiple>${PH.length ? "사진 더 넣기" : "사진 고르기"}</label>
     <p class="busy" id="busy" role="status"></p>
     <div class="count-line"><span>${PH.length}장${PH.length >= MAX_PHOTOS ? " (최대)" : ""}</span><span>${guess(PH.length)}</span></div>
-    <div class="photos">${PH.map((p, i) => `<button data-i="${i}" class="${i === SEL ? "on" : ""}" aria-label="${i + 1}번 사진"><img src="${p.url}" alt=""><span class="no">${i + 1}</span></button>`).join("")}</div>
+    <div class="photos">${PH.map((p, i) => `<button data-i="${i}" class="${i === SEL ? "on" : ""}" aria-label="${i + 1}번 사진"><img src="${p.url}" alt=""><span class="no">${i + 1}</span>${p.caption ? `<span class="tag">글</span>` : edited(p) ? `<span class="tag">✎</span>` : ""}</button>`).join("")}</div>
     ${SEL >= 0 && PH[SEL] ? `<div class="photo-tools">
       <p class="which">${SEL + 1}번 사진</p>
+      <button class="btn main wide" id="edit">편집하기 · 위치 · 크기 · 글</button>
       <button class="btn ghost" id="mvl"${SEL === 0 ? " disabled" : ""}>← 앞으로</button>
       <button class="btn ghost" id="mvr"${SEL === PH.length - 1 ? " disabled" : ""}>뒤로 →</button>
       <button class="btn ghost" id="rm">빼기</button></div>` : ""}
@@ -304,6 +307,7 @@ function stepPhotos(){
   $("#pick").onchange = e => addPhotos(e.target.files);
   app.querySelectorAll(".photos button").forEach(b => b.onclick = () => { const i = +b.dataset.i; SEL = SEL === i ? -1 : i; stepPhotos(); });
   const move = d => { const j = SEL + d; if (j < 0 || j >= PH.length) return; [PH[SEL], PH[j]] = [PH[j], PH[SEL]]; SEL = j; saveOrder(); stepPhotos(); };
+  if ($("#edit")) $("#edit").onclick = () => editPhoto(SEL);
   if ($("#mvl")) $("#mvl").onclick = () => move(-1);
   if ($("#mvr")) $("#mvr").onclick = () => move(1);
   if ($("#rm")) $("#rm").onclick = () => {
@@ -312,6 +316,127 @@ function stepPhotos(){
   };
   bindNav(() => go(3));
 }
+// ===== 사진 편집: 끌어서 옮기기 · 두 손가락으로 확대 · 꽉 채우기/사진 전체 · 이 사진에 넣을 글 (땡큐 카드와 같은 손동작) =====
+const DRAG_HINT = "사진을 끌어서 옮기고, 두 손가락으로 벌려서 확대할 수 있어요";
+const ZMAX = 3;
+let RESUME_AT = null;   // 미리 보기에서 편집하러 갔다 오면 그 장면부터
+function savePhoto(p){ DB.set("ph:" + p.id, { id: p.id, blob: p.blob, thumb: p.thumb, w: p.w, h: p.h, meta: p.meta || null, caption: p.caption || "" }); }
+const edited = p => !!(p.meta && (p.meta.z > 1.01 || Math.abs(p.meta.cx - .5) > .005 || Math.abs(p.meta.cy - .5) > .005 || (p.meta.fit && p.meta.fit !== "auto")));
+function editPhoto(start){
+  if (!PH[start]) return;
+  let i = start, P = null, M = null, seg = null, raf = 0, saveT = 0, edgeT = 0;
+  const T = tpl(), [W, H] = Movie.size(S.ratio, "720"), tall = H > W, bank = Movie.bank(PH), touches = new Map();
+  const box = document.createElement("div");
+  box.className = "editor"; box.setAttribute("role", "dialog"); box.setAttribute("aria-label", "사진 편집");
+  document.body.appendChild(box); document.body.style.overflow = "hidden";
+  history.pushState({ step: S.step, ed: 1 }, "");
+  const meta = () => (PH[i].meta = PH[i].meta || { cx: .5, cy: .5, z: 1, fit: "auto" });
+  const later = () => { clearTimeout(saveT); const p = PH[i]; saveT = setTimeout(() => savePhoto(p), 400); };
+  const geom = () => { const ph = bank.get(i); if (!ph || !M) return null; const b = T.box ? T.box(M, ph) : [0, 0, W, H]; return { ph, bw: b[2], bh: b[3] }; };
+  // 지금 '사진 전체'(흐린 배경)로 보이는지: 직접 고른 경우, 또는 자동인데 사진과 칸 비율이 많이 다른 경우
+  const whole = g => { const m = PH[i].meta || {}; if (m.fit === "whole") return true; if (m.fit === "cover" || !T.autoFit) return false; const ar = g.ph.w / g.ph.h, br = g.bw / g.bh; return Math.max(ar / br, br / ar) > 1.45; };
+  function draw(){
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => {
+      const c = box.querySelector("canvas");
+      if (!c || !M) return;
+      const x = c.getContext("2d", { alpha: false });
+      x.setTransform(c.width / W, 0, 0, c.width / W, 0, 0);
+      Movie.frame(x, seg.start + seg.dur * .5, M);
+    });
+  }
+  function replan(){
+    const d = data();
+    P = Movie.plan(T, d, PH.length, AUD.buf ? AUD.buf.duration : 0);
+    seg = P.segs.find(g => g.kind === "photo" && g.i === i);
+    M = Movie.scene(P, W, H, T, d, bank);
+  }
+  const syncFit = () => box.querySelectorAll("#edfit button").forEach(b => b.classList.toggle("on", b.dataset.v === ((PH[i].meta || {}).fit || "auto")));
+  const edge = () => {
+    const h = box.querySelector("#edhint");
+    h.textContent = meta().z < ZMAX - .01 ? "사진 끝에 닿았어요. 확대하면 더 옮길 수 있어요." : "사진 끝에 닿았어요.";
+    clearTimeout(edgeT); edgeT = setTimeout(() => { h.textContent = DRAG_HINT; }, 2200);
+  };
+  async function shell(){
+    const m = PH[i].meta || {}, introHere = S.introOn && i < 2 && PH.length >= 2;
+    box.innerHTML = `<div class="in">
+      <div class="ed-top"><b>사진 편집</b><span class="count">${i + 1} / ${PH.length}</span></div>
+      <div class="ed-stage${tall ? " tall" : ""}"><canvas width="${W >= H ? 720 : 405}" height="${W >= H ? 405 : 720}"></canvas></div>
+      <p class="drag" id="edhint">${DRAG_HINT}</p>
+      <label class="range"><span>사진 크기</span><input type="range" id="edzoom" min="1" max="${ZMAX}" step="0.01" value="${m.z || 1}"></label>
+      <div class="seg" id="edfit">${[["auto", "자동"], ["cover", "꽉 채우기"], ["whole", "사진 전체"]].map(([v, l]) => `<button data-v="${v}" class="${(m.fit || "auto") === v ? "on" : ""}">${l}</button>`).join("")}</div>
+      <label class="field"><span>이 사진에 넣을 글 <em>(안 써도 돼요)</em></span><textarea id="edcap" rows="2" maxlength="40" placeholder="예: 헬스장에서 시작된 이야기">${esc(PH[i].caption || "")}</textarea></label>
+      ${introHere ? `<p class="note" style="margin-top:-4px">1·2번 사진에는 신랑·신부 소개가 나와서, 여기 쓴 글은 영상에 안 나와요.</p>` : ""}
+      <div class="ed-nav"><button class="btn ghost" id="edprev"${i === 0 ? " disabled" : ""}>← 이전 사진</button><button class="btn ghost" id="ednext"${i === PH.length - 1 ? " disabled" : ""}>다음 사진 →</button></div>
+      <button class="btn main" id="eddone">완료</button>
+      <button class="text-btn btn-link" id="edreset">처음 위치로</button>
+    </div>`;
+    const c = box.querySelector("canvas"), q$ = s => box.querySelector(s);
+    const toV = e => { const r = c.getBoundingClientRect(), k = W / r.width; return { x: e.clientX * k, y: e.clientY * k }; };
+    c.onpointerdown = e => {
+      const g = geom(); if (!g) return;
+      if (whole(g)) { meta().fit = "cover"; syncFit(); draw(); }   // 사진 전체로 보이는 중에 끌면 꽉 채우기로 바꿔요
+      c.setPointerCapture(e.pointerId); touches.set(e.pointerId, toV(e));
+    };
+    c.onpointermove = e => {
+      if (!touches.has(e.pointerId)) return;
+      const g = geom(); if (!g) return;
+      const m = meta(), prev = touches.get(e.pointerId), now = toV(e);
+      touches.set(e.pointerId, now);
+      if (touches.size === 1) {
+        const a = Movie.kit.place(g.ph.img, g.bw, g.bh, m.z, m.cx, m.cy);
+        const want = { cx: m.cx - (now.x - prev.x) / a.dw, cy: m.cy - (now.y - prev.y) / a.dh };
+        const b = Movie.kit.place(g.ph.img, g.bw, g.bh, m.z, want.cx, want.cy);
+        m.cx = b.cx; m.cy = b.cy;
+        if (Math.abs(b.cx - want.cx) > 1e-4 || Math.abs(b.cy - want.cy) > 1e-4) edge();
+      } else {
+        const other = [...touches].find(([id]) => id !== e.pointerId)[1];
+        const d0 = Math.hypot(prev.x - other.x, prev.y - other.y), d1 = Math.hypot(now.x - other.x, now.y - other.y);
+        if (d0 < 1) return;
+        m.z = Math.max(1, Math.min(ZMAX, m.z * d1 / d0));
+        const b = Movie.kit.place(g.ph.img, g.bw, g.bh, m.z, m.cx, m.cy); m.cx = b.cx; m.cy = b.cy;
+        q$("#edzoom").value = m.z;
+      }
+      draw(); later();
+    };
+    c.onpointerup = c.onpointercancel = e => { touches.delete(e.pointerId); };
+    c.onwheel = e => {
+      e.preventDefault();
+      const g = geom(); if (!g) return;
+      const m = meta(); if (whole(g)) { m.fit = "cover"; syncFit(); }
+      m.z = Math.max(1, Math.min(ZMAX, m.z * Math.exp(-e.deltaY * .0015)));
+      const b = Movie.kit.place(g.ph.img, g.bw, g.bh, m.z, m.cx, m.cy); m.cx = b.cx; m.cy = b.cy;
+      q$("#edzoom").value = m.z; draw(); later();
+    };
+    q$("#edzoom").oninput = e => {
+      const g = geom(); if (!g) return;
+      const m = meta(); if (whole(g)) { m.fit = "cover"; syncFit(); }
+      m.z = +e.target.value;
+      const b = Movie.kit.place(g.ph.img, g.bw, g.bh, m.z, m.cx, m.cy); m.cx = b.cx; m.cy = b.cy;
+      draw(); later();
+    };
+    box.querySelectorAll("#edfit button").forEach(b => b.onclick = () => { meta().fit = b.dataset.v; syncFit(); draw(); later(); });
+    let capT = 0;
+    q$("#edcap").oninput = e => { PH[i].caption = e.target.value; clearTimeout(capT); capT = setTimeout(() => { replan(); draw(); }, 150); later(); };
+    const go2 = j => { clearTimeout(saveT); savePhoto(PH[i]); i = j; shell(); };
+    q$("#edprev").onclick = () => { if (i > 0) go2(i - 1); };
+    q$("#ednext").onclick = () => { if (i < PH.length - 1) go2(i + 1); };
+    q$("#eddone").onclick = () => history.back();
+    q$("#edreset").onclick = () => { PH[i].meta = { cx: .5, cy: .5, z: 1, fit: "auto" }; q$("#edzoom").value = 1; syncFit(); draw(); later(); };
+    replan();
+    await Movie.fonts(T, sampleText(data()));
+    await bank.need([i], [i + 1, i - 1].filter(j => j >= 0 && j < PH.length));
+    draw();
+  }
+  const onPop = () => {
+    window.removeEventListener("popstate", onPop);
+    clearTimeout(saveT); savePhoto(PH[i]);
+    bank.close(); box.remove(); document.body.style.overflow = "";
+  };
+  window.addEventListener("popstate", onPop);
+  shell();
+}
+
 async function addPhotos(files){
   const arr = [...(files || [])], room = MAX_PHOTOS - PH.length, use = arr.slice(0, Math.max(0, room));
   let bad = 0;
@@ -482,13 +607,14 @@ function stepMake(){
     <h2 class="title">미리 보고 만들기</h2>
     <div class="stage" id="stage"><canvas id="pv" width="16" height="9"></canvas><button class="playbtn" id="play" aria-label="재생">${PLAY}</button></div>
     <div class="scrub"><span id="cur">0:00</span><input type="range" id="seek" min="0" max="1000" value="0" aria-label="재생 위치"><span id="len">-:--</span></div>
+    <button class="btn ghost scene-edit" id="sceneEdit" disabled>멈춘 장면의 사진을 편집할 수 있어요</button>
     <h3 class="sec">템플릿</h3>
     ${seg("tplseg", TEMPLATES.map(T => [T.key, esc(T.name)]), S.tpl)}
     <h3 class="sec">비율</h3>
     ${seg("ratio", [["16:9", "가로 16:9", "식장 스크린"], ["9:16", "세로 9:16", "인스타·휴대폰"]], S.ratio)}
     <p class="note">식장 화면 비율을 모르면 가로 16:9로 만들어요. 아주 넓은 LED 화면이라면 어떤 크기로 받는지 식장에 물어봐 주세요.</p>
     <h3 class="sec">화질</h3>
-    ${seg("q", [["720", "720p", "빠르게"], ["1080", "1080p", "식장용 추천"], ["2160", "4K", Movie.MOBILE ? "컴퓨터에서만" : "USB·메일용", Movie.MOBILE && !DEBUG]], S.q)}
+    ${seg("q", [["720", "720p", "빠르게"], ["1080", "1080p", "식장용 추천"]], S.q)}
     <div class="facts" id="facts"></div>
     ${ia ? `<div class="block-inapp"><b>${esc(ia)} 안에서는 저장할 수 없어요</b><p>${Movie.ANDROID ? "크롬" : "사파리"}에서 이 주소를 열어 다시 만들어 주세요.</p></div>` : ""}
     <div class="navbar"><button class="btn ghost" id="prev">이전</button><button class="btn main" id="make" disabled>동영상 만들기</button></div>
@@ -527,20 +653,29 @@ async function preview(){
   if (job !== previewJob) { bank.close(); return; }
   const M = Movie.scene(P, W, H, T, d, bank);
   CUR = { T, d, P, buf, bank, W, H };
-  const start = Math.min(3.2, P.total / 2);
+  const start = RESUME_AT != null ? Math.min(RESUME_AT, P.total - .1) : Math.min(3.2, P.total / 2);
+  RESUME_AT = null;
   await bank.need(Movie.photosAt(P, start, T.xf).now);
   if (job !== previewJob) return;
   PLAYER = Movie.player(cv, M, mixed);
   PLAYER.draw(start);
   const seek = $("#seek"), curEl = $("#cur");
   $("#len").textContent = mmss(P.total);
-  const tick = t => { curEl.textContent = mmss(t); if (!seek.matches(":active")) seek.value = Math.round(t / P.total * 1000); };
+  const sceneBtn = $("#sceneEdit");
+  const scene = t => {   // 멈춰 있고 사진 장면이면 그 사진 편집
+    const g = Movie.segAt(P, t), ok = !PLAYER.playing && g && g.kind === "photo";
+    sceneBtn.disabled = !ok;
+    sceneBtn.textContent = ok ? `${g.i + 1}번 사진 편집하기` : (PLAYER.playing ? "멈추면 그 장면의 사진을 편집할 수 있어요" : "사진 장면에서 멈추면 편집할 수 있어요");
+    sceneBtn.dataset.i = ok ? g.i : "";
+  };
+  const tick = t => { curEl.textContent = mmss(t); if (!seek.matches(":active")) seek.value = Math.round(t / P.total * 1000); scene(t); };
   PLAYER.ontick = tick;
   tick(start);
+  sceneBtn.onclick = () => { if (sceneBtn.dataset.i === "") return; RESUME_AT = PLAYER.time(); PLAYER.pause(); editPhoto(+sceneBtn.dataset.i); };
   PLAYER.onend = () => { stage.classList.remove("playing"); $("#play").innerHTML = PLAY; };
   seek.oninput = () => PLAYER.seek(seek.value / 1000 * P.total);
   const toggle = () => {
-    if (PLAYER.playing) { PLAYER.pause(); stage.classList.remove("playing"); $("#play").innerHTML = PLAY; }
+    if (PLAYER.playing) { PLAYER.pause(); stage.classList.remove("playing"); $("#play").innerHTML = PLAY; scene(PLAYER.time()); }
     else { PLAYER.play(); stage.classList.add("playing"); $("#play").innerHTML = PAUSE; }
   };
   $("#play").onclick = toggle; cv.onclick = toggle;
@@ -646,6 +781,7 @@ function done(){
   if (!TEMPLATES.some(t => t.key === S.tpl)) S.tpl = TEMPLATES[0].key;
   if (S.track && S.track !== "mine" && !LIST.some(t => t.id === S.track)) S.track = LIST.length ? LIST[0].id : "";
   if (S.track === "mine" && !MINE) S.track = "";
+  if (!["720", "1080"].includes(String(S.q))) S.q = "1080";   // 4K는 뺐어요 (11/4)
   let step = Math.max(0, Math.min(5, S.step || 0));
   if (step > 2 && !PH.length) step = 2;
   history.replaceState({ step: 0 }, "");

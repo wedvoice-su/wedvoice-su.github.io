@@ -103,6 +103,7 @@ const Movie = (() => {
     return {
       size: items.length,
       get: i => ready.get(i) || null,
+      meta: i => (items[i] && items[i].meta) || null,   // 사진 편집에서 맞춘 위치 { cx, cy, z, fit }
       async need(now, soon = []){
         const keep = new Set([...now, ...soon]);
         for (const [i, v] of ready) if (!keep.has(i)) { if (v.img.close) v.img.close(); ready.delete(i); }
@@ -129,9 +130,12 @@ const Movie = (() => {
     // 신랑·신부 소개: 1번 사진 = 신랑, 2번 사진 = 신부
     const intro = d.intro && n >= 2 ? d.intro : null;
     if (intro) { segs[1].intro = { who: '신랑', name: d.groom, en: d.groomEn, tags: intro.groom }; segs[2].intro = { who: '신부', name: d.bride, en: d.brideEn, tags: intro.bride }; }
-    // 이야기 문구는 소개 사진 뒤 사진들에 고르게
-    const story = (d.story || []).filter(s => s && s.text), from = intro ? 2 : 0, room = n - from;
-    if (room > 0) story.forEach((s, j) => { const g = segs[from + Math.min(room - 1, Math.floor(j * room / story.length)) + 1]; g.caption = s.text; g.ch = j + 1; });
+    // 사진 편집에서 그 사진에 넣은 글이 먼저. 이야기 문구는 소개 사진 뒤, 글이 없는 사진들에 고르게
+    const own = d.captions || [];
+    for (let i = 0; i < n; i++) if (own[i] && own[i].trim()) segs[i + 1].caption = own[i];
+    const story = (d.story || []).filter(s => s && s.text), free = [];
+    for (let i = intro ? 2 : 0; i < n; i++) if (!(own[i] && own[i].trim())) free.push(i);
+    if (free.length) story.forEach((s, j) => { const g = segs[free[Math.min(free.length - 1, Math.floor(j * free.length / story.length))] + 1]; g.caption = s.text; g.ch = j + 1; });
     if (d.parents) segs.push({ kind: tpl.parents ? 'parents' : 'thanks', dur: parentsDur, text: d.parents, i: tpl.thanksPhoto && n ? Math.max(0, n - 1) : null });
     if (d.thanks) segs.push({ kind: 'thanks', dur: T.thanks, text: d.thanks, i: tpl.thanksPhoto && n ? Math.max(0, n - 1) : null });
     // closePhoto: 'first'면 1번 사진으로 끝나요 (반복 재생할 때 처음으로 자연스럽게 이어지게)
@@ -164,17 +168,31 @@ const Movie = (() => {
     const s = Math.max(w / img.width, h / img.height) * sc, dw = img.width * s, dh = img.height * s;
     ctx.drawImage(img, x + (w - dw) / 2 + px * (dw - w) / 2, y + (h - dh) / 2 + py * (dh - h) / 2, dw, dh);
   }
+  // 사용자가 맞춘 사진 위치: z 확대(1~3), cx·cy = 칸 가운데에 올 사진 위치(0~1). 사진이 칸을 꽉 채우도록 끝에서 멈춰요 (땡큐 카드와 같은 방식)
+  function place(img, w, h, z = 1, cx = .5, cy = .5){
+    const s = Math.max(w / img.width, h / img.height) * z, dw = img.width * s, dh = img.height * s;
+    const hx = Math.min(.5, w / (2 * dw)), hy = Math.min(.5, h / (2 * dh));
+    return { dw, dh, cx: Math.min(1 - hx, Math.max(hx, cx)), cy: Math.min(1 - hy, Math.max(hy, cy)) };
+  }
+  function framed(ctx, img, x, y, w, h, z, cx, cy){
+    const q = place(img, w, h, z, cx, cy);
+    ctx.drawImage(img, x + w / 2 - q.cx * q.dw, y + h / 2 - q.cy * q.dh, q.dw, q.dh);
+  }
   // 사진 한 장: 천천히 확대·이동(켄 번즈). 사진 비율이 칸과 많이 다르면(세로 사진을 가로 영상에) 흐린 배경 위에 사진 전체를 보여 줘요.
   function photo(ctx, M, ph, s, u, o = {}){
     const xf = M.tpl.xf, p = cl((u + xf) / (s.dur + xf)), e = ease(p), k = s.k != null ? s.k : (s.i || 0);
     const z = o.zoom != null ? o.zoom : .07, zin = k % 2 === 0, sc = zin ? 1 + z * e : 1 + z * (1 - e);
     const dirs = [[.6, 0], [-.6, 0], [0, .5], [0, -.5], [.5, .4], [-.5, -.4]], [dx, dy] = dirs[k % dirs.length];
     const [bx, by, bw, bh] = o.box || [0, 0, M.W, M.H];
-    const ar = ph.w / ph.h, br = bw / bh;
-    const fit = o.fit || (Math.max(ar / br, br / ar) > 1.45 ? 'blur' : 'cover');
+    const ar = ph.w / ph.h, br = bw / bh, meta = (M.bank.meta && M.bank.meta(s.i)) || {};
+    const auto = Math.max(ar / br, br / ar) > 1.45 ? 'blur' : 'cover';
+    const fit = o.fit || (meta.fit === 'cover' ? 'cover' : meta.fit === 'whole' ? 'blur' : auto);
     ctx.save();
     if (o.box) { ctx.beginPath(); ctx.rect(bx, by, bw, bh); ctx.clip(); }
-    if (fit === 'cover') cover(ctx, ph.img, bx, by, bw, bh, sc, dx * (e - .5) * 2, dy * (e - .5) * 2);
+    if (fit === 'cover') {   // 사용자가 맞춘 위치를 가운데에 두고 조금만 움직여요
+      const z0 = meta.z || 1, amp = .05 / z0;
+      framed(ctx, ph.img, bx, by, bw, bh, z0 * sc, (meta.cx ?? .5) + dx * (e - .5) * amp, (meta.cy ?? .5) + dy * (e - .5) * amp);
+    }
     else if (fit === 'contain') {                   // 칸 안에 사진 전체 (배경은 템플릿이 칠해요)
       const s2 = Math.min(bw / ph.w, bh / ph.h) * sc, dw = ph.w * s2, dh = ph.h * s2;
       ctx.drawImage(ph.img, bx + (bw - dw) / 2, by + (bh - dh) / 2, dw, dh);
@@ -434,10 +452,12 @@ const Movie = (() => {
     const now = () => on ? pos + (ac.currentTime - t0) : pos;
     function draw(t){
       const need = photosAt(M.P, t, M.tpl.xf);
-      M.bank.need(need.now, need.soon).catch(() => {});
+      const job = M.bank.need(need.now, need.soon);
       ctx.setTransform(sc, 0, 0, sc, 0, 0);
       frame(ctx, t, M);
       if (ticker) ticker(t);
+      // 멈춘 채 장면을 옮기면 사진이 아직 안 풀려 있을 수 있어요 → 풀리면 그 장면을 다시 그려요
+      job.then(() => { if (!on && Math.abs(pos - t) < 1e-3) { ctx.setTransform(sc, 0, 0, sc, 0, 0); frame(ctx, t, M); } }).catch(() => {});
     }
     function loop(){
       const t = now();
@@ -489,6 +509,7 @@ const Movie = (() => {
   return {
     FPS, IOS, ANDROID, MOBILE, WEBKIT, VBR, bitrate, size, inApp, shrink, bank, plan, photosAt, frame, scene, fonts,
     decode, mix, make, player, probe, cleanup,
-    kit: { cl, ease, out3, lerp, rise, veil, cover, photo, text, wrap, block, typed, grain, vignette, scrim, font }
+    segAt: (P, t) => P.segs[at(P.segs, t)],
+    kit: { cl, ease, out3, lerp, rise, veil, cover, place, framed, photo, text, wrap, block, typed, grain, vignette, scrim, font }
   };
 })();

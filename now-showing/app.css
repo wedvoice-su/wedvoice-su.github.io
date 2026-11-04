@@ -78,6 +78,8 @@
 .photos button.on{outline:3px solid var(--accent);outline-offset:-3px}
 .photo-tools{position:sticky;bottom:calc(86px + env(safe-area-inset-bottom,0px));z-index:6;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px;padding:8px 0 2px;background:var(--paper)}
 .photo-tools .which{grid-column:1/-1;margin:0;font-size:14px;font-weight:700;color:var(--accent)}
+.photo-tools .wide{grid-column:1/-1}
+.photos .tag{position:absolute;right:4px;bottom:4px;min-width:22px;height:22px;border-radius:11px;background:var(--accent);color:#fff;font-size:12px;font-weight:700;display:grid;place-items:center;padding:0 6px}
 .photo-tools .btn{padding:13px 8px;font-size:15px}
 .busy{font-size:14px;font-weight:700;color:var(--accent);margin:10px 2px 0;min-height:1.4em}
 
@@ -134,3 +136,23 @@
 /* 시험용 점검 (?debug) */
 .report{white-space:pre-wrap;word-break:break-all;font-size:12px;line-height:1.5;background:var(--card);border-radius:12px;padding:10px;margin:12px 0 0;color:var(--ink)}
 .cover .report{background:#222;color:#ddd}
+
+/* 첫 화면: 휴대폰으로 열었을 때 컴퓨터 안내 */
+.cover .note.pc{color:var(--cover-sub);margin:-18px 0 24px;font-size:14px}
+
+/* 미리 보기: 멈춘 장면의 사진 편집 */
+.scene-edit{margin-top:10px;padding:13px 10px;font-size:15px}
+
+/* 사진 편집 창 */
+.editor{position:fixed;inset:0;z-index:40;background:var(--paper);overflow-y:auto;-webkit-overflow-scrolling:touch}
+.editor .in{max-width:440px;margin:0 auto;padding:16px 20px calc(24px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:12px}
+.editor .ed-top{display:flex;justify-content:space-between;align-items:baseline;font-size:17px;font-weight:900}
+.editor .ed-top .count{font-size:14px;color:var(--sub);font-weight:500;font-variant-numeric:tabular-nums}
+.editor .ed-stage{align-self:center;width:100%;border-radius:10px;overflow:hidden;background:#000;box-shadow:0 0 0 1px var(--line)}
+.editor .ed-stage.tall{width:62%}
+.editor canvas{display:block;width:100%;height:auto;touch-action:none;cursor:grab;-webkit-user-select:none;user-select:none}
+.editor .drag{font-size:13px;color:var(--sub);text-align:center;margin:-4px 0 0;min-height:1.4em}
+.editor .range{display:flex;align-items:center;gap:14px;font-size:15px;font-weight:700}
+.editor .range input{flex:1;accent-color:var(--accent)}
+.editor .ed-nav{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.editor .ed-nav .btn{padding:14px 8px;font-size:15px}

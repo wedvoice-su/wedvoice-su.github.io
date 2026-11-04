@@ -86,6 +86,7 @@ const TEMPLATES = [];
   // ===== 1. 러브 스토리: 곡 하나에 연애부터 웨딩까지 (가장 흔한 형식) =====
   TEMPLATES.push({
     key: "story", name: "러브 스토리", desc: "곡 하나에 연애부터 웨딩까지 이어지는 이야기", photos: [30, 50],
+    box: M => [0, 0, M.W, M.H], autoFit: true,
     bg: "#000", xf: 1.2, trans: "fade",
     time: { open: 7, parents: 7, thanks: 7, close: 8, min: 3.5, max: 6 },
     openPhoto: true, thanksPhoto: true, closePhoto: true,
@@ -123,6 +124,7 @@ const TEMPLATES = [];
   };
   TEMPLATES.push({
     key: "cinema", name: "시네마", desc: "영화 예고편처럼. 위아래 검은 띠와 챕터 자막", photos: [25, 45], thumbAt: 5.6,
+    box: M => area(M), autoFit: true,
     bg: "#000", xf: .9, trans: "dip", dip: "#000",
     time: { open: 9, parents: 7, thanks: 7, close: 9, min: 3.5, max: 5.5 },
     openPhoto: false, thanksPhoto: true, closePhoto: true,
@@ -185,6 +187,7 @@ const TEMPLATES = [];
   };
   TEMPLATES.push({
     key: "minimal", name: "미니멀", desc: "밝은 바탕에 사진과 글자만. 짧고 깔끔하게", photos: [10, 25],
+    box: (M, p) => mbox(M, p),
     bg: PAPER, edge: PAPER, xf: 1, trans: "fade",
     time: { open: 6, parents: 6, thanks: 6, close: 7, min: 3.5, max: 8 },   // 슬라이드형 템플릿은 사진 11~27장, 장당 약 8초까지
     openPhoto: false, thanksPhoto: false, closePhoto: false,
@@ -203,7 +206,8 @@ const TEMPLATES = [];
       if (p) {
         const box = mbox(M, p);
         ctx.save(); ctx.fillStyle = "rgba(0,0,0,.06)"; ctx.fillRect(box[0] + m * .006, box[1] + m * .008, box[2], box[3]); ctx.restore();
-        K.photo(ctx, M, p, s, u, { box, fit: "cover", zoom: .04 });
+        const meta = (M.bank.meta && M.bank.meta(s.i)) || {};
+        K.photo(ctx, M, p, s, u, { box, fit: meta.fit === "whole" ? "contain" : "cover", zoom: .04 });
         const by = box[1] + box[3];
         const a = K.rise(u, .5, .9) * fadeOut(u, s);
         if (s.intro) {
@@ -236,8 +240,10 @@ const TEMPLATES = [];
       // 처음·끝 장면은 같은 크기(1배)에서 시작·끝나서 반복해도 이음새가 안 보여요
       const life = Math.max(0, Math.min(1, (u + M.tpl.xf) / (s.dur + M.tpl.xf)));
       const z = s.kind === "close" ? 1.05 - .05 * K.ease(life) : 1 + .05 * K.ease(life);
+      const meta = (M.bank.meta && M.bank.meta(s.i)) || {};
       ctx.save(); ctx.beginPath(); ctx.rect(box[0], box[1], box[2], box[3]); ctx.clip();
-      K.cover(ctx, p.img, box[0], box[1], box[2], box[3], z);
+      if (meta.fit === "whole") { const k = Math.min(box[2] / p.w, box[3] / p.h) * z, dw = p.w * k, dh = p.h * k; ctx.drawImage(p.img, box[0] + (box[2] - dw) / 2, box[1] + (box[3] - dh) / 2, dw, dh); }
+      else K.framed(ctx, p.img, box[0], box[1], box[2], box[3], (meta.z || 1) * z, meta.cx ?? .5, meta.cy ?? .5);
       ctx.restore();
     }
     ctx.save(); ctx.strokeStyle = "rgba(216,195,160,.55)"; ctx.lineWidth = Math.max(1.5, m * .002);
@@ -263,6 +269,7 @@ const TEMPLATES = [];
   }
   TEMPLATES.push({
     key: "poster", name: "무빙포스터", desc: "포스터 한 장이 천천히 움직여요. 사진 1~10장, 반복 재생용", photos: [1, 10],
+    box: M => pbox(M),
     bg: POSTER, xf: 1.6, trans: "fade", loop: true, fill: true,
     time: { open: 6, parents: 6, thanks: 6, close: 6, min: 5, max: 9 },
     openPhoto: true, thanksPhoto: true, closePhoto: "first",
