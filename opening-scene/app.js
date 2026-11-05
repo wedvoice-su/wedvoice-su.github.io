@@ -4,7 +4,7 @@
 
 // 공개 전에는 false. 미리 보려면 주소 뒤에 ?preview 를 붙여요. (예: …/opening-scene/?preview)
 // 시험할 때 ?debug 를 붙이면 기기 점검 결과와 만든 영상 정보가 보여요. (예: …/opening-scene/?preview&debug)
-const OPEN = false;
+const OPEN = true;
 const QS = new URLSearchParams(location.search);
 const DEBUG = QS.has("debug");
 const LOCAL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);

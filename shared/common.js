@@ -22,7 +22,7 @@ const SITES = {
   "vows": { path: "i-do", reel: "" },            // 혼인서약서 만들기 (미공개 샘플. 공개하면 i-do/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
   "declare": { path: "i-now-pronounce", reel: "" }, // 성혼선언문 만들기 (미공개 샘플. 공개하면 i-now-pronounce/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
   "blessing": { path: "with-our-blessing", reel: "" }, // 덕담 만들기 (미공개 샘플. 공개하면 with-our-blessing/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
-  "film": { path: "opening-scene", reel: "" }    // 식전영상 만들기 (미공개. 공개하면 opening-scene/app.js의 OPEN과 big-day/day.js의 open을 true로. 2026-11-05 now-showing에서 이름 바꿈)  TODO: 릴스 올리면 주소 넣기
+  "film": { path: "opening-scene", reel: "" }    // 식전영상 만들기 (공개 2026-11-05. 같은 날 now-showing에서 이름 바꿈)  TODO: 릴스 올리면 주소 넣기
 };
 // =========================================================
 
