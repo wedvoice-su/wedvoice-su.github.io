@@ -1,6 +1,6 @@
 // 덕담 만들기 (샘플): 하시는 분 고르기 → 정석 덕담 / 우리 이야기(질문 5개) → 덕담 카드
 // 문장은 docs/덕담/문구.txt 2판 (2026-11-05: 샘플은 참고만 하고 요즘 덕담 흐름에 맞춰 전부 새로 씀). 번호(A-1, D-2 …)는 문구.txt 번호
-// 화면 구조·줄 손보기·보관 방식은 성혼선언문(i-now-pronounce/app.js)과 같아요. 공통 기능은 shared/common.js
+// 화면 구조·줄 손보기·보관 방식은 성혼선언문(declared-wed/app.js)과 같아요. 공통 기능은 shared/common.js
 
 // 공개 전에는 false. 미리 보려면 주소 뒤에 ?preview 를 붙여요. (예: …/with-our-blessing/?preview)
 const OPEN = false;
