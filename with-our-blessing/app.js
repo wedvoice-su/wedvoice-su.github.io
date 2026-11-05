@@ -4,8 +4,8 @@
 
 // 공개 전에는 false. 미리 보려면 주소 뒤에 ?preview 를 붙여요. (예: …/with-our-blessing/?preview)
 const OPEN = false;
-const SEC_PER_CHAR = 1/4;   // 1초에 4자 (추정, 혼인서약서·성혼선언문과 같은 계산)
-const LIMIT = 180;          // 읽는 시간 기준 3분: 식순표에서 덕담을 3분으로 잡았어요
+const SEC_PER_CHAR = 1/4;   // 1초에 4자 (참고용, 혼인서약서·성혼선언문과 같은 계산. 11/5 사회자님: 그대로)
+const LIMIT = 180;          // 읽는 시간 기준 3분: 식순표에서 덕담을 3분으로 잡았어요 (11/5 사회자님: 혼인서약서·성혼선언문도 3분)
 
 // ===== 하시는 분 =====
 // side g: 자녀 = 아들(신랑), 새 식구 = 며느리(신부) / side b: 자녀 = 딸(신부), 새 식구 = 사위(신랑)
@@ -510,7 +510,7 @@ function ask(){
 // ===== 결과 =====
 function timeHtml(lines){
   const sec = seconds(lines);
-  return `읽는 데 약 ${timeText(sec)} 걸려요${sec>LIMIT ? `<span class="over">${timeText(LIMIT)}이 넘어요. 문장을 눌러 하나 빼 보세요.</span>` : ""}`;
+  return `읽는 데 약 ${timeText(sec)} 걸려요${sec>LIMIT ? `<span class="over">${timeText(LIMIT)}이 넘어요. 문장을 눌러 하나 빼 보세요.</span>` : ""}<span class="ref">사람마다 읽는 속도가 달라서, 참고용 시간이에요.</span>`;
 }
 let imgTimer = null;
 function fileName(){ return `덕담-${S.groom.trim()||"신랑"}-${S.bride.trim()||"신부"}`; }

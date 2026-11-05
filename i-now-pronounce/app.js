@@ -4,16 +4,16 @@
 
 // 공개 전에는 false. 미리 보려면 주소 뒤에 ?preview 를 붙여요. (예: …/i-now-pronounce/?preview)
 const OPEN = false;
-const SEC_PER_CHAR = 1/4;   // 1초에 4자 (추정, 혼인서약서와 같은 계산)
+const SEC_PER_CHAR = 1/4;   // 1초에 4자 (참고용, 혼인서약서와 같은 계산. 11/5 사회자님: 그대로)
+const LIMIT_SEC = 180;      // 3분 (11/5 사회자님: 혼인서약서·덕담과 같게 넉넉하게. 처음엔 식순표처럼 사회자 1분 · 어른 2분)
 
 // ===== 읽는 분 =====
-// limit: 읽는 시간 기준(초). 식순표에서 성혼선언을 사회자 1분, 아버님 2분으로 잡았어요 (아버님은 단상까지 오가는 시간 포함)
 const READERS = {
-  mc: { chip:"사회자",      call:"사회자님", self:"",              sign:"사회자",      parent:false, side:"",  limit:60 },
-  gf: { chip:"신랑 아버님", call:"아버님",   self:"신랑의 아버지", sign:"신랑 아버지", parent:true,  side:"g", limit:120 },
-  bf: { chip:"신부 아버님", call:"아버님",   self:"신부의 아버지", sign:"신부 아버지", parent:true,  side:"b", limit:120 },
-  gm: { chip:"신랑 어머님", call:"어머님",   self:"신랑의 어머니", sign:"신랑 어머니", parent:true,  side:"g", limit:120 },
-  bm: { chip:"신부 어머님", call:"어머님",   self:"신부의 어머니", sign:"신부 어머니", parent:true,  side:"b", limit:120 }
+  mc: { chip:"사회자",      call:"사회자님", self:"",              sign:"사회자",      parent:false, side:"" },
+  gf: { chip:"신랑 아버님", call:"아버님",   self:"신랑의 아버지", sign:"신랑 아버지", parent:true,  side:"g" },
+  bf: { chip:"신부 아버님", call:"아버님",   self:"신부의 아버지", sign:"신부 아버지", parent:true,  side:"b" },
+  gm: { chip:"신랑 어머님", call:"어머님",   self:"신랑의 어머니", sign:"신랑 어머니", parent:true,  side:"g" },
+  bm: { chip:"신부 어머님", call:"어머님",   self:"신부의 어머니", sign:"신부 어머니", parent:true,  side:"b" }
 };
 
 // ===== 문장 =====
@@ -416,7 +416,7 @@ function qs(){ return QS_ALL.filter(q=>!q.parent || rd().parent); }
 function nextLabel(){ const Q = qs(); return S.step===Q.length-1 ? "선언문 보기" : Q[S.step].has() ? "다음" : "건너뛰기"; }
 function barTime(){
   const sec = seconds(build());
-  return `<span class="${sec>rd().limit?"over":""}">읽는 시간 약 ${timeText(sec)}</span>`;
+  return `<span class="${sec>LIMIT_SEC?"over":""}">읽는 시간 약 ${timeText(sec)}</span>`;
 }
 function refreshPreview(){
   Object.keys(PV).forEach(id=>{ const el = document.getElementById("pv-"+id); if(el) el.innerHTML = pvInner(id); });
@@ -456,8 +456,8 @@ function ask(){
 
 // ===== 결과 =====
 function timeHtml(lines){
-  const sec = seconds(lines), lim = rd().limit;
-  return `읽는 데 약 ${timeText(sec)} 걸려요${sec>lim ? `<span class="over">${timeText(lim)}이 넘어요. 문장을 눌러 하나 빼 보세요.</span>` : ""}`;
+  const sec = seconds(lines), lim = LIMIT_SEC;
+  return `읽는 데 약 ${timeText(sec)} 걸려요${sec>lim ? `<span class="over">${timeText(lim)}이 넘어요. 문장을 눌러 하나 빼 보세요.</span>` : ""}<span class="ref">사람마다 읽는 속도가 달라서, 참고용 시간이에요.</span>`;
 }
 let imgTimer = null;
 function fileName(){ return `성혼선언문-${S.groom.trim()||"신랑"}-${S.bride.trim()||"신부"}`; }
@@ -598,7 +598,7 @@ function sendText(){
   return `${hello}\n\n${plain(lines)}`;
 }
 function aiPrompt(){
-  const r = rd(), lim = r.limit;
+  const r = rd(), lim = LIMIT_SEC;
   return `아래는 결혼식에서 ${r.parent ? r.self : "사회자"}가 읽을 성혼선언문 초안이에요.
 '메모'를 참고해서, 더 자연스럽고 두 사람 이야기 같게 다듬어 주세요.
 
