@@ -1,6 +1,6 @@
 // 성혼선언문 만들기 (샘플): 읽는 분 고르기 → 정석 선언문 / 우리 이야기(질문 3~4개) → 선언문 카드
 // 문장은 전부 docs/성혼선언문/문구.txt 첫 버전 그대로. 번호(A-1, E-2 …)는 문구.txt 번호
-// 화면 구조·줄 손보기·보관 방식은 혼인서약서(i-do/app.js)와 같아요. 공통 기능은 shared/common.js
+// 화면 구조·줄 손보기·보관 방식은 혼인서약서(promise-to-wed/app.js)와 같아요. 공통 기능은 shared/common.js
 
 // 공개 전에는 false. 미리 보려면 주소 뒤에 ?preview 를 붙여요. (예: …/i-now-pronounce/?preview)
 const OPEN = false;

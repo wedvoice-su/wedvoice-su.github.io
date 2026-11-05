@@ -64,6 +64,7 @@ textarea.inp{resize:vertical;line-height:1.55}
 .vow .names{margin:0;text-align:center;font-weight:700}
 .time{font-size:14px;font-weight:700;text-align:center;margin:12px 0 4px;color:var(--sub)}
 .time .over{display:block;color:var(--accent)}
+.time .ref{display:block;font-size:12px;font-weight:500;margin-top:2px}
 .btn .sub{display:block;font-size:13px;font-weight:500;color:var(--sub);margin-top:2px}
 .btn.main .sub{color:inherit;opacity:.75}
 .btns .msg:empty{display:none}

@@ -1,4 +1,4 @@
-/* 성혼선언문 만들기 (공통 스타일은 shared/brand.css, 질문·칩·줄 손보기는 혼인서약서 i-do/app.css와 같음) */
+/* 성혼선언문 만들기 (공통 스타일은 shared/brand.css, 질문·칩·줄 손보기는 혼인서약서 promise-to-wed/app.css와 같음) */
 button,a{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .nw{white-space:nowrap}
 .cover .pick button{display:flex;flex-direction:column;align-items:flex-start;gap:2px}
