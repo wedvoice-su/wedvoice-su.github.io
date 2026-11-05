@@ -2,13 +2,13 @@
 // 영상 엔진은 engine.js, 템플릿 디자인은 templates.js, 기본 음원은 music/tracks.js, 공통 기능은 shared/common.js
 // 기술 근거·시험 결과·테스트 항목은 docs/식전영상/ (로컬 문서)
 
-// 공개 전에는 false. 미리 보려면 주소 뒤에 ?preview 를 붙여요. (예: …/now-showing/?preview)
-// 시험할 때 ?debug 를 붙이면 기기 점검 결과와 만든 영상 정보가 보여요. (예: …/now-showing/?preview&debug)
+// 공개 전에는 false. 미리 보려면 주소 뒤에 ?preview 를 붙여요. (예: …/opening-scene/?preview)
+// 시험할 때 ?debug 를 붙이면 기기 점검 결과와 만든 영상 정보가 보여요. (예: …/opening-scene/?preview&debug)
 const OPEN = false;
 const QS = new URLSearchParams(location.search);
 const DEBUG = QS.has("debug");
 const LOCAL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
-const SAVE_KEY = "nowShowing.v1";
+const SAVE_KEY = "nowShowing.v1";   // 폴더 이름(now-showing → opening-scene, 11/5)이 바뀌어도 저장 이름은 그대로 (만들던 사진·글 유지)
 const SAFE = "사진과 음악은 이 휴대폰 안에서만 쓰이고, 어디에도 올라가지 않아요.";
 const MAX_PHOTOS = 60;
 const STEPS = 5;
@@ -43,7 +43,6 @@ const HOWTO = [
   "메일은 25MB가 넘으면 링크로 가요. 식장이 미리 내려받았는지 확인해 주세요.",
   "USB에도 한 벌 담아 두세요. 식장에는 예식 1주일 전까지 보내는 게 안전해요."
 ];
-const MC_TIP = "식전영상을 하객 입장 동안 반복해서 틀지, 예식 직전에 한 번 틀지 식장·사회자와 미리 정해 두세요. 한 번만 튼다면 사회자의 착석 안내 바로 뒤가 가장 많이 봐요.";
 
 // ===== 상태 (이 휴대폰에 보관해서 새로고침해도 그대로) =====
 function fresh(){
@@ -212,7 +211,7 @@ function inAppBox(ia){
   const intent = `intent://${location.host}${location.pathname}${location.search}#Intent;scheme=https;package=com.android.chrome;end`;
   return `<div class="inapp">
     <b>${esc(ia)} 안에서는 영상을 저장할 수 없어요</b>
-    <p>${app2}에서 열어 주세요. 여기서 넣은 사진과 글은 ${app2}로 넘어가지 않아서, 먼저 옮긴 뒤에 시작하는 게 좋아요.</p>
+    <p>${app2}에서 열어 주세요. 여기서 넣은 사진과 글은 ${android ? "크롬으로" : "사파리로"} 넘어가지 않아서, 먼저 브라우저 이동 후에 시작하는 게 좋아요.</p>
     ${android ? `<a class="btn main" href="${esc(intent)}">크롬에서 열기</a>`
       : kakao ? `<a class="btn main" href="kakaotalk://web/openExternal?url=${encodeURIComponent(location.href)}">사파리에서 열기</a>` : ""}
     <button class="btn ghost" id="copyurl">링크 복사하기</button>
@@ -229,14 +228,13 @@ function home(){
     <p class="for">예비 신랑·신부님을 위한</p>
     <h1>식전영상,<br>사진만 고르면<br>완성돼요</h1>
     <div class="bar"></div>
-    <p class="lead">템플릿을 고르고 사진과 글을 넣으면, 식장 스크린에 틀 영상(MP4)이 휴대폰에서 바로 만들어져요.</p>
+    <p class="lead">템플릿을 고르고 사진과 글을 넣으면, 식장 스크린에 틀 영상(MP4)이 바로 만들어져요.</p>
     ${Movie.MOBILE ? `<p class="note pc">컴퓨터에서 열면 사진 고르기와 파일 저장이 더 편하고, 영상도 더 빨리 만들어져요.</p>` : ""}
-    ${ia ? inAppBox(ia) : ""}
-    <div class="pick">
+    ${ia ? inAppBox(ia) : `<div class="pick">
       ${started ? `<button id="resume"><span>이어서 만들기</span><span class="q">사진 ${PH.length}장</span></button>` : ""}
       <button id="start"><span>${started ? "처음부터 새로" : "만들기 시작"}</span><span class="q">5단계 · 무료</span></button>
     </div>
-    <p class="msg" id="msg" role="status" style="color:var(--cover-sub);margin-top:10px"></p>
+    <p class="msg" id="msg" role="status" style="color:var(--cover-sub);margin-top:10px"></p>`}
     <p class="safe">${LOCK}<span>${SAFE}</span></p>
     ${DEBUG ? `<p class="note" style="color:var(--cover-sub);margin-top:18px">시험용 정보예요. 주소에 debug가 있을 때만 보여요.</p><pre class="report" id="report">기기 점검 중…</pre><button class="text-btn" id="copyrep" style="color:var(--cover-sub)">결과 복사하기</button>` : ""}
     ${foot()}`;
@@ -246,7 +244,7 @@ function home(){
   };
   if ($("#resume")) $("#resume").onclick = () => go(1);
   let armed = false;
-  $("#start").onclick = async () => {
+  if ($("#start")) $("#start").onclick = async () => {
     if (started && !armed) { armed = true; say("만들던 사진과 글이 지워져요. 한 번 더 누르면 새로 시작해요."); return; }
     if (started) {
       PH.forEach(p => URL.revokeObjectURL(p.url)); PH = []; MINE = null; dropMineUrl(); AUD = { key: "", buf: null };
@@ -866,7 +864,6 @@ function done(){
       <p class="msg" id="msg" role="status"></p>
     </div>
     <div class="panel howto"><b>식장에 보낼 때</b><ol>${HOWTO.map(h => `<li>${esc(h)}</li>`).join("")}</ol></div>
-    <div class="tip"><b>사회자 한마디</b><p>${esc(MC_TIP)}</p></div>
     <div class="btns" style="margin-top:18px">
       <button class="btn ghost" id="again">설정 바꿔서 다시 만들기</button>
       ${siteLink("flow", "btn ghost", "결혼식 식순표 만들기")}
@@ -902,6 +899,7 @@ function done(){
     history.replaceState({ step: 0 }, "");
     for (let i = 1; i <= step; i++) history.pushState({ step: i }, "");
   }
+  if (Movie.inApp() && step > 0) { step = 0; history.replaceState({ step: 0 }, ""); }   // 인스타·카톡 안: 첫 화면 안내에서 멈춰요
   S.step = step; save();
   render();
   Movie.cleanup();   // 지난번에 만든 영상 파일은 휴대폰 저장 공간에서 지워요
