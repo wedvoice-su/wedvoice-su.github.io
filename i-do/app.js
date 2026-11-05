@@ -207,7 +207,9 @@ function build(){
         if(v===undefined) return;
         const id = `t${v}-${owner}`, partner = owner==="신부" ? "신랑" : "신부";
         const T = TRAITS[+v];
-        if(S.flip[id]) add("trait", id, owner, T[2], { cyc:"flip" });
+        // 둘이 같은 특징을 고르면 같은 문장이 두 번 나오지 않게, 신랑의 특징은 처음부터 B(본인이 말함)
+        const same = owner==="신랑" && S.traitB.includes(v);
+        if(same ? !S.flip[id] : S.flip[id]) add("trait", id, owner, T[2], { cyc:"flip" });
         else add("trait", id, partner, T[1], { cyc:"flip" });
       });
     }
