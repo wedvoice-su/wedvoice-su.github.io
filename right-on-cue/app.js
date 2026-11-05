@@ -147,6 +147,17 @@ function lenBox(){
     ? `<div class="len ok"><b>${O.minText} 이상이에요 (${fmt(S.dur)})</b>${esc(O.why)}</div>`
     : `<div class="len warn"><b>${O.minText}보다 짧아요 (${fmt(S.dur)})</b>${esc(O.longer)} ${esc(O.why)}</div>`;
 }
+// 음원이 아직 없는 사람: 그 순서의 곡 찾기 테스트 릴스로 보내요 (사이트가 아니라 릴스. 주소는 shared/common.js SITES의 reel)
+// 파일을 열면 안 보여요.
+function noFile(){
+  const O=ORDERS[S.order];
+  return `
+    <div class="nofile">
+      <b>아직 음원이 없나요?</b>
+      <p>${esc(O.song)} 테스트로 어울리는 곡을 찾고, 추천곡 음원도 받아 보세요.</p>
+      ${siteLink(S.order, "btn ghost", `${esc(O.song)} 받기`)}
+    </div>`;
+}
 // ※ accept는 확장자로 적어요. 아이폰 사파리는 accept="audio/*"를 영상처럼 취급해서 mp3·m4a가 회색으로 막혀요 (WebKit 버그 242110, 34442)
 function fileStep(){
   stopAudio(); plain();
@@ -162,6 +173,7 @@ function fileStep(){
     </label>
     <div id="len">${lenBox()}</div>
     <p class="safe">${LOCK}<span>${SAFE} 아이폰은 “파일 선택”을 누르고 파일 앱에서 고르세요. 구글 드라이브·카카오톡 음원은 “파일에 저장”을 먼저 해 주세요. 음악 앱의 노래는 열 수 없어요.</span></p>
+    ${S.file ? "" : noFile()}
     <div class="btns gap">
       <button class="btn main" id="next" ${S.file?"":"disabled"}>다음</button>
       <p class="msg" id="msg" role="status"></p>

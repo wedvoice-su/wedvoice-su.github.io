@@ -18,6 +18,9 @@
 .drop .fn{font-size:16px;word-break:break-all}
 .drop .fd{font-size:14px;color:var(--sub);font-weight:500}
 .drop .fd u{text-decoration-thickness:1px;text-underline-offset:3px}
+.nofile{margin:18px 0 0;padding:16px;border:1.5px solid var(--line);border-radius:18px}
+.nofile b{display:block;font-size:15.5px;margin-bottom:4px}
+.nofile p{margin:0 0 12px;font-size:14px;color:var(--sub);line-height:1.55}
 .len{margin:14px 0 0;padding:14px 16px;border-radius:14px;font-size:14.5px;line-height:1.55;font-weight:500}
 .len.ok{background:var(--card);color:var(--ink)}
 .len.warn{background:var(--box);color:var(--box-ink)}
