@@ -3,8 +3,9 @@
 // 공통 기능은 shared/common.js
 
 // 공개 전에는 false. 미리 보려면 주소 뒤에 ?preview 를 붙여요. (예: …/promise-to-wed/?preview)
+// 2026-11-09 공개 (사회자님 요청: 릴스 녹화 전에 미리 열어 둠. 허브 버튼은 아직 없음)
 // 주소는 11/5 i-do/ → promise-to-wed/ (사회자님 요청: wed·약속이 들어가게). 보관 키 i-do.v1은 그대로 (성혼선언문·덕담이 이름을 가져가요)
-const OPEN = false;
+const OPEN = true;
 const SEC_PER_CHAR = 1/4;   // 1초에 4자 (참고용, 11/5 사회자님: 그대로)
 const LIMIT_SEC = 180;      // 3분 (11/5 사회자님: 서약서 전용 사이트라 넉넉하게. 식순표 30분 넘을 때 한마디도 "혼인서약 3분 안")
 
