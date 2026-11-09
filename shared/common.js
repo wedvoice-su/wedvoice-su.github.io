@@ -20,7 +20,7 @@ const SITES = {
   "parentsQuiz": { path: "full-marks", reel: "" }, // 우리 부모님 본식 점수 퀴즈 (미공개. 공개하면 full-marks/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
   "groomQuiz": { path: "well-suited", reel: "" },  // 우리 신랑 본식 점수 퀴즈 (미공개. 공개하면 well-suited/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
   "vows": { path: "promise-to-wed", reel: "" },  // 혼인서약서 만들기 (공개 2026-11-09, 아직 허브에 버튼 없음. 11/5 i-do에서 이름 바꿈)  TODO: 릴스 올리면 주소 넣기
-  "declare": { path: "declared-wed", reel: "" },  // 성혼선언문 만들기 (미공개 샘플. 공개하면 declared-wed/app.js의 OPEN을 true로. 11/5 i-now-pronounce에서 이름 바꿈)  TODO: 릴스 올리면 주소 넣기
+  "declare": { path: "declared-wed", reel: "" },  // 성혼선언문 만들기 (공개 2026-11-09, 아직 허브에 버튼 없음. 11/5 i-now-pronounce에서 이름 바꿈)  TODO: 릴스 올리면 주소 넣기
   "blessing": { path: "with-our-blessing", reel: "" }, // 덕담 만들기 (미공개 샘플. 공개하면 with-our-blessing/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
   "film": { path: "opening-scene", reel: "https://www.instagram.com/reel/DfZNuphJytF/" },  // 식전영상 만들기 (공개 2026-11-05. 같은 날 now-showing에서 이름 바꿈. 릴스 주소 2026-11-09 넣음)
   "date": { path: "good-day-to-wed", reel: "" }  // 결혼 좋은 날 찾기 (예식일 달력 ㉗, 미공개 샘플. 공개하면 good-day-to-wed/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기

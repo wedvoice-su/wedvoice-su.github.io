@@ -2,9 +2,9 @@
 // 문장은 docs/성혼선언문/문구.txt (11/5 검수 반영). 번호(A-1, E-2 …)는 문구.txt 번호
 // 화면 구조·줄 손보기·보관 방식은 혼인서약서(promise-to-wed/app.js)와 같아요. 공통 기능은 shared/common.js
 
-// 공개 전에는 false. 미리 보려면 주소 뒤에 ?preview 를 붙여요. (예: …/declared-wed/?preview)
+// 공개 전에는 false. 미리 보려면 주소 뒤에 ?preview 를 붙여요. (예: …/declared-wed/?preview) — 2026-11-09 공개(true)
 // 주소는 11/5 i-now-pronounce/ → declared-wed/ (사회자님: 결혼이 성립되었음을 선언 → declare + wed). 보관 키 i-now-pronounce.v1은 그대로 (덕담이 이름을 가져가요)
-const OPEN = false;
+const OPEN = true;
 const SEC_PER_CHAR = 1/4;   // 1초에 4자 (참고용, 혼인서약서와 같은 계산. 11/5 사회자님: 그대로)
 const LIMIT_SEC = 180;      // 3분 (11/5 사회자님: 혼인서약서·덕담과 같게 넉넉하게. 처음엔 식순표처럼 사회자 1분 · 어른 2분)
 
