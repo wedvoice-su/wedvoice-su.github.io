@@ -157,7 +157,7 @@ function home(){
     <div class="top"><span>${NAME}</span><span>2027~2028</span></div>
     ${brandLogo()}
     <p class="for">결혼 날짜 고르는 예비부부를 위한</p>
-    <h1>결혼 날짜,<br>날 받아 오래요?</h1>
+    <h1>결혼 날짜,<br>아직 못 정했죠?</h1>
     <div class="bar"></div>
     <p class="lead">신랑·신부 생년월일만 넣으면, 전통 택일법으로 본 좋은 날 후보를 공휴일·연휴·비용과 함께 보여 드려요.</p>
     <div class="pick">
@@ -406,7 +406,7 @@ function soon(){
     <div class="top"><span>${NAME}</span><span>2027~2028</span></div>
     ${brandLogo()}
     <p class="for">곧 공개돼요</p>
-    <h1>결혼 날짜,<br>날 받아 오래요?</h1>
+    <h1>결혼 날짜,<br>아직 못 정했죠?</h1>
     <div class="bar"></div>
     <p class="lead">인스타를 팔로우하면 공개 소식을 가장 먼저 받아볼 수 있어요.</p>
     <div class="pick">
