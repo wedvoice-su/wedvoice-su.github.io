@@ -1,8 +1,15 @@
 /* 첫 화면(허브) 전용 스타일 (공통 스타일은 shared/brand.css) */
 
-/* 카테고리 버튼: 큰 글씨 + 화살표, 그 아래 작은 설명 */
-.pick a.cat{flex-direction:column;align-items:stretch;gap:6px}
-.cat .name{display:flex;justify-content:space-between;align-items:center;gap:12px}
-.cat .arr{font-weight:500;color:var(--cover-sub);transition:color .15s}
-@media (hover:hover){.pick a.cat:hover .arr{color:var(--cover-accent)}}
-.cat .q{line-height:1.4}
+/* 주제 묶음: 작은 분홍 제목 + 그 아래 버튼들 */
+.group{margin:0 0 28px}
+.group h2{font-size:15px;font-weight:700;color:var(--cover-accent);letter-spacing:.02em;margin:0 0 10px}
+.group .pick{gap:8px}
+
+/* 도구 버튼: 이름 + 오른쪽 화살표(켜짐) 또는 "준비 중"(흐림) */
+.pick a.tool,.pick button.tool{gap:12px;padding:16px 18px;font-size:17px;border-radius:14px}
+.tool .name{min-width:0}
+.tool .arr{flex:none;font-weight:500;color:var(--cover-sub);transition:color .15s}
+.tool .q{flex:none}
+@media (hover:hover){.pick a.tool:hover .arr{color:var(--cover-accent)}}
+.pick button.tool:disabled{opacity:.4}
+.cover .group:last-of-type{margin-bottom:0}

@@ -7,20 +7,21 @@
 //   reel   : 있으면 버튼이 이 릴스로 가요 (댓글 받고 링크 보내기)
 //   direct : true면 주소가 공개된 사이트예요. 결과 화면에 "테스트 링크 복사하기"가 보이고, reel이 없으면 버튼이 사이트로 바로 가요
 //   둘 다 없으면 버튼이 인스타 프로필로 가요.
+// 첫 화면(hub.js)은 reel 칸을 봐요: 주소가 있으면 버튼이 켜지고(→ 릴스), 비어 있으면 흐린 "준비 중". 새 사이트는 hub.js GROUPS에도 한 줄.
 const SITES = {
   "groom": { path: "groom",        direct: true, reel: "https://www.instagram.com/reel/DezOuL0z6Iu/" },  // 신랑 입장곡 테스트 (주소 공개, 버튼은 릴스로)
   "bride": { path: "lovely-bride", reel: "https://www.instagram.com/reel/De5paX6zt2S/" },  // 신부 입장곡 테스트 (버튼은 릴스로)
   "march": { path: "hand-in-hand", reel: "https://www.instagram.com/reel/DfEE6LQT6O4/" },  // 행진곡 테스트 (버튼은 릴스로)
   "serenade": { path: "sing-for-you", reel: "https://www.instagram.com/reel/DfHNCqZTnEK/" },  // 축가 테스트 (버튼은 릴스로)
   "thanks": { path: "from-the-heart", reel: "https://www.instagram.com/reel/DfO9PhIzd6H/" },   // 감사 문자 & 땡큐 카드 (정식 주소 2026-11-02, 릴스 주소 2026-11-10 넣음)
-  "cue": { path: "right-on-cue", reel: "https://www.instagram.com/reel/DfRiEQbzWhI/" },  // 입장 타이밍 큐시트 (공개 2026-11-01, 아직 허브에 버튼 없음, 버튼은 릴스로)
-  "flow": { path: "in-good-order", reel: "https://www.instagram.com/reel/DfUGngPzAYI/" },  // 결혼식 식순표 (공개 2026-11-04, 아직 허브에 버튼 없음, 버튼은 릴스로)
-  "table": { path: "table-for-us", reel: "https://www.instagram.com/reel/DfWrxvHzkIU/" },  // 청모 장소 찾기 (공개 2026-11-05, 릴스 주소 2026-11-09 넣음, 아직 어느 카테고리에도 없음 — 링크는 릴스 DM으로)
+  "cue": { path: "right-on-cue", reel: "https://www.instagram.com/reel/DfRiEQbzWhI/" },  // 입장 타이밍 큐시트 (공개 2026-11-01, 버튼은 릴스로)
+  "flow": { path: "in-good-order", reel: "https://www.instagram.com/reel/DfUGngPzAYI/" },  // 결혼식 식순표 (공개 2026-11-04, 버튼은 릴스로)
+  "table": { path: "table-for-us", reel: "https://www.instagram.com/reel/DfWrxvHzkIU/" },  // 청모 장소 찾기 (공개 2026-11-05, 릴스 주소 2026-11-09 넣음 — 링크는 릴스 DM으로)
   "parents": { path: "for-our-parents", reel: "" }, // 양가 부모님 입장·화촉점화 안내 (미공개. 공개하면 for-our-parents/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
   "parentsQuiz": { path: "full-marks", reel: "" }, // 우리 부모님 본식 점수 퀴즈 (미공개. 공개하면 full-marks/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
   "groomQuiz": { path: "well-suited", reel: "" },  // 우리 신랑 본식 점수 퀴즈 (미공개. 공개하면 well-suited/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
   "vows": { path: "promise-to-wed", reel: "https://www.instagram.com/reel/Dfg5vBKJfeR/" },  // 혼인서약서 만들기 (공개 2026-11-09, 릴스 주소 2026-11-10 넣음. 11/5 i-do에서 이름 바꿈)
-  "declare": { path: "declared-wed", reel: "" },  // 성혼선언문 만들기 (공개 2026-11-09, 아직 허브에 버튼 없음. 11/5 i-now-pronounce에서 이름 바꿈)  TODO: 릴스 올리면 주소 넣기
+  "declare": { path: "declared-wed", reel: "" },  // 성혼선언문 만들기 (공개 2026-11-09. 11/5 i-now-pronounce에서 이름 바꿈)  TODO: 릴스 올리면 주소 넣기
   "blessing": { path: "with-our-blessing", reel: "" }, // 덕담 만들기 (미공개 샘플. 공개하면 with-our-blessing/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
   "film": { path: "opening-scene", reel: "https://www.instagram.com/reel/DfZNuphJytF/" },  // 식전영상 만들기 (공개 2026-11-05. 같은 날 now-showing에서 이름 바꿈. 릴스 주소 2026-11-09 넣음)
   "date": { path: "good-day-to-wed", reel: "" }  // 결혼 좋은 날 찾기 (예식일 달력 ㉗, 미공개 샘플. 공개하면 good-day-to-wed/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
