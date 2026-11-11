@@ -25,7 +25,8 @@ const GROUPS = [
   ]},
   { name: "식순 · 영상", items: [
     { key: "flow", label: "식순표 만들기" },
-    { key: "film", label: "식전영상 만들기" }
+    { key: "film", label: "식전영상 만들기" },
+    { key: "filmPlus", label: "식전영상 만들기 (업그레이드)" }
   ]},
   { name: "식에서 읽는 글", items: [
     { key: "vows",     label: "혼인서약서 만들기" },
