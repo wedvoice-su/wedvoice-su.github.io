@@ -19,6 +19,22 @@ const LIST = TRACKS.filter(t => !t.local || LOCAL);
 const LOCK = '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="7" width="10" height="7.5" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5.4 7V5.2a2.6 2.6 0 015.2 0V7" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
 const PLAY = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 2.6v10.8L13 8z" fill="currentColor"/></svg>';
 const PAUSE = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.6h3v10.8H4zM9 2.6h3v10.8H9z" fill="currentColor"/></svg>';
+// 화면 손질(11/11, 사회자님: "새 기능이 어떻게 쓰이고 뭐가 좋은지 와닿지 않는다"): 기능마다 작은 그림 + 그 기능이 있는 자리에 NEW 딱지
+//   단계 이름이 보이는 위쪽 줄(누르면 그 단계로), 사진·영상 버튼 나누기, 고른 장면 작은 미리 보기 + 두 장 묶기·배치, 영상 길이 고르기, 박자 맛보기, 영상 요약 — 엔진(engine.js)은 그대로
+const svg = d => `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const IC = {
+  photo: svg('<rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="8.5" cy="10" r="1.6"/><path d="M4 17l5-4.5 4 3.5 3-2.5 4 3.5"/>'),
+  clip: svg('<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M10 9.2v5.6l5-2.8z" fill="currentColor" stroke="none"/>'),
+  duo: svg('<rect x="3" y="5" width="8" height="14" rx="1.8"/><rect x="13" y="5" width="8" height="14" rx="1.8"/>'),
+  sort: svg('<rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>'),
+  beat: svg('<path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/>'),
+  len: svg('<circle cx="12" cy="13" r="7.5"/><path d="M12 9v4l2.5 2M9.5 3h5"/>'),
+  tap: svg('<circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="8"/>'),
+  lr: svg('<rect x="3" y="6" width="8" height="12" rx="1.5"/><rect x="13" y="6" width="8" height="12" rx="1.5"/>'),
+  tb: svg('<rect x="5" y="3.5" width="14" height="7.5" rx="1.5"/><rect x="5" y="13" width="14" height="7.5" rx="1.5"/>'),
+  pip: svg('<rect x="3" y="5" width="18" height="14" rx="2"/><rect x="12.5" y="7.2" width="6.3" height="5" rx="1" fill="currentColor" stroke="none"/>')
+};
+const NEWTAG = '<em class="newtag">NEW</em>';
 
 // ===== 영상 속 추천 문장 (초안: 사회자님 검토 전, 근거: docs/식전영상/조사-문구.md) =====
 // 하객께는 '-습니다' 한 줄(15~25자), 영어는 제목·끝 문장에만. "서로 다른 두 사람", "새로운 시작", "평범한 ~ 특별"은 뺐어요(여러 곳에 반복돼 식상할 위험).
@@ -186,8 +202,10 @@ function pickClip(file, label){
       <div class="ed-top"><b>영상에서 쓸 부분 고르기</b><span class="count">${esc(label || "")}</span></div>
       <div class="ed-stage clip-stage"><video playsinline muted preload="auto"></video></div>
       <p class="drag" id="clhint">영상을 여는 중…</p>
+      <p class="ed-label">몇 초를 쓸까요?</p>
       <div class="seg" id="cllen">${CLIP_LENS.map(v => `<button data-v="${v}" class="${v === len ? "on" : ""}">${v}초</button>`).join("")}</div>
-      <label class="range"><span id="clat">시작 0:00</span><input type="range" id="clstart" min="0" max="0" step="0.05" value="0" aria-label="시작 위치"></label>
+      <p class="ed-label">어디부터 쓸까요?</p>
+      <label class="range"><span id="clat">0:00부터</span><input type="range" id="clstart" min="0" max="0" step="0.05" value="0" aria-label="시작 위치"></label>
       <button class="btn main" id="clok" disabled>이 부분 넣기</button>
       <button class="btn ghost" id="clno">이 영상은 안 넣기</button>
       <p class="msg" id="clmsg" role="status"></p>
@@ -207,7 +225,7 @@ function pickClip(file, label){
     const show = () => {
       const use = Math.min(len, dur);
       sl.max = Math.max(0, dur - use).toFixed(2); start = Math.min(start, +sl.max); sl.value = start; sl.disabled = busy || +sl.max <= 0;
-      q("#clat").textContent = `시작 ${mmss(start)}`;
+      q("#clat").textContent = `${mmss(start)}부터`;
       box.querySelectorAll("#cllen button").forEach(b => { b.classList.toggle("on", +b.dataset.v === len); b.disabled = busy || (+b.dataset.v > dur + .05 && +b.dataset.v !== CLIP_LENS[0]); });
     };
     const play = () => { try { v.currentTime = start; } catch (e) {} v.play().catch(() => {}); };
@@ -218,7 +236,7 @@ function pickClip(file, label){
       if (d < 1) { q("#clhint").textContent = "1초보다 짧은 영상은 넣을 수 없어요."; return; }
       dur = d;
       while (len > CLIP_LENS[0] && len > dur + .05) len--;
-      q("#clhint").textContent = "고른 부분이 되풀이돼요. 소리는 빼고 넣어서, 영상에는 배경 음악만 나와요.";
+      q("#clhint").textContent = "지금 되풀이되는 부분이 영상에 들어가요. 소리는 빼고, 배경 음악만 나와요.";
       q("#clok").disabled = false; show(); play();
     };
     v.onloadedmetadata = v.ondurationchange = ready;
@@ -227,7 +245,7 @@ function pickClip(file, label){
     v.onended = () => { if (!busy) play(); };
     v.src = url;
     v.play().catch(() => {});   // 아이폰은 재생을 걸어야 영상 정보를 읽어 오기도 해요 (소리 없이, 화면 안에서)
-    sl.oninput = () => { start = +sl.value; q("#clat").textContent = `시작 ${mmss(start)}`; v.pause(); try { v.currentTime = start; } catch (e) {} };
+    sl.oninput = () => { start = +sl.value; q("#clat").textContent = `${mmss(start)}부터`; v.pause(); try { v.currentTime = start; } catch (e) {} };
     sl.onchange = () => { if (!busy) play(); };
     box.querySelectorAll("#cllen button").forEach(b => b.onclick = () => { if (busy) return; len = +b.dataset.v; show(); play(); });
     q("#clno").onclick = () => leave(null);
@@ -361,6 +379,7 @@ window.addEventListener("popstate", e => {
   if (ED) {
     const st = e.state && e.state.step;
     ED.close(); ED = null;
+    if (JUMP != null) { const k = JUMP; JUMP = null; if (k !== S.step) { jump(k); return; } }   // 새 기능 안내에서 "해 보기"를 눌렀으면 그 단계로
     if (st === S.step) { if (S.step === 2) stepPhotos(); else if (S.step === 5) preview(); return; }
   }
   stopAll(); SEL = -1;
@@ -376,16 +395,60 @@ function render(){
 }
 // ===== 새 기능 알림 (11/9): 첫 화면과 단계 화면 위에 작게. 닫으면 이 휴대폰에서 다시 안 보여요 — 예전에 링크를 받은 분도 새 기능을 알 수 있게 =====
 // 다음 업데이트 때는 v를 바꾸고 글을 고치면 다시 한 번 보여요. 만들던 단계로 바로 들어가는 분은 첫 화면을 안 거치니 단계 화면(topBar)에도 넣어요
-const NEWS = { v: "v2-1", title: "새 기능 3가지", text: "노래 박자에 맞춰 사진 넘기기 · 폰 영상 넣기(3~5초) · 찍은 날짜순 정렬이 생겼어요. 음악에서 쓸 구간도 고를 수 있어요." };   // 1차(11/9): { v: "duo-1", "새 기능 · 한 장면에 사진 두 장" }
+// 11/11 손질: 긴 글 한 덩어리 대신 ① 첫 화면에는 기능마다 그림 + 한 줄(뭐가 좋은지) ② 단계 화면에는 한 줄짜리 띠 → 누르면 안내 창(어떻게 쓰는지 + "○단계에서 해 보기")
+const NEWS = { v: "v2-2", title: "새 기능 5가지" };   // 1차(11/9): "duo-1" 한 장면에 사진 두 장, 2차 초안(11/10): "v2-1" 글 한 덩어리
+// k: 그림(IC), step: 그 기능이 있는 단계, good: 뭐가 좋은지, how: 어떻게 쓰는지 (사회자님 문구 검토 대상)
+const FEATS = [
+  { k: "beat", step: 4, name: "박자에 맞춰 넘기기", good: "노래 박자에 사진이 착착 바뀌어요.", how: "음악을 넣으면 저절로 켜져요. 내 사진으로 미리 느껴 볼 수 있어요." },
+  { k: "clip", step: 2, name: "폰 영상 넣기", good: "움직이는 장면이 3~5초씩 들어가요.", how: "'영상 넣기'를 누르고, 쓸 부분만 골라요." },
+  { k: "duo", step: 2, name: "한 장면에 사진 두 장", good: "어릴 적 사진을 나란히 놓을 수 있어요.", how: "사진을 누르고 '다음 사진과 묶기'를 눌러요." },
+  { k: "sort", step: 2, name: "찍은 날짜순 정렬", good: "옛날 사진부터 차례로, 버튼 하나로 줄 세워요.", how: "사진을 넣고 '찍은 날짜순으로 정렬'을 눌러요." },
+  { k: "len", step: 4, name: "영상 길이 고르기", good: "1분짜리 인스타용도 만들 수 있어요.", how: "30초·1분·3분 중에 고르고, 음악의 어느 부분을 쓸지 정해요." }
+];
 const NEWS_KEY = "nowShowing.news";
 const newsSeen = () => { try { return localStorage.getItem(NEWS_KEY) === NEWS.v; } catch (e) { return true; } };   // 저장이 안 되는 브라우저에선 매번 뜨지 않게 아예 안 보여요
-const newsBar = () => newsSeen() ? "" : `<div class="news" role="status"><span class="new">NEW</span><p><b>${esc(NEWS.title)}</b>${esc(NEWS.text)}</p><button type="button" id="newsx" aria-label="알림 닫기">×</button></div>`;
-app.addEventListener("click", e => {   // 화면을 다시 그려도 닫기가 되게 한 번만 걸어 둬요
-  const b = e.target.closest && e.target.closest("#newsx"); if (!b) return;
-  try { localStorage.setItem(NEWS_KEY, NEWS.v); } catch (x) {}
-  const n = b.closest(".news"); if (n) n.remove();
+const newsDone = () => { try { localStorage.setItem(NEWS_KEY, NEWS.v); } catch (x) {} const n = app.querySelector(".news.slim"); if (n) n.remove(); };
+const newsBar = () => newsSeen() ? "" : `<div class="news slim" role="status"><button type="button" id="newsopen"><span class="new">NEW</span><b>${esc(NEWS.title)}</b><span class="more">어디 있는지 보기 ›</span></button><button type="button" id="newsx" aria-label="알림 닫기">×</button></div>`;
+// 첫 화면: 시작 버튼 아래에 늘 보여요 (처음 온 분에게는 "이런 것도 돼요" 목록)
+const newsCard = () => `<div class="news list"><p class="news-h"><span class="new">NEW</span><b>${esc(NEWS.title)}</b></p><ul class="feats">${FEATS.map(f => `<li>${IC[f.k]}<p><b>${esc(f.name)}</b>${esc(f.good)}</p></li>`).join("")}</ul></div>`;
+// 새 기능 안내 창: 기능마다 그림 · 뭐가 좋은지 · 어떻게 쓰는지 · 그 단계로 가는 버튼. 닫기 = 뒤로 가기 (사진 편집 창과 같은 방식)
+let JUMP = null;   // 안내 창을 닫고 갈 단계
+function jump(k){
+  if (ADDING || MAKING) return;
+  if (k > 2 && !PH.length) { if (S.step !== 2) go(2); say("사진을 먼저 넣어 주세요. 그러면 다음 단계로 갈 수 있어요.", "#busy"); return; }
+  if (k !== S.step) go(k);
+}
+function openGuide(){
+  if (ED || ADDING || MAKING) return;
+  if (PLAYER && PLAYER.playing) PLAYER.pause();
+  PREV.pause();
+  const box = document.createElement("div");
+  box.className = "editor guide"; box.setAttribute("role", "dialog"); box.setAttribute("aria-label", "새 기능 안내");
+  box.innerHTML = `<div class="in">
+    <div class="ed-top"><b>${esc(NEWS.title)}</b><button type="button" class="text-btn" id="gdx">닫기</button></div>
+    ${FEATS.map(f => `<div class="feat">${IC[f.k]}<div><b>${esc(f.name)}</b><p class="good">${esc(f.good)}</p><p class="how">${esc(f.how)}</p>
+      <button type="button" class="btn ghost" data-jump="${f.step}">${f.step}단계 '${STEP_NAMES[f.step - 1]}'에서 해 보기</button></div></div>`).join("")}
+    <button type="button" class="btn main" id="gdok">닫기</button></div>`;
+  document.body.appendChild(box); document.body.style.overflow = "hidden";
+  history.pushState({ step: S.step, ed: 1 }, "");
+  let over = false;
+  const finish = () => { if (over) return; over = true; box.remove(); document.body.style.overflow = ""; };
+  ED = { close: finish };
+  // 뒤로 가기 신호가 안 오는 브라우저에서도 창이 닫히게 조금 기다렸다 직접 닫아요
+  const leave = k => { JUMP = k; history.back(); setTimeout(() => { if (over) return; if (ED && ED.close === finish) ED = null; finish(); const j = JUMP; JUMP = null; if (j != null) jump(j); }, 1200); };
+  box.querySelector("#gdx").onclick = box.querySelector("#gdok").onclick = () => leave(null);
+  box.querySelectorAll("[data-jump]").forEach(b => b.onclick = () => leave(+b.dataset.jump));
+  newsDone();   // 한 번 열어 봤으면 띠는 다시 안 보여요
+}
+app.addEventListener("click", e => {   // 화면을 다시 그려도 되게 한 번만 걸어 둬요: 알림 띠(열기·닫기), 단계 줄·요약의 "그 단계로"
+  const t = e.target.closest && e.target.closest("#newsx, #newsopen, [data-go]"); if (!t) return;
+  if (t.id === "newsx") newsDone();
+  else if (t.id === "newsopen") openGuide();
+  else jump(+t.dataset.go);
 });
-const topBar = n => `<div class="top"><span>식전영상 만들기</span><span class="count">${n} / ${STEPS}</span></div>${newsBar()}`;
+// 위쪽 단계 줄: 지금 어디인지 이름으로 보이고, 누르면 그 단계로 가요 (전에는 "2 / 5" 숫자뿐이라 앞뒤 단계에 뭐가 있는지 알 수 없었어요)
+const STEP_NAMES = ["템플릿", "사진", "글", "음악", "만들기"];
+const topBar = n => `<nav class="steps" aria-label="만드는 순서">${STEP_NAMES.map((s, i) => `<button type="button" data-go="${i + 1}" class="${i + 1 === n ? "on" : i + 1 < n ? "done" : ""}"${i + 1 === n ? ' aria-current="step"' : ""}><i>${i + 1}</i><span>${s}</span></button>`).join("")}</nav>${newsBar()}`;
 const navBar = (prev, next, dis) => `<div class="navbar"><button class="btn ghost" id="prev">${prev}</button><button class="btn main" id="next"${dis ? " disabled" : ""}>${next}</button></div><p class="msg" id="msg" role="status"></p>`;
 function bindNav(next){ $("#prev").onclick = () => history.back(); if (next) $("#next").onclick = next; }
 const say = (t, id = "#msg") => { const m = $(id); if (m) m.textContent = t; };
@@ -428,7 +491,6 @@ function home(){
     <h1>식전영상,<br>사진만 고르면<br>완성돼요</h1>
     <div class="bar"></div>
     <p class="lead">템플릿을 고르고 사진과 글을 넣으면, 식장 스크린에 틀 영상(MP4)이 바로 만들어져요.</p>
-    ${newsBar()}
     ${Movie.MOBILE ? `<p class="note pc">컴퓨터에서 열면 사진 고르기와 파일 저장이 더 편하고, 영상도 더 빨리 만들어져요.</p>` : ""}
     ${ia ? inAppBox(ia) : `<div class="pick">
       ${started ? `<button id="resume"><span>이어서 만들기</span><span class="q">${clipCount() ? `사진 ${PH.length - clipCount()}장 · 영상 ${clipCount()}개` : `사진 ${PH.length}장`}</span></button>` : ""}
@@ -436,6 +498,7 @@ function home(){
     </div>
     <p class="msg" id="msg" role="status" style="color:var(--cover-sub);margin-top:10px"></p>`}
     <p class="safe">${LOCK}<span>${SAFE}</span></p>
+    ${newsCard()}
     ${DEBUG ? `<p class="note" style="color:var(--cover-sub);margin-top:18px">시험용 정보예요. 주소에 debug가 있을 때만 보여요.</p><pre class="report" id="report">기기 점검 중…</pre><button class="text-btn" id="copyrep" style="color:var(--cover-sub)">결과 복사하기</button>` : ""}
     ${foot()}`;
   if ($("#copyurl")) $("#copyurl").onclick = async () => {
@@ -514,34 +577,74 @@ function guess(n){
   const c = T.name.charCodeAt(T.name.length - 1) - 0xAC00, eun = c >= 0 && c < 11172 && c % 28 ? "은" : "는";   // 받침 있으면 '은'
   return n ? `약 ${lenKo(P.total)} 영상` : `${T.name}${eun} ${T.photos[0]}~${T.photos[1]}장을 추천해요`;
 }
+// 사진을 한 번이라도 눌러 봤는지 ("사진을 눌러 보세요" 안내는 그때까지만)
+const TIP_KEY = "nowShowing.tip";
+const tipSeen = () => { try { return localStorage.getItem(TIP_KEY) === "1"; } catch (e) { return true; } };
+const tipDone = () => { try { localStorage.setItem(TIP_KEY, "1"); } catch (e) {} };
+// 두 장 장면의 배치 (안 골랐으면 템플릿 기본: 가로 영상은 좌우, 세로 영상은 위아래)
+const tallNow = () => { const [W, H] = Movie.size(S.ratio, "720"); return H > W; };
+const layOf = p => (p.duo && p.duo.lay) || (tallNow() ? "tb" : "lr");
+// 고른 장면이 영상에서 어떻게 보일지 작게 (두 장 장면은 고른 배치 그대로 — 눈으로 바로 확인)
+function miniScene(sc){
+  const a = PH[sc[0]], b = sc.length === 2 ? PH[sc[1]] : null, tall = tallNow() ? " tall" : "";
+  if (!b) return `<div class="mini${tall}"><img src="${a.url}" alt=""></div>`;
+  const lay = layOf(a), r = (a.duo && a.duo.r) || Movie.kit.DUO_R[lay];
+  return `<div class="mini ${lay}${tall}" style="--r:${r}"><img src="${a.url}" alt=""><img src="${b.url}" alt=""></div>`;
+}
 function stepPhotos(){
   const SC = scenes(), pairOf = i => { const s = SC.find(x => x.includes(i)); return s && s.length === 2 ? (s[0] === i ? "pa" : "pb") : ""; };
   const cur = SEL >= 0 && PH[SEL] ? SC.find(x => x.includes(SEL)) : null, q = cur ? SC.indexOf(cur) : -1, pr = !!(cur && cur.length === 2);
-  const nv = clipCount(), isV = !!(cur && PH[SEL].vid), what = isV ? "영상" : "사진";
+  const nv = clipCount(), isV = !!(cur && PH[SEL].vid), T = tpl();
+  // 한 장면에 두 장으로 묶을 짝: 다음 사진이 먼저, 안 되면(마지막 사진 · 다음이 영상 · 다음이 이미 두 장 장면) 앞 사진. joinAt = 앞 칸이 될 사진 번호
+  const single = i => i >= 0 && i < PH.length && !PH[i].vid && sceneOf(i).length === 1;
+  const joinAt = cur && !pr && !isV ? (single(SEL + 1) ? SEL : single(SEL - 1) ? SEL - 1 : -1) : -1, canJoin = joinAt >= 0;
   app.innerHTML = `${topBar(2)}
     <h2 class="title">사진을 넣어 주세요</h2>
-    <p class="sub">넣은 순서대로 나와요. 사진을 누르면 순서를 바꾸거나, 위치·크기를 맞추고 글을 넣을 수 있어요. 한 장면에 두 장을 넣을 수도 있어요.</p>
-    <label class="btn main add"><input type="file" id="pick" accept="image/*,video/*" multiple>${PH.length ? "사진·영상 더 넣기" : "사진·영상 고르기"}</label>
-    <p class="note addnote">폰으로 찍은 영상도 넣을 수 있어요. 3~5초만 골라서, 소리 없이 들어가요.</p>
+    <p class="sub">넣은 순서대로 영상에 나와요.</p>
+    <div class="adds">
+      <label class="btn main add"><input type="file" id="pick" accept="image/*" multiple>${IC.photo}<span>사진 넣기</span></label>
+      <label class="btn ghost add"><input type="file" id="pickv" accept="video/*" multiple>${IC.clip}<span>영상 넣기</span>${NEWTAG}</label>
+    </div>
+    <p class="note addnote">영상은 3~5초만 골라 넣어요. 소리는 빼고, 배경 음악만 나와요.</p>
     <p class="busy" id="busy" role="status"></p>
-    <div class="count-line"><span>${nv ? `사진 ${PH.length - nv}장 · 영상 ${nv}개` : `${PH.length}장`}${PH.length >= MAX_PHOTOS ? " (최대)" : ""}${SC.length < PH.length ? ` · 장면 ${SC.length}개` : ""}</span><span>${guess(PH.length)}</span></div>
-    ${PH.length >= 2 ? `<div class="sortrow"><button class="text-btn" id="sortd">찍은 날짜순으로 정렬</button>${UNDO ? `<button class="text-btn" id="unsort">정렬 되돌리기</button>` : ""}</div>` : ""}
+    ${PH.length ? `<div class="count-line"><span>${nv ? `사진 ${PH.length - nv}장 · 영상 ${nv}개` : `사진 ${PH.length}장`}${PH.length >= MAX_PHOTOS ? " (최대)" : ""}${SC.length < PH.length ? ` · 장면 ${SC.length}개` : ""}</span><span>${guess(PH.length)}</span></div>
+    ${PH.length >= 2 ? `<div class="sortrow"><button type="button" class="chip" id="sortd">${IC.sort}<span>찍은 날짜순으로 정렬</span>${NEWTAG}</button>${UNDO ? `<button class="text-btn" id="unsort">정렬 되돌리기</button>` : ""}</div>` : ""}
+    ${!cur && !tipSeen() ? `<p class="tip">${IC.tap}<span><b>사진을 눌러 보세요.</b> 순서를 바꾸고, 위치·크기를 맞추고, 두 장을 한 장면에 묶을 수 있어요.</span></p>` : ""}`
+    : `<div class="empty">
+      <p class="empty-h">${esc(guess(0))}</p>
+      <ul class="feats">
+        <li>${IC.tap}<p><b>넣은 뒤 사진을 누르면</b>순서를 바꾸고, 위치·크기를 맞추고, 글을 넣을 수 있어요.</p></li>
+        <li>${IC.duo}<p><b>한 장면에 사진 두 장</b>사진을 누르고 '다음 사진과 묶기'를 누르면 나란히 나와요.</p></li>
+        <li>${IC.sort}<p><b>찍은 날짜순 정렬</b>옛날 사진부터 차례로, 버튼 하나로 줄 세워요.</p></li>
+      </ul></div>`}
     <div class="photos">${PH.map((p, i) => `<button data-i="${i}" class="${i === SEL ? "on " : ""}${pairOf(i)}" aria-label="${i + 1}번 ${p.vid ? "영상" : "사진"}${pairOf(i) ? " (한 장면에 두 장)" : ""}"><img src="${p.url}" alt=""><span class="no">${i + 1}</span>${pairOf(i) ? `<span class="pr">2장</span>` : p.vid ? `<span class="pr vd">▶ ${Math.round(p.vid.len)}초</span>` : ""}${p.caption ? `<span class="tag">글</span>` : edited(p) ? `<span class="tag">✎</span>` : ""}</button>`).join("")}</div>
     ${cur ? `<div class="photo-tools">
-      <p class="which">${pr ? `${cur[0] + 1}·${cur[1] + 1}번 사진 (한 장면)` : isV ? `${SEL + 1}번 영상 (${Math.round(PH[SEL].vid.len)}초, 소리 없이)` : `${SEL + 1}번 사진`}${PH[SEL].taken != null ? `<span class="when">${pr ? `${SEL + 1}번 ` : ""}${whenKo(PH[SEL].taken)} 찍음</span>` : ""}</p>
-      <button class="btn main half" id="edit">편집하기</button>
-      <label class="btn ghost add half"><input type="file" id="swap" accept="image/*,video/*">${pr ? `${SEL + 1}번 ` : ""}${what} 바꾸기</label>
-      <button class="btn ghost" id="mvl"${q === 0 ? " disabled" : ""}>← 앞으로</button>
-      <button class="btn ghost" id="mvr"${q === SC.length - 1 ? " disabled" : ""}>뒤로 →</button>
-      <button class="btn ghost" id="rm">${pr ? `${SEL + 1}번 ` : ""}빼기</button>
-      ${pr ? `<button class="btn ghost wide" id="unpair">두 사진을 한 장씩 따로 보이기</button>`
-        : PH.length < MAX_PHOTOS && !isV ? `<label class="btn ghost add wide"><input type="file" id="pairpick" accept="image/*">옆에 한 장 더 넣기 (한 장면에 두 장)</label>` : ""}</div>` : ""}
+      <div class="pt-head">${miniScene(cur)}
+        <p class="which">${pr ? `${cur[0] + 1}·${cur[1] + 1}번 사진 <small>한 장면</small>` : isV ? `${SEL + 1}번 영상 <small>${Math.round(PH[SEL].vid.len)}초 · 소리 없이</small>` : `${SEL + 1}번 사진`}${PH[SEL].taken != null ? `<span class="when">${pr ? `${SEL + 1}번 ` : ""}${whenKo(PH[SEL].taken)} 찍음</span>` : ""}</p>
+        <button type="button" class="pt-x" id="ptx" aria-label="고른 것 풀기">×</button></div>
+      <button class="btn main" id="edit">위치·크기 맞추고 글 넣기</button>
+      <div class="pt-row">
+        <button class="btn ghost" id="mvl" aria-label="순서 앞으로"${q === 0 ? " disabled" : ""}>◀ 앞으로</button>
+        <button class="btn ghost" id="mvr" aria-label="순서 뒤로"${q === SC.length - 1 ? " disabled" : ""}>뒤로 ▶</button>
+        <label class="btn ghost add"><input type="file" id="swap" accept="image/*,video/*">${pr ? `${SEL + 1}번 ` : ""}바꾸기</label>
+        <button class="btn ghost" id="rm">${pr ? `${SEL + 1}번 ` : ""}빼기</button>
+      </div>
+      ${isV ? "" : `<div class="pt-duo">
+        <p class="pt-label">${IC.duo}<b>한 장면에 두 장</b>${NEWTAG}${pr ? `<span>배치 고르기</span>` : `<span>두 사진이 나란히</span>`}</p>
+        ${pr ? `<div class="pt-lay"><div class="seg lay" id="ptlay">${LAYS.map(([v, l]) => `<button type="button" data-v="${v}" class="${layOf(PH[cur[0]]) === v ? "on" : ""}">${IC[v]}${l}</button>`).join("")}</div><button class="btn ghost" id="unpair">따로 보이기</button></div>`
+          : `<div class="pt-two"><button class="btn ghost" id="join"${canJoin ? "" : " disabled"}>${!canJoin ? "묶을 옆 사진이 없어요" : joinAt === SEL ? `다음 사진(${SEL + 2}번)과 묶기` : `앞 사진(${SEL}번)과 묶기`}</button>${PH.length < MAX_PHOTOS ? `<label class="btn ghost add"><input type="file" id="pairpick" accept="image/*">새 사진 넣어 묶기</label>` : ""}</div>`}
+      </div>`}
+      <p class="msg pt-msg" id="ptmsg" role="status"></p>
+    </div>` : ""}
     <p class="safe">${LOCK}<span>${SAFE}</span></p>
     ${navBar("이전", "다음: 글 넣기", PH.length === 0)}`;
-  $("#pick").onchange = e => addPhotos(e.target.files);
+  $("#pick").onchange = $("#pickv").onchange = e => addPhotos(e.target.files);
+  if ($("#ptx")) $("#ptx").onclick = () => { SEL = -1; stepPhotos(); };
+  if ($("#join")) $("#join").onclick = () => { if (!canJoin) return; const i = joinAt; pairUp(i); stepPhotos(); say(`${i + 1}·${i + 2}번 사진이 한 장면에 나와요. 배치를 골라 보세요.`, "#ptmsg"); };
+  app.querySelectorAll("#ptlay button").forEach(b => b.onclick = () => { const p = PH[cur[0]]; p.duo = { lay: b.dataset.v, r: null }; savePhoto(p); stepPhotos(); });
   if (LOST) { say(`예전에 넣은 사진 ${LOST}장을 다시 불러오지 못했어요. 다시 넣어 주세요.`, "#busy"); LOST = 0; }
   if (ADDING) lockPhotos();
-  app.querySelectorAll(".photos button").forEach(b => b.onclick = () => { const i = +b.dataset.i; SEL = SEL === i ? -1 : i; stepPhotos(); });
+  app.querySelectorAll(".photos button").forEach(b => b.onclick = () => { const i = +b.dataset.i; SEL = SEL === i ? -1 : i; tipDone(); stepPhotos(); });
   // 순서 바꾸기는 장면 단위예요 (두 장 장면은 둘이 같이 움직여요)
   const move = d => {
     const t = q + d; if (q < 0 || t < 0 || t >= SC.length) return;
@@ -567,12 +670,12 @@ function stepPhotos(){
         const c = await pickClip(f, "");
         if (c && PH[at]) { await replaceClip(at, c); UNDO = null; }
         SEL = at; stepPhotos();
-        if (c) say(`${at + 1}번을 영상으로 바꿨어요. 넣어 둔 글은 그대로예요.`, "#busy");
+        if (c) say(`${at + 1}번을 영상으로 바꿨어요. 넣어 둔 글은 그대로예요.`, "#ptmsg");
         return;
       }
-      say("사진 바꾸는 중…", "#busy");
-      await replacePhoto(at, f); stepPhotos(); say(`${at + 1}번 사진을 바꿨어요. 넣어 둔 글은 그대로예요.`, "#busy");
-    } catch (x) { stepPhotos(); say("이 파일은 열 수 없어요.", "#busy"); }
+      say("사진 바꾸는 중…", "#ptmsg");
+      await replacePhoto(at, f); stepPhotos(); say(`${at + 1}번 사진을 바꿨어요. 넣어 둔 글은 그대로예요.`, "#ptmsg");
+    } catch (x) { stepPhotos(); say("이 파일은 열 수 없어요.", "#ptmsg"); }
   };
   if ($("#mvl")) $("#mvl").onclick = () => move(-1);
   if ($("#mvr")) $("#mvr").onclick = () => move(1);
@@ -581,12 +684,12 @@ function stepPhotos(){
     const [p] = PH.splice(SEL, 1); URL.revokeObjectURL(p.url); DB.del("ph:" + p.id); DB.del("pm:" + p.id); if (p.vid) DB.del("cl:" + p.id); UNDO = null;
     SEL = Math.min(SEL, PH.length - 1); normalize(); saveOrder(); stepPhotos();
   };
-  if ($("#unpair")) $("#unpair").onclick = () => { unpair(cur[0]); stepPhotos(); say(`${cur[0] + 1}번과 ${cur[1] + 1}번 사진이 한 장씩 따로 나와요.`, "#busy"); };
+  if ($("#unpair")) $("#unpair").onclick = () => { unpair(cur[0]); stepPhotos(); say(`${cur[0] + 1}번과 ${cur[1] + 1}번 사진이 한 장씩 따로 나와요.`, "#ptmsg"); };
   if ($("#pairpick")) $("#pairpick").onchange = async e => {
     const f = e.target.files && e.target.files[0]; if (!f) return;
-    say("사진 넣는 중…", "#busy"); lockPhotos();
-    try { await insertPhoto(SEL + 1, f); pairUp(SEL); stepPhotos(); say(`${SEL + 1}·${SEL + 2}번 사진이 한 장면에 나와요. 편집하기에서 배치를 바꿀 수 있어요.`, "#busy"); }
-    catch (x) { stepPhotos(); say("이 사진은 열 수 없어요.", "#busy"); }
+    say("사진 넣는 중…", "#ptmsg"); lockPhotos();
+    try { await insertPhoto(SEL + 1, f); pairUp(SEL); stepPhotos(); say(`${SEL + 1}·${SEL + 2}번 사진이 한 장면에 나와요. 배치를 골라 보세요.`, "#ptmsg"); }
+    catch (x) { stepPhotos(); say("이 사진은 열 수 없어요.", "#ptmsg"); }
   };
   bindNav(() => go(3));
 }
@@ -669,21 +772,25 @@ function editPhoto(start){
     const R = duoR(), LIM = R ? Movie.kit.DUO_LIM[R.lay] : null, SC = scenes(), q = SC.findIndex(s => s[0] === i);
     const isV = !!PH[i].vid, canJoin = !pr && !isV && i + 1 < PH.length && !PH[i + 1].pair && !PH[i + 1].vid, slot = pr ? (act ? "② " : "① ") : "";
     box.innerHTML = `<div class="in">
-      <div class="ed-top"><b>${isV ? "영상 편집" : "사진 편집"}</b><span class="count">${pr ? `${i + 1}·${i + 2}` : i + 1} / ${PH.length}</span></div>
+      <div class="ed-top"><b>${isV ? "영상 편집" : "사진 편집"}</b><span class="count">${pr ? `${i + 1}·${i + 2}` : i + 1} / ${PH.length}</span><button type="button" class="btn main ed-ok" id="eddone2">완료</button></div>
       <div class="ed-stage${tall ? " tall" : ""}"><canvas width="${W >= H ? 720 : 405}" height="${W >= H ? 405 : 720}"></canvas></div>
       <p class="drag" id="edhint">${hint()}</p>
-      ${pr ? `<div class="seg lay" id="edlay">${LAYS.map(([v, l]) => `<button data-v="${v}" class="${R.lay === v ? "on" : ""}">${l}</button>`).join("")}</div>
+      ${pr ? `<p class="ed-label">${IC.duo}두 장 배치</p>
+      <div class="seg lay" id="edlay">${LAYS.map(([v, l]) => `<button data-v="${v}" class="${R.lay === v ? "on" : ""}">${IC[v]}${l}</button>`).join("")}</div>
       <label class="range"><span id="edrl">${R.lay === "pip" ? "작은 사진 크기" : "앞 칸 비중"}</span><input type="range" id="edr" min="${LIM[0]}" max="${LIM[1]}" step="0.01" value="${R.r}"></label>` : ""}
+      <p class="ed-label">${pr ? "칸 안의 사진 맞추기" : isV ? "영상 맞추기" : "사진 맞추기"}</p>
       <label class="range"><span id="edzl">${slot}사진 크기</span><input type="range" id="edzoom" min="1" max="${ZMAX}" step="0.01" value="${m.z || 1}"></label>
       <div class="seg" id="edfit">${[["auto", "자동"], ["cover", "꽉 채우기"], ["whole", "사진 전체"]].map(([v, l]) => `<button data-v="${v}" class="${(m.fit || "auto") === v ? "on" : ""}">${l}</button>`).join("")}</div>
       <label class="field"><span>이 ${pr ? "장면" : isV ? "영상" : "사진"}에 넣을 글 <em>(안 써도 돼요)</em></span><textarea id="edcap" rows="2" maxlength="40" placeholder="예: 헬스장에서 시작된 이야기">${esc(PH[i].caption || "")}</textarea></label>
       ${introHere ? `<p class="note" style="margin-top:-4px">1·2번 사진에는 신랑·신부 소개가 나와서, 여기 쓴 글은 영상에 안 나와요.</p>` : ""}
       <div class="ed-nav"><button class="btn ghost" id="edprev"${q <= 0 ? " disabled" : ""}>← 이전 ${pr ? "장면" : "사진"}</button><button class="btn ghost" id="ednext"${q >= SC.length - 1 ? " disabled" : ""}>다음 ${pr ? "장면" : "사진"} →</button></div>
       <button class="btn main" id="eddone">완료</button>
+      <p class="ed-label">더 보기</p>
       ${isV ? `<button class="btn ghost" id="edreset">처음 위치로</button>`
         : `<div class="ed-nav"><label class="btn ghost add"><input type="file" id="edswap" accept="image/*"><span id="edswapl">${slot}다른 사진으로 바꾸기</span></label><button class="btn ghost" id="edreset">처음 위치로</button></div>`}
       ${pr ? `<button class="btn ghost" id="edsplit">두 사진을 한 장씩 따로 보이기</button>`
-        : isV ? "" : `<div class="ed-nav"><label class="btn ghost add${PH.length >= MAX_PHOTOS ? " off" : ""}"><input type="file" id="edpair" accept="image/*"${PH.length >= MAX_PHOTOS ? " disabled" : ""}>옆에 한 장 더 넣기</label><button class="btn ghost" id="edjoin"${canJoin ? "" : " disabled"}>다음 사진과 한 장면에</button></div>`}
+        : isV ? "" : `<p class="ed-label">${IC.duo}한 장면에 두 장${NEWTAG}</p>
+        <div class="ed-nav"><button class="btn ghost" id="edjoin"${canJoin ? "" : " disabled"}>${canJoin ? `다음 사진(${i + 2}번)과 묶기` : "다음 사진과 묶기"}</button><label class="btn ghost add${PH.length >= MAX_PHOTOS ? " off" : ""}"><input type="file" id="edpair" accept="image/*"${PH.length >= MAX_PHOTOS ? " disabled" : ""}>새 사진 넣어 묶기</label></div>`}
       <p class="msg" id="edmsg" role="status"></p>
     </div>`;
     const c = box.querySelector("canvas"), q$ = s => box.querySelector(s);
@@ -766,7 +873,7 @@ function editPhoto(start){
     const go2 = j => { flush(); i = j; act = 0; shell(); };
     q$("#edprev").onclick = () => { if (q > 0) go2(SC[q - 1][0]); };
     q$("#ednext").onclick = () => { if (q < SC.length - 1) go2(SC[q + 1][0]); };
-    q$("#eddone").onclick = () => history.back();
+    q$("#eddone").onclick = q$("#eddone2").onclick = () => history.back();
     if (q$("#edswap")) q$("#edswap").onchange = async e => {
       const f = e.target.files && e.target.files[0]; if (!f) return;
       q$("#edmsg").textContent = "사진 바꾸는 중…";
@@ -783,7 +890,7 @@ function editPhoto(start){
 }
 
 let ADDING = false;
-const lockPhotos = () => app.querySelectorAll(".photos button, #pick, #next, #prev, .photo-tools button, .photo-tools input").forEach(b => { b.disabled = true; });
+const lockPhotos = () => app.querySelectorAll(".photos button, #pick, #pickv, #sortd, #unsort, #next, #prev, .photo-tools button, .photo-tools input").forEach(b => { b.disabled = true; });
 async function addPhotos(files){
   if (ADDING) return;
   ADDING = true;
@@ -938,54 +1045,143 @@ function peaksOf(buf){
   return out;
 }
 function drawWave(cv, buf, a, b, head){
-  const dpr = Math.min(2, window.devicePixelRatio || 1), w = cv.clientWidth || 300, h = cv.clientHeight || 56;
+  const dpr = Math.min(2, window.devicePixelRatio || 1), w = cv.clientWidth || 300, h = cv.clientHeight || 64;
   if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
   const x = cv.getContext("2d"), P = peaksOf(buf), D = buf.duration, css = getComputedStyle(cv);
   const on = css.getPropertyValue("--accent").trim() || "#c2185b", off = css.getPropertyValue("--line").trim() || "#ccc", ink = css.getPropertyValue("--ink").trim() || "#111";
   x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, w, h);
+  // 고른 부분: 옅은 바탕 + 양쪽 세로 줄 (끌어서 옮기는 창처럼 보이게)
+  const xa = a / D * w, xb = b / D * w;
+  x.fillStyle = on; x.globalAlpha = .14; x.fillRect(xa, 0, xb - xa, h); x.globalAlpha = 1;
+  x.fillRect(xa, 0, 3, h); x.fillRect(Math.max(xa, xb - 3), 0, 3, h);
   const bw = w / P.length;
   for (let i = 0; i < P.length; i++) {
-    const t = (i + .5) / P.length * D, bh = Math.max(2, P[i] * (h - 6));
+    const t = (i + .5) / P.length * D, bh = Math.max(2, P[i] * (h - 14));
     x.fillStyle = t >= a && t <= b ? on : off;
     x.fillRect(i * bw + bw * .15, (h - bh) / 2, bw * .7, bh);
   }
   if (head != null) { x.fillStyle = ink; x.fillRect(Math.max(0, Math.min(w - 2, head / D * w - 1)), 0, 2, h); }
 }
-const CUT_QUICK = [[0, "곡 전체", ""], [180, "3분", ""], [60, "1분", "인스타용"], [30, "30초", "사진이 적을 때"]];
-const quickOf = (a, b, D) => { if (a < .05 && b > D - .05) return "0"; const hit = CUT_QUICK.find(([v]) => v && Math.abs(b - a - v) < .15); return hit ? String(hit[0]) : ""; };
+// 영상 길이 고르기 (11/11 손질): 전에는 "음악에서 쓸 구간"에 시작·끝 슬라이더 두 개 + 곡 전체/3분/1분/30초였어요 — 무엇을 정하는 건지(영상 길이) 드러나지 않았어요
+//   지금: ① 길이를 먼저 고르고("사진 수에 맞게"가 기본 = 곡 전체) ② 길이를 골랐을 때만 "음악의 어느 부분"을 물결에서 끌어서 정해요 ③ 그 결과를 한 줄로 알려 줘요
+//   저장하는 값(S.cut)과 엔진 계산은 그대로예요
+const CUT_QUICK = [[30, "30초", "짧게"], [60, "1분", "인스타용"], [180, "3분", "식장용"]];
+// 지금 고른 길이: "0" 사진 수에 맞게(곡 전체) · "30" · "60" · "180" · "c" 직접
+const quickOf = (a, b, D) => { if (a < .05 && b > D - .05) return "0"; const hit = CUT_QUICK.find(([v]) => Math.abs(b - a - v) < .15); return hit ? String(hit[0]) : "c"; };
+// 이렇게 고르면 영상이 어떻게 되는지 한 줄로 (영상이 몇 초인지, 사진이 빨라지는지)
+function lenNote(buf){
+  const n = PH.length; if (!n || !buf) return "";
+  const P = planNow(tpl(), data(), buf), c = cutOf(buf), want = c.b - c.a, mix = clipCount() > 0, what = mix ? `사진·영상 ${n}개` : `사진 ${n}장`;
+  const per = (P.fast || P.avg || P.per).toFixed(1);
+  const L = `영상은 약 ${lenKo(P.total)} 길이`;
+  if (P.total > want + .5) return c.whole ? `${what}${mix ? "가" : "이"} 음악보다 길어요. ${L}가 되고, 음악이 한 번 더 이어져요.`
+    : `${what}${mix ? "를" : "을"} ${lenKo(want)} 안에 다 넣을 수 없어요. ${L}가 되고, 음악이 한 번 더 이어져요. 길이를 늘리거나 사진을 줄여 주세요.`;
+  if (c.whole) return `${what} · 한 장에 약 ${per}초씩 나와서, ${L}예요.`;
+  if (P.fast) return `${lenKo(want)}에 맞추려고, 글이 없는 사진은 한 장에 약 ${per}초씩 빠르게 넘어가요.`;
+  if (P.total < want - 4) return `사진이 적어서 ${L}예요. 음악은 영상 끝에서 서서히 작아져요.`;
+  return `한 장에 약 ${per}초씩 나와서, ${L}예요.`;
+}
+// 박자 맛보기: 음악을 틀면서, 실제 영상에서 장면이 바뀌는 바로 그 순간에 내 사진을 넘겨 보여요. 점 4개는 박자(첫 박이 큰 점)
+//   스위치를 껐다 켜면 같은 자리부터 다시 틀어서, 켰을 때와 껐을 때를 바로 견줘 볼 수 있어요 (글로는 와닿지 않던 기능이라 직접 느끼게)
+let STOP_DEMO = null;
+const DEMO_IDLE = `${PLAY}<span>내 사진으로 미리 느껴 보기</span>`, CUT_IDLE = `${PLAY}<span>이 부분 들어 보기</span>`;
+function beatDemo(buf){
+  const btn = $("#bdplay"), img = $("#bdimg"), dots = $("#bddots");
+  if (!btn) { STOP_DEMO = null; return; }
+  const ds = [...dots.querySelectorAll("i")];
+  let raf = 0;
+  const stop = () => { cancelAnimationFrame(raf); if (PREV.dataset.demo) { PREV.pause(); PREV.dataset.demo = ""; } if (btn.isConnected) { btn.innerHTML = DEMO_IDLE; ds.forEach(d => d.classList.remove("on")); } };
+  STOP_DEMO = stop;
+  btn.onclick = () => {
+    if (PREV.dataset.demo && !PREV.paused) { stop(); return; }
+    const id = S.track, src = id === "mine" ? mineUrl() : (LIST.find(x => x.id === id) || {}).file;
+    if (!src) return;
+    const P = planNow(tpl(), data(), buf), c = cutOf(buf), half = (P.xf || tpl().xf || 0) / 2;
+    const sw = P.segs.filter(g => g.kind === "photo").map(g => ({ t: g.start - half, i: g.i }));   // 사진이 바뀌는 순간 = 겹쳐 넘어가는 한가운데
+    if (sw.length < 2) return;
+    const from = Math.max(0, sw[0].t, sw[1].t - 2.5);   // 두 번째 사진으로 넘어가기 조금 전부터
+    const to = Math.min(c.b - c.a, P.total, from + 24, Math.max(from + 12, sw[Math.min(sw.length - 1, 5)].t + 1.5));
+    const B = AUD.beats ? AUD.beats.beats : [], down = AUD.beats ? AUD.beats.down : 0;
+    if (PREV.dataset.cut) { PREV.dataset.cut = ""; const cb = $("#cutplay"); if (cb) cb.innerHTML = CUT_IDLE; }
+    app.querySelectorAll("[data-p]").forEach(x => x.innerHTML = PLAY);
+    if (PREV.dataset.id !== id) { PREV.src = src; PREV.dataset.id = id; }
+    PREV.dataset.demo = "1";
+    let k = -1, nb = -1;
+    const tick = () => {
+      if (!btn.isConnected || !PREV.dataset.demo || PREV.paused) { stop(); return; }
+      const mt = PREV.currentTime, t = mt - c.a;
+      if (t >= to) { stop(); return; }
+      let j = 0; while (j + 1 < sw.length && sw[j + 1].t <= t) j++;
+      if (j !== k) { const first = k < 0; k = j; if (PH[sw[j].i]) img.src = PH[sw[j].i].url; if (!first) { img.classList.remove("pop"); void img.offsetWidth; img.classList.add("pop"); } }
+      while (nb + 1 < B.length && B[nb + 1] <= mt) nb++;
+      const ph = nb >= 0 ? (((nb - down) % 4) + 4) % 4 : -1, live = nb >= 0 && mt - B[nb] < .16;
+      ds.forEach((d, q) => d.classList.toggle("on", live && q === ph));
+      raf = requestAnimationFrame(tick);
+    };
+    const start = () => {
+      PREV.onloadedmetadata = null;
+      try { PREV.currentTime = c.a + from; } catch (x) {}
+      PREV.play().then(() => { btn.innerHTML = `${PAUSE}<span>멈추기</span>`; raf = requestAnimationFrame(tick); }).catch(() => { PREV.dataset.demo = ""; say("미리듣기를 열지 못했어요.", "#busy"); });
+    };
+    if (PREV.readyState >= 1) start(); else { PREV.onloadedmetadata = start; PREV.load(); }
+  };
+}
 function stepMusic(){
-  const buf = curBuf(), c = cutOf(buf), D = buf ? buf.duration : 0, bt = buf ? AUD.beats : null, clear = !!(buf && beatClear());
+  const buf = curBuf(), c = cutOf(buf), D = buf ? buf.duration : 0, clear = !!(buf && beatClear());
+  let nat = 0;   // 길이를 안 고르면(사진 수에 맞게) 영상이 몇 초인지
+  if (buf) { const keep = S.cut; S.cut = null; try { nat = planNow(tpl(), data(), buf).total; } finally { S.cut = keep; } }
+  STOP_DEMO = null;
   app.innerHTML = `${topBar(4)}
     <h2 class="title">배경 음악</h2>
-    <p class="sub">휴대폰에 있는 음악 파일을 골라 주세요. 영상 길이는 음악에서 고른 구간 길이에 맞춰지고, 끝은 서서히 작아지며 끝나요.</p>
-    <label class="btn main add"><input type="file" id="mine" accept="audio/*,.mp3,.m4a,.wav,.aac">${MINE ? "다른 음악 고르기" : "음악 파일 고르기"}</label>
+    <p class="sub">휴대폰에 있는 음악 파일을 골라 주세요. 영상 끝에서는 음악이 서서히 작아져요.</p>
+    <label class="btn main add"><input type="file" id="mine" accept="audio/*,.mp3,.m4a,.wav,.aac">${MINE ? "다른 음악으로 바꾸기" : "음악 파일 고르기"}</label>
     <p class="note">mp3·m4a 파일을 넣을 수 있어요. 아이폰은 '파일' 앱에 있는 음악만 고를 수 있어요.</p>
     <p class="busy" id="busy" role="status">${!buf && audKey() ? "음악 확인 중…" : ""}</p>
+    ${!audKey() ? `<div class="empty">
+      <p class="empty-h">음악을 넣으면 이런 게 돼요</p>
+      <ul class="feats">
+        <li>${IC.beat}<p><b>박자에 맞춰 넘기기</b>노래 박자에 사진이 착착 바뀌어요.</p></li>
+        <li>${IC.len}<p><b>영상 길이 고르기</b>30초·1분·3분, 음악의 원하는 부분만 쓸 수 있어요.</p></li>
+      </ul></div>` : ""}
     <div class="tracks" style="margin-top:14px">
       ${LIST.map(t => trackRow(t.id, t.title, `${t.by} · ${t.mood}`, true)).join("")}
-      ${MINE ? trackRow("mine", MINE.name, "내가 고른 음악", true) : ""}
+      ${MINE ? trackRow("mine", MINE.name, buf && S.track === "mine" ? `내가 고른 음악 · ${lenKo(D)}` : "내가 고른 음악", true) : ""}
       ${trackRow("", "음악 없이", "소리 없는 영상", false)}
     </div>
-    ${buf ? `<h3 class="sec">음악에서 쓸 구간<em>이 길이만큼 영상이 돼요</em></h3>
-    <div class="panel cut">
+    ${buf ? `<h3 class="sec ic">${IC.len}영상 길이${NEWTAG}</h3>
+    <div class="lens" id="cutq">
+      <button type="button" data-v="0" class="wide"><b>사진 수에 맞게</b><small>약 ${lenKo(nat)} · 기본</small></button>
+      ${CUT_QUICK.map(([v, l, sm]) => `<button type="button" data-v="${v}"${D < v + .5 ? " disabled" : ""}><b>${l}</b><small>${sm}</small></button>`).join("")}
+      <button type="button" data-v="c"${D <= CUT_MIN ? " disabled" : ""}><b>직접</b><small>구간 고르기</small></button>
+    </div>
+    <p class="result" id="cutres" role="status"></p>
+    <div class="panel cut" id="cutbox" hidden>
+      <p class="cut-q"><b>음악의 어느 부분을 쓸까요?</b><span>분홍색 부분이 영상에 들어가요. 끌어서 옮겨 보세요.</span></p>
       <canvas id="wave" aria-hidden="true"></canvas>
       <div class="cut-info"><span id="cta"></span><b id="ctl"></b><span id="ctb"></span></div>
       <label class="range"><span>시작</span><input type="range" id="cuta" min="0" max="${D.toFixed(1)}" step="0.1" value="${c.a.toFixed(1)}" aria-label="구간 시작"${D <= CUT_MIN ? " disabled" : ""}></label>
-      <label class="range"><span>끝</span><input type="range" id="cutb" min="0" max="${D.toFixed(1)}" step="0.1" value="${c.b.toFixed(1)}" aria-label="구간 끝"${D <= CUT_MIN ? " disabled" : ""}></label>
-      ${seg("cutq", CUT_QUICK.map(([v, l, sm]) => [v, l, sm, v > 0 && D < v + .5]), quickOf(c.a, c.b, D))}
-      <button class="btn ghost cutplay" id="cutplay">${PLAY}<span>고른 구간 들어 보기</span></button>
+      <label class="range" id="rowb" hidden><span>끝</span><input type="range" id="cutb" min="0" max="${D.toFixed(1)}" step="0.1" value="${c.b.toFixed(1)}" aria-label="구간 끝"${D <= CUT_MIN ? " disabled" : ""}></label>
+      <button type="button" class="btn ghost cutplay" id="cutplay">${CUT_IDLE}</button>
     </div>
-    <h3 class="sec">박자</h3>
-    <div class="panel"><label class="toggle"><input type="checkbox" id="beat"${S.beat !== false && clear ? " checked" : ""}${clear ? "" : " disabled"}>노래 박자에 맞춰 사진 넘기기</label>
-      <p class="note" id="beatnote" style="margin:0">${clear ? `이 곡은 1분에 약 ${bt.bpm}박이에요. 사진이 바뀌는 순간을 박자에 맞추고, 넘어가는 시간도 짧게 해요.` : "이 곡은 박자가 뚜렷하지 않아서, 사진을 같은 간격으로 넘겨요."}</p></div>` : ""}
+    <h3 class="sec ic">${IC.beat}박자${NEWTAG}</h3>
+    <div class="panel beatbox">
+      <label class="toggle sw"><span>노래 박자에 맞춰 사진 넘기기</span><input type="checkbox" id="beat"${S.beat !== false && clear ? " checked" : ""}${clear ? "" : " disabled"}></label>
+      <p class="note" id="beatnote" style="margin:0"></p>
+      ${clear && PH.length >= 2 ? `<div class="bdemo">
+        <div class="bd-screen${tallNow() ? " tall" : ""}"><img id="bdimg" src="${PH[0].url}" alt=""><span class="bd-dots" id="bddots" aria-hidden="true"><i></i><i></i><i></i><i></i></span></div>
+        <button type="button" class="btn ghost cutplay" id="bdplay">${DEMO_IDLE}</button>
+        <p class="note" style="margin:0">음악과 함께 사진이 바뀌는 순간을 보세요. 틀어 둔 채로 위 스위치를 껐다 켜면 차이가 느껴져요.</p>
+      </div>` : ""}
+    </div>` : ""}
     ${navBar("이전", "다음: 미리 보기")}`;
-  const stopCut = () => { if (PREV.dataset.cut) { PREV.pause(); PREV.dataset.cut = ""; } const cb = $("#cutplay"); if (cb) cb.innerHTML = `${PLAY}<span>고른 구간 들어 보기</span>`; };
-  app.querySelectorAll("[data-t]").forEach(b => b.onclick = () => { S.track = b.dataset.t; save(); PREV.pause(); PREV.dataset.cut = ""; stepMusic(); });
+  const stopCut = () => { if (PREV.dataset.cut) { PREV.pause(); PREV.dataset.cut = ""; } const cb = $("#cutplay"); if (cb) cb.innerHTML = CUT_IDLE; };
+  const stopDemo = () => { if (STOP_DEMO) STOP_DEMO(); };
+  app.querySelectorAll("[data-t]").forEach(b => b.onclick = () => { S.track = b.dataset.t; save(); PREV.pause(); PREV.dataset.cut = ""; PREV.dataset.demo = ""; stepMusic(); });
   app.querySelectorAll("[data-p]").forEach(b => b.onclick = () => {
     const id = b.dataset.p, src = id === "mine" ? mineUrl() : (LIST.find(x => x.id === id) || {}).file;
     if (!src) return;
-    const same = PREV.dataset.id === id && !PREV.paused && !PREV.dataset.cut;
-    stopCut();
+    const same = PREV.dataset.id === id && !PREV.paused && !PREV.dataset.cut && !PREV.dataset.demo;
+    stopCut(); stopDemo();
     app.querySelectorAll("[data-p]").forEach(x => x.innerHTML = PLAY);
     if (same) { PREV.pause(); return; }
     if (PREV.dataset.id !== id) { PREV.src = src; PREV.dataset.id = id; }
@@ -1002,35 +1198,57 @@ function stepMusic(){
       MINE = { name: f.name.replace(/\.[^.]+$/, ""), bytes, type: f.type || "audio/mpeg" };
       await DB.set("music", MINE);
       await setAud(`mine:${MINE.name}:${bytes.byteLength}`, buf2);
-      S.track = "mine"; S.cut = null; save(); PREV.pause(); PREV.dataset.id = ""; PREV.dataset.cut = "";
+      S.track = "mine"; S.cut = null; save(); PREV.pause(); PREV.dataset.id = ""; PREV.dataset.cut = ""; PREV.dataset.demo = "";
       stepMusic();
       say(`${lenKo(buf2.duration)}짜리 음악을 넣었어요.`, "#busy");
     } catch (err) { say("이 파일은 열 수 없어요. mp3나 m4a 파일로 넣어 주세요.", "#busy"); }
   };
   if (buf) {
     const A = $("#cuta"), B = $("#cutb"), wave = $("#wave");
-    let a = c.a, b = c.b;
+    let a = c.a, b = c.b, mode = quickOf(a, b, D);
+    const result = () => { const el = $("#cutres"); if (el) el.textContent = lenNote(buf); };
     const paint = () => {
+      $("#cutbox").hidden = mode === "0"; $("#rowb").hidden = mode !== "c";
+      app.querySelectorAll("#cutq button").forEach(x => { x.classList.toggle("on", x.dataset.v === mode); x.setAttribute("aria-pressed", x.dataset.v === mode); });
+      if (mode === "0") return;
       $("#cta").textContent = mmss(a); $("#ctb").textContent = mmss(b); $("#ctl").textContent = lenKo(b - a);
+      A.max = (mode === "c" ? D : Math.max(0, D - (b - a))).toFixed(1); A.value = a; B.value = b;   // 길이를 골랐으면 시작 슬라이더 하나로 창을 옮겨요
       drawWave(wave, buf, a, b, PREV.dataset.cut && !PREV.paused ? PREV.currentTime : null);
-      const qk = quickOf(a, b, D);
-      app.querySelectorAll("#cutq button").forEach(x => x.classList.toggle("on", x.dataset.v === qk));
     };
-    const commit = () => { S.cut = a < .05 && b > D - .05 ? null : { key: AUD.key, a: +a.toFixed(2), b: +b.toFixed(2) }; save(); };
-    A.oninput = () => { stopCut(); a = Math.max(0, Math.min(+A.value, D - CUT_MIN)); if (b - a < CUT_MIN) { b = Math.min(D, a + CUT_MIN); B.value = b; } A.value = a; paint(); };
-    B.oninput = () => { stopCut(); b = Math.min(D, Math.max(+B.value, CUT_MIN)); if (b - a < CUT_MIN) { a = Math.max(0, b - CUT_MIN); A.value = a; } B.value = b; paint(); };
+    const commit = () => { S.cut = a < .05 && b > D - .05 ? null : { key: AUD.key, a: +a.toFixed(2), b: +b.toFixed(2) }; save(); result(); };
+    const slide = na => { const len = b - a; a = Math.max(0, Math.min(D - len, na)); b = a + len; };   // 길이는 그대로, 자리만
+    A.oninput = () => {
+      stopCut(); stopDemo();
+      if (mode === "c") { a = Math.max(0, Math.min(+A.value, D - CUT_MIN)); if (b - a < CUT_MIN) b = Math.min(D, a + CUT_MIN); } else slide(+A.value);
+      paint();
+    };
+    B.oninput = () => { stopCut(); stopDemo(); mode = "c"; b = Math.min(D, Math.max(+B.value, CUT_MIN)); if (b - a < CUT_MIN) a = Math.max(0, b - CUT_MIN); paint(); };
     A.onchange = B.onchange = commit;
     app.querySelectorAll("#cutq button").forEach(x => x.onclick = () => {
       if (x.disabled) return;
-      const len = +x.dataset.v;
-      stopCut();
-      if (!len) { a = 0; b = D; } else { if (a + len > D) a = Math.max(0, D - len); b = Math.min(D, a + len); }
-      A.value = a; B.value = b; commit(); paint();
+      stopCut(); stopDemo();
+      const v = x.dataset.v;
+      if (v === "0") { a = 0; b = D; }
+      else if (v !== "c") { const len = +v; if (mode === "0") a = 0; a = Math.max(0, Math.min(a, D - len)); b = Math.min(D, a + len); }   // 처음 고르면 곡의 처음부터, 그다음엔 보던 자리에서
+      mode = v; commit(); paint();
     });
+    // 물결을 끌면 고른 부분이 통째로 옮겨져요 (바깥을 누르면 그 자리로)
+    let drag = null;
+    const tAt = e => { const r = wave.getBoundingClientRect(); return (e.clientX - r.left) / Math.max(1, r.width) * D; };
+    wave.onpointerdown = e => {
+      stopCut(); stopDemo();
+      const t = tAt(e);
+      if (t < a || t > b) { slide(t - (b - a) / 2); paint(); }
+      drag = { t, a };
+      try { wave.setPointerCapture(e.pointerId); } catch (x) {}
+    };
+    wave.onpointermove = e => { if (!drag) return; slide(drag.a + tAt(e) - drag.t); paint(); };
+    wave.onpointerup = wave.onpointercancel = () => { if (!drag) return; drag = null; commit(); };
     $("#cutplay").onclick = () => {
       if (PREV.dataset.cut && !PREV.paused) { stopCut(); paint(); return; }
       const id = S.track, src = id === "mine" ? mineUrl() : (LIST.find(x => x.id === id) || {}).file;
       if (!src) return;
+      stopDemo();
       app.querySelectorAll("[data-p]").forEach(x => x.innerHTML = PLAY);
       if (PREV.dataset.id !== id) { PREV.src = src; PREV.dataset.id = id; }
       PREV.dataset.cut = "1";
@@ -1042,9 +1260,18 @@ function stepMusic(){
       if (PREV.currentTime >= b || PREV.ended) stopCut();
       paint();
     };
-    $("#beat").onchange = e => { S.beat = e.target.checked; save(); };
-    paint();
-  } else if (audKey()) {   // 새로 열었거나 다른 음악을 고른 직후: 음악을 풀고 나서 구간·박자 칸을 보여 줘요
+    const beatNote = () => {
+      $("#beatnote").textContent = !clear ? "이 곡은 박자가 뚜렷하지 않아서, 사진을 같은 간격으로 넘겨요."
+        : S.beat !== false ? "쿵 하는 박자에 맞춰 사진이 바뀌어요. 넘어가는 시간도 짧아져서 리듬이 살아요."
+        : "지금은 꺼져 있어요. 사진이 박자와 상관없이 같은 간격으로 넘어가요.";
+    };
+    $("#beat").onchange = e => {
+      const was = !!(PREV.dataset.demo && !PREV.paused);
+      S.beat = e.target.checked; save(); stopDemo(); beatNote(); result();
+      if (was && $("#bdplay")) $("#bdplay").click();   // 맛보기를 틀어 둔 채로 바꾸면 같은 자리부터 다시 — 바로 견줘 보게
+    };
+    beatDemo(buf); beatNote(); paint(); result();
+  } else if (audKey()) {   // 새로 열었거나 다른 음악을 고른 직후: 음악을 풀고 나서 길이·박자 칸을 보여 줘요
     const key = audKey();
     music().then(got => { if (S.step === 4 && audKey() === key && got && !$("#wave") && $("#mine")) stepMusic(); },
       () => { if (S.step === 4 && audKey() === key) say("이 음악을 열지 못했어요. 다른 파일을 골라 주세요.", "#busy"); });
@@ -1063,7 +1290,8 @@ function stepMake(){
     <h2 class="title">미리 보고 만들기</h2>
     <div class="stage" id="stage"><canvas id="pv" width="16" height="9"></canvas><button class="playbtn" id="play" aria-label="재생">${PLAY}</button></div>
     <div class="scrub"><span id="cur">0:00</span><input type="range" id="seek" min="0" max="1000" value="0" aria-label="재생 위치"><span id="len">-:--</span></div>
-    <button class="btn ghost scene-edit" id="sceneEdit" disabled>멈춘 장면의 사진을 편집할 수 있어요</button>
+    <button class="btn ghost scene-edit" id="sceneEdit" disabled>지금 장면 편집하기</button>
+    <div class="sum" id="facts"></div>
     <h3 class="sec">템플릿</h3>
     ${seg("tplseg", TEMPLATES.map(T => [T.key, esc(T.name)]), S.tpl)}
     <h3 class="sec">비율</h3>
@@ -1071,7 +1299,6 @@ function stepMake(){
     <p class="note">식장 화면 비율을 모르면 가로 16:9로 만들어요. 아주 넓은 LED 화면이라면 어떤 크기로 받는지 식장에 물어봐 주세요.</p>
     <h3 class="sec">화질</h3>
     ${seg("q", [["720", "720p", "빠르게"], ["1080", "1080p", "식장용 추천"]], S.q)}
-    <div class="facts" id="facts"></div>
     ${ia ? `<div class="block-inapp"><b>${esc(ia)} 안에서는 저장할 수 없어요</b><p>${Movie.ANDROID ? "크롬" : "사파리"}에서 이 주소를 열어 다시 만들어 주세요.</p></div>` : ""}
     <div class="navbar"><button class="btn ghost" id="prev">이전</button><button class="btn main" id="make" disabled>동영상 만들기</button></div>
     <p class="msg" id="msg" role="status"></p>
@@ -1123,16 +1350,19 @@ async function preview(){
     const seek = $("#seek"), curEl = $("#cur");
     $("#len").textContent = mmss(P.total);
     const sceneBtn = $("#sceneEdit");
-    const scene = t => {   // 멈춰 있고 사진 장면이면 그 사진 편집
-      const g = Movie.segAt(P, t), ok = !PLAYER.playing && g && g.kind === "photo";
+    let sceneKey = null;
+    const scene = t => {   // 지금 보이는 장면이 사진(영상)이면 그 사진 편집 — 재생 중에도 누를 수 있어요 (누르면 멈추고 편집 창으로)
+      const g = Movie.segAt(P, t), ok = !!(g && g.kind === "photo"), key = ok ? g.i : -1;
+      if (key === sceneKey) return;
+      sceneKey = key;
       sceneBtn.disabled = !ok;
-      sceneBtn.textContent = ok ? `${g.j != null ? `${g.i + 1}·${g.j + 1}` : g.i + 1}번 ${g.vid ? "영상" : "사진"} 편집하기` : (PLAYER.playing ? "멈추면 그 장면의 사진을 편집할 수 있어요" : "사진 장면에서 멈추면 편집할 수 있어요");
+      sceneBtn.textContent = ok ? `지금 장면 편집하기 (${g.j != null ? `${g.i + 1}·${g.j + 1}` : g.i + 1}번 ${g.vid ? "영상" : "사진"})` : "사진이 나오는 장면에서 누르면 그 사진을 편집해요";
       sceneBtn.dataset.i = ok ? g.i : "";
     };
     const tick = t => { curEl.textContent = mmss(t); if (!seek.matches(":active")) seek.value = Math.round(t / P.total * 1000); scene(t); };
     PLAYER.ontick = tick;
     tick(start);
-    sceneBtn.onclick = () => { if (sceneBtn.dataset.i === "" || !PLAYER) return; RESUME_AT = PLAYER.time(); PLAYER.pause(); editPhoto(+sceneBtn.dataset.i); };
+    sceneBtn.onclick = () => { if (sceneBtn.dataset.i === "" || !PLAYER) return; RESUME_AT = PLAYER.time(); PLAYER.pause(); stage.classList.remove("playing"); $("#play").innerHTML = PLAY; editPhoto(+sceneBtn.dataset.i); };
     PLAYER.onend = () => { stage.classList.remove("playing"); $("#play").innerHTML = PLAY; };
     seek.oninput = () => { if (PLAYER) PLAYER.seek(seek.value / 1000 * P.total); };
     const toggle = () => {
@@ -1144,7 +1374,12 @@ async function preview(){
     const mb = Math.round((Movie.bitrate(S.q, P.total) + 192000) * P.total / 8 / 1e6);
     const two = P.sc != null && P.sc < PH.length;   // 두 장 장면이 있으면 장면 수도
     const nv = clipCount(), mlen = cut ? cut.b - cut.a : 0;
-    $("#facts").innerHTML = `<b>${lenKo(P.total)}</b><span>${nv ? `사진 ${PH.length - nv}장 · 영상 ${nv}개` : `사진 ${PH.length}장`}${two ? ` · 장면 ${P.sc}개` : ""} · 한 ${two ? "장면" : "장"}에 약 ${P.avg ? `${(P.fast || P.avg).toFixed(1)}~` : ""}${P.per.toFixed(1)}초</span><span>${buf ? `음악 ${lenKo(mlen)}${part ? " (고른 구간)" : ""}` : "음악 없음"}</span>${P.bpm ? `<span>박자에 맞춤 (1분에 ${P.bpm}박)</span>` : ""}<span>파일 약 ${mb}MB</span>`;
+    // 영상 요약: 무엇이 어떻게 들어갔는지 줄마다, 바꾸고 싶으면 그 단계로 바로 (전에는 숫자가 한 줄에 이어져 있었어요)
+    const row = (k, v, to) => `<div><span>${k}</span><b>${v}</b>${to ? `<button type="button" class="text-btn" data-go="${to}">바꾸기</button>` : ""}</div>`;
+    $("#facts").innerHTML = row("길이", lenKo(P.total))
+      + row("사진", `${nv ? `사진 ${PH.length - nv}장 · 영상 ${nv}개` : `사진 ${PH.length}장`}${two ? ` · 장면 ${P.sc}개` : ""}<small>한 ${two ? "장면" : "장"}에 약 ${P.avg ? `${(P.fast || P.avg).toFixed(1)}~` : ""}${P.per.toFixed(1)}초</small>`, 2)
+      + row("음악", buf ? `${S.track === "mine" && MINE ? esc(MINE.name) : "음악"}<small>${part ? `${mmss(part.a)}부터 ${lenKo(mlen)} (고른 구간)` : `처음부터 ${lenKo(Math.min(mlen, P.total))}`}${P.bpm ? " · 박자에 맞춤" : ""}</small>` : "음악 없음", 4)
+      + row("파일", `약 ${mb}MB`);
     const crash = lastCrash();
     say(crash ? "지난번에 영상을 만들다 멈추고 페이지가 다시 열렸어요. 화면을 켠 채로 다시 만들어 주세요. 계속 멈추면 720p로 바꾸거나 컴퓨터에서 만들어 주세요."
       : P.total > 300 ? (mlen > 300 ? "영상이 5분을 넘어요. 식전영상은 3~5분이 알맞고, 길면 하객이 지루해할 수 있어요. 음악 단계에서 쓸 구간을 줄여 보세요." : "영상이 5분을 넘어요. 식전영상은 3~5분이 알맞고, 길면 하객이 지루해할 수 있어요. 사진을 줄여 보세요.")
