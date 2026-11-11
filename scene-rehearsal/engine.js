@@ -363,7 +363,8 @@ const Movie = (() => {
     const auto = o.auto || (Math.max(ar / br, br / ar) > 1.45 ? 'blur' : 'cover');
     const fit = o.fit || (meta.fit === 'cover' ? 'cover' : meta.fit === 'whole' ? 'blur' : auto);
     ctx.save();
-    if (o.box) { ctx.beginPath(); ctx.rect(bx, by, bw, bh); ctx.clip(); }
+    if (o.clip) { ctx.beginPath(); o.clip(ctx); ctx.clip(); }   // 프레임(11/11): 네모 대신 그 모양으로 잘라요
+    else if (o.box) { ctx.beginPath(); ctx.rect(bx, by, bw, bh); ctx.clip(); }
     if (fit === 'cover') {   // 사용자가 맞춘 위치를 가운데에 두고 조금만 움직여요
       const z0 = meta.z || 1, amp = .05 / z0;
       framed(ctx, ph.img, bx, by, bw, bh, z0 * sc, (meta.cx ?? .5) + dx * (e - .5) * amp, (meta.cy ?? .5) + dy * (e - .5) * amp);
@@ -468,25 +469,73 @@ const Movie = (() => {
     }
     const a = w * r - gap / 2; return [[x, y, a, h], [x + a + gap, y, w - a - gap, h]];
   }
+  // ===== 프레임 (11/11, 사회자님: 두 장을 네모로만 두는 건 별로 → 모양 틀을 고르고, 틀도 옮길 수 있게) =====
+  // d.fr = 'round' 둥근 사각 · 'circle' 원 · 'heart' 하트 · 'arch' 아치 (없으면 전처럼 네모 칸)
+  // d.fp = [[dx, dy, sc], [dx, dy, sc]]: 칸마다 틀을 옮긴 만큼(두 장 틀 너비·높이에 대한 비율)과 크기(1 = 기본), d.bg = 템플릿 duoBg의 몇 번째 바탕색
+  // 틀이 있으면 칸 안에 그 모양을 넣고, 그 모양을 감싸는 네모를 boxes로 돌려줘요 — 사진 맞춤·편집 창은 이 네모를 '칸'으로 그대로 써요
+  // 모양은 path(ctx, x, y, w, h)로 그려요. ar = 가로/세로 비율(0이면 칸 모양 그대로)
+  function rr(c, x, y, w, h, r){ c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
+  const FRAMES = {
+    round: { ar: 0, path: (c, x, y, w, h) => rr(c, x, y, w, h, Math.min(w, h) * .12) },
+    circle: { ar: 1, path: (c, x, y, w, h) => { c.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2); c.closePath(); } },
+    heart: { ar: 1.08, path: (c, x, y, w, h) => {
+      const X = v => x + w * v, Y = v => y + h * v;
+      c.moveTo(X(.5), Y(.28));
+      c.bezierCurveTo(X(.5), Y(.1), X(.36), Y(0), X(.25), Y(0)); c.bezierCurveTo(X(.1), Y(0), X(0), Y(.12), X(0), Y(.3));
+      c.bezierCurveTo(X(0), Y(.55), X(.25), Y(.75), X(.5), Y(1)); c.bezierCurveTo(X(.75), Y(.75), X(1), Y(.55), X(1), Y(.3));
+      c.bezierCurveTo(X(1), Y(.12), X(.9), Y(0), X(.75), Y(0)); c.bezierCurveTo(X(.64), Y(0), X(.5), Y(.1), X(.5), Y(.28)); c.closePath();
+    } },
+    arch: { ar: .78, path: (c, x, y, w, h) => { const r = w / 2; c.moveTo(x, y + h); c.lineTo(x, y + r); c.arc(x + r, y + r, r, Math.PI, 0); c.lineTo(x + w, y + h); c.closePath(); } }
+  };
+  const FP_LIM = [.5, 1.8];   // 틀 크기(기본의 몇 배)
+  function frameBox(F, cell, area, fp){
+    const [cx, cy, cw, ch] = cell, [ax, ay, aw, ah] = area, pad = Math.min(cw, ch) * .05;
+    let w = cw - 2 * pad, h = ch - 2 * pad;
+    if (F.ar) { h = Math.min(h, w / F.ar); w = h * F.ar; }
+    const k = Math.min(Math.max(FP_LIM[0], Math.min(FP_LIM[1], (fp && fp[2]) || 1)), aw / w, ah / h);   // 두 장 틀보다 커지지는 않게
+    w *= k; h *= k;
+    const x = cx + cw / 2 + ((fp && fp[0]) || 0) * aw - w / 2, y = cy + ch / 2 + ((fp && fp[1]) || 0) * ah - h / 2;
+    return [Math.max(ax, Math.min(ax + aw - w, x)), Math.max(ay, Math.min(ay + ah - h, y)), w, h];   // 틀 밖으로는 못 나가요
+  }
   // 템플릿 기본값과 사용자가 고른 배치를 합쳐 두 칸의 자리를 돌려줘요 (그리기와 편집 창이 같은 계산을 써요)
   function duoBoxes(M, tpl, d){
     d = d || {};
     const D = tpl.duo(M, d.lay), lay = d.lay || D.lay || 'lr';
-    return { lay, D, r: d.r || DUO_R[lay], boxes: slots(D.box, { lay, r: d.r }, D.gap || 0, D.corner) };
+    const R = { lay, D, r: d.r || DUO_R[lay], boxes: slots(D.box, { lay, r: d.r }, D.gap || 0, D.corner) };
+    const F = d.fr ? FRAMES[d.fr] : null;
+    if (F) {
+      const pal = tpl.duoBg || [];
+      R.fr = d.fr; R.cells = R.boxes;
+      R.boxes = R.cells.map((c, k) => frameBox(F, c, D.box, d.fp && d.fp[k]));
+      R.bg = pal[d.bg | 0] || pal[0] || null;                         // { c 색, name 이름, light 밝은 색인지 }
+      R.path = (ctx, k) => F.path(ctx, ...R.boxes[k]);
+    }
+    return R;
   }
   function rim(ctx, b, color, w){ ctx.save(); ctx.fillStyle = color; ctx.fillRect(b[0] - w, b[1] - w, b[2] + 2 * w, b[3] + 2 * w); ctx.restore(); }
+  // 틀이 있는 두 장 장면의 바탕과 틀 아래 것: 바탕색(두 장 틀 안), 틀마다 옅은 그림자(조금 어긋나게 한 번 — 흐림 효과는 느려서 안 써요)
+  function duoBack(ctx, M, R){
+    if (R.bg) { ctx.save(); ctx.fillStyle = R.bg.c; ctx.fillRect(...R.D.box); ctx.restore(); }
+  }
+  function duoShade(ctx, M, R, k, ringColor){
+    const m = Math.min(M.W, M.H);
+    ctx.save(); ctx.translate(m * .006, m * .008); ctx.beginPath(); R.path(ctx, k); ctx.fillStyle = 'rgba(0,0,0,.1)'; ctx.fill(); ctx.restore();
+    if (ringColor) { ctx.save(); ctx.beginPath(); R.path(ctx, k); ctx.strokeStyle = ringColor; ctx.lineWidth = Math.max(4, m * .012); ctx.lineJoin = 'round'; ctx.stroke(); ctx.restore(); }   // 큰+작은의 작은 사진: 흰 테두리
+  }
   // 두 칸에 사진 한 장씩: 칸마다 photo()와 같은 켄 번즈(뒤 칸은 반대 방향), 큰+작은의 작은 사진엔 흰 테두리
   // o.under(box, 사진 번호): 사진을 그리기 전에 칸 아래 그릴 것(그림자 등), o.fit(사진 번호): 맞춤 방식을 직접 정할 때
   function duo(ctx, M, s, u, o = {}){
     const R = duoBoxes(M, M.tpl, M.bank.duo && M.bank.duo(s.i)), [A, B] = R.boxes;
-    const one = (idx, b, kk) => {
+    const one = (idx, b, kk, k) => {
       const p = M.bank.get(idx); if (!p) return;
-      if (o.under) o.under(b, idx);
-      photo(ctx, M, p, { ...s, i: idx, k: kk }, u, { box: b, zoom: o.zoom, auto: 'cover', fit: o.fit ? o.fit(idx) : undefined });
+      if (R.fr) duoShade(ctx, M, R, k, k === 1 && R.lay === 'pip' ? (o.rim || '#fff') : null);
+      else if (o.under) o.under(b, idx);
+      photo(ctx, M, p, { ...s, i: idx, k: kk }, u, { box: b, zoom: o.zoom, auto: 'cover', fit: o.fit ? o.fit(idx) : undefined, clip: R.fr ? c => R.path(c, k) : undefined });
     };
-    one(s.i, A, s.k);
-    if (R.lay === 'pip') rim(ctx, B, o.rim || '#fff', Math.max(2, Math.min(M.W, M.H) * .006));
-    one(s.j, B, s.k + 1);
+    if (R.fr) duoBack(ctx, M, R);
+    one(s.i, A, s.k, 0);
+    if (R.lay === 'pip' && !R.fr) rim(ctx, B, o.rim || '#fff', Math.max(2, Math.min(M.W, M.H) * .006));
+    one(s.j, B, s.k + 1, 1);
     return R;
   }
 
@@ -1070,6 +1119,6 @@ const Movie = (() => {
     decode, mix, make, player, probe, cleanup, beats, clip, isVideo,
     segAt: (P, t) => P.segs[at(P.segs, t)],
     kit: { cl, ease, out3, lerp, rise, veil, cover, place, framed, photo, text, wrap, block, typed, grain, vignette, scrim, font,
-      slots, duoBoxes, duo, rim, DUO_R, DUO_LIM }
+      slots, duoBoxes, duo, rim, DUO_R, DUO_LIM, FRAMES, FP_LIM, duoBack, duoShade, rr }
   };
 })();

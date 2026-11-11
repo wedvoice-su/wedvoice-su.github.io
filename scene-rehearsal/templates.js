@@ -10,6 +10,7 @@
 //          fast: 음악에서 고른 구간에 맞추려고 빠르게 넘길 때 글 없는 사진 한 장의 가장 짧은 초, short: 그때 여는·인사·닫는 장면의 가장 짧은 초 (2차 업데이트) },
 //   openPhoto·thanksPhoto·closePhoto: 그 장면에 사진을 깔지 (closePhoto 'first'는 1번 사진),
 //   duo(M, lay): 한 장면에 사진 두 장일 때의 틀 { box, gap, lay 기본 배치('lr' 좌우·'tb' 위아래·'pip' 큰+작은), corner 작은 사진 자리 } (11/9),
+//   duoBg: 두 장 장면에 프레임(둥근 사각·원·하트·아치)을 골랐을 때 틀 안 바탕색 후보 [{ c 색, name 이름 }] — 템플릿 분위기에 맞는 색, 첫 번째가 기본 (11/11),
 //   fonts: 미리 받을 글꼴, open·photo·parents·thanks·close(ctx, M, s, u): 그리기
 // }
 // 그리기 함수에서 M.W·M.H 화면 크기, M.d 글 데이터, s 장면(s.caption 이야기 문구, s.ch 몇 번째 이야기, s.intro 신랑·신부 소개, s.text 인사 문장,
@@ -97,6 +98,21 @@ const TEMPLATES = [];
       nameTag(ctx, M, u, it, b[0] + m * .04, b[1] + b[3] - m * sc * .27, a, o, sc);
     });
   }
+  // 프레임 장면의 글 (11/11): 사진이 모양 안에 들어가 바탕색이 보이니, 아래 가운데에 어두운 둥근 바탕 + 흰 글씨 — 바탕색이 밝아도 어두워도 읽혀요
+  // 소개 장면이면 "신랑 민준 · 신부 서연" 한 줄 + 해시태그 한 줄, 아니면 이야기 문구
+  function pillText(ctx, M, s, u, o = {}){
+    const m = mm(M), a = K.rise(u, .5, .9) * fadeOut(u, s), its = [s.intro, s.intro2].filter(Boolean);
+    const str = its.length ? [its.map(it => `${it.who} ${it.name || ""}`.trim()).join("  ·  "), its.map(it => it.tags).filter(Boolean).join("   ")].filter(Boolean).join("\n") : s.caption;
+    if (a <= 0 || !str) return;
+    const opt = { family: F.serif, weight: its.length ? 700 : 400, size: m * .044, color: "#fff", maxW: M.W * .8, lh: 1.45, alpha: a };
+    const rows = K.wrap(ctx, str, opt.maxW, opt), hh = rows.length * opt.size * opt.lh, px = m * .04, py = m * .018;
+    ctx.save(); ctx.font = `${opt.weight} ${Math.round(opt.size)}px ${opt.family}`;
+    const tw = Math.max(...rows.map(r => ctx.measureText(r).width)); ctx.restore();
+    const y = Math.min(M.H * .86, (o.bottom != null ? o.bottom : M.H) - m * .05 - py - hh / 2);
+    ctx.save(); ctx.globalAlpha *= a; ctx.fillStyle = "rgba(0,0,0,.52)"; ctx.beginPath();
+    K.rr(ctx, M.W / 2 - tw / 2 - px, y - hh / 2 - py, tw + 2 * px, hh + 2 * py, Math.min(m * .03, (hh + 2 * py) / 2)); ctx.fill(); ctx.restore();
+    K.block(ctx, str, M.W / 2, y, opt);
+  }
   // 인사 장면: 흐린 사진 위에 문장이 한 줄씩
   function message(ctx, M, s, u, o = {}){
     const m = mm(M), p = ph(M, s);
@@ -113,6 +129,7 @@ const TEMPLATES = [];
     time: { open: 7, parents: 7, thanks: 7, close: 8, min: 3.5, max: 6, fast: 1.2, short: { open: 4.5, parents: 4, thanks: 4, close: 4.5 } },
     openPhoto: true, thanksPhoto: true, closePhoto: true,
     duo: M => ({ box: [0, 0, M.W, M.H], gap: mm(M) * .008, lay: tall(M) ? "tb" : "lr", corner: "tr" }),   // 두 장: 화면을 반으로 (작은 사진은 자막을 피해 오른쪽 위)
+    duoBg: [{ c: "#F3D5D8", name: "연분홍" }, { c: "#F4EBE1", name: "크림" }, { c: "#C9828C", name: "로즈" }, { c: "#4A1C28", name: "와인" }, { c: "#1D2A44", name: "네이비" }, { c: "#000000", name: "검정" }],
     fonts: [`700 40px ${F.serif}`, `400 40px ${F.serif}`, `500 40px ${F.en}`, `500 40px ${F.caps}`, `500 40px ${F.sans}`],
     open(ctx, M, s, u){
       const p = ph(M, s), m = mm(M);
@@ -126,7 +143,8 @@ const TEMPLATES = [];
     photo(ctx, M, s, u){
       if (s.j != null) {   // 두 장 장면
         const R = K.duo(ctx, M, s, u);
-        if (s.intro || s.intro2) introDuo(ctx, M, s, u, R.boxes); else if (s.caption) caption(ctx, M, s, u);
+        if (R.fr) pillText(ctx, M, s, u);
+        else if (s.intro || s.intro2) introDuo(ctx, M, s, u, R.boxes); else if (s.caption) caption(ctx, M, s, u);
         return;
       }
       const p = ph(M, s);
@@ -157,6 +175,7 @@ const TEMPLATES = [];
     time: { open: 9, parents: 7, thanks: 7, close: 9, min: 3.5, max: 5.5, fast: 1.2, short: { open: 6.5, parents: 4, thanks: 4, close: 5 } },   // 여는 장면은 카운트다운 2.7초 + 제목
     openPhoto: false, thanksPhoto: true, closePhoto: true,
     duo: M => ({ box: area(M), gap: mm(M) * .006, lay: tall(M) ? "tb" : "lr", corner: "tr" }),   // 두 장: 검은 띠 안을 반으로
+    duoBg: [{ c: "#000000", name: "검정" }, { c: "#1B1A18", name: "차콜" }, { c: "#141C2B", name: "네이비" }, { c: "#3A1620", name: "버건디" }, { c: "#2A2B1E", name: "올리브" }, { c: "#CDBE9F", name: "샌드" }],
     fonts: [`500 40px ${F.caps}`, `700 40px ${F.caps}`, `700 40px ${F.serif}`, `400 40px ${F.serif}`, `500 40px ${F.en}`, `500 40px ${F.sans}`],
     open(ctx, M, s, u){
       const m = mm(M), cx = M.W / 2, cy = M.H / 2;
@@ -182,7 +201,8 @@ const TEMPLATES = [];
       const box = area(M);
       if (s.j != null) {   // 두 장 장면
         const R = K.duo(ctx, M, s, u, { zoom: .06 });
-        if (s.intro || s.intro2) introDuo(ctx, M, s, u, R.boxes, { accent: "#D9C08C" }); else if (s.caption) caption(ctx, M, s, u, { chapter: "#D9C08C", bottom: box[1] + box[3] });
+        if (R.fr) pillText(ctx, M, s, u, { bottom: box[1] + box[3] });
+        else if (s.intro || s.intro2) introDuo(ctx, M, s, u, R.boxes, { accent: "#D9C08C" }); else if (s.caption) caption(ctx, M, s, u, { chapter: "#D9C08C", bottom: box[1] + box[3] });
         return;
       }
       const p = ph(M, s);
@@ -228,6 +248,7 @@ const TEMPLATES = [];
   TEMPLATES.push({
     key: "minimal", name: "미니멀", desc: "밝은 바탕에 사진과 글자만. 짧고 깔끔하게", photos: [10, 25],
     box: (M, p) => mbox(M, p), duo: mduo,
+    duoBg: [{ c: PAPER, name: "종이" }, { c: "#FFFFFF", name: "화이트" }, { c: "#F1DADB", name: "연분홍" }, { c: "#DCE3D5", name: "세이지" }, { c: "#D9E4EC", name: "하늘" }, { c: INK, name: "먹색" }],
     bg: PAPER, edge: PAPER, xf: 1, trans: "fade",
     time: { open: 6, parents: 6, thanks: 6, close: 7, min: 3.5, max: 8, fast: 1.6, short: { open: 4.2, parents: 4, thanks: 4, close: 4.5 } },   // 슬라이드형 템플릿은 사진 11~27장, 장당 약 8초까지
     openPhoto: false, thanksPhoto: false, closePhoto: false,
@@ -289,19 +310,25 @@ const TEMPLATES = [];
     // 처음·끝 장면은 같은 크기(1배)에서 시작·끝나서 반복해도 이음새가 안 보여요
     const life = Math.max(0, Math.min(1, (u + M.tpl.xf) / (s.dur + M.tpl.xf)));
     const z = s.kind === "close" ? 1.05 - .05 * K.ease(life) : 1 + .05 * K.ease(life);
-    const one = (idx, b) => {   // 칸 b에 idx번 사진
+    const one = (idx, b, path) => {   // 칸 b에 idx번 사진 (path: 프레임 모양으로 자를 때)
       const p = M.bank.get(idx); if (!p) return;
       const meta = (M.bank.meta && M.bank.meta(idx)) || {};
-      ctx.save(); ctx.beginPath(); ctx.rect(b[0], b[1], b[2], b[3]); ctx.clip();
+      ctx.save(); ctx.beginPath(); if (path) path(ctx); else ctx.rect(b[0], b[1], b[2], b[3]); ctx.clip();
       if (meta.fit === "whole") { const k = Math.min(b[2] / p.w, b[3] / p.h) * z, dw = p.w * k, dh = p.h * k; ctx.drawImage(p.img, b[0] + (b[2] - dw) / 2, b[1] + (b[3] - dh) / 2, dw, dh); }
       else K.framed(ctx, p.img, b[0], b[1], b[2], b[3], (meta.z || 1) * z, meta.cx ?? .5, meta.cy ?? .5);
       ctx.restore();
     };
     if (s.j != null) {   // 두 장 장면: 포스터 틀 안을 나눠요
       const R = K.duoBoxes(M, M.tpl, M.bank.duo && M.bank.duo(s.i));
-      one(s.i, R.boxes[0]);
-      if (R.lay === "pip") K.rim(ctx, R.boxes[1], "#fff", Math.max(2, m * .006));
-      one(s.j, R.boxes[1]);
+      if (R.fr) {   // 프레임: 포스터 틀 안에 바탕색 + 모양으로 자른 두 장
+        K.duoBack(ctx, M, R);
+        K.duoShade(ctx, M, R, 0); one(s.i, R.boxes[0], c => R.path(c, 0));
+        K.duoShade(ctx, M, R, 1, R.lay === "pip" ? "#fff" : null); one(s.j, R.boxes[1], c => R.path(c, 1));
+      } else {
+        one(s.i, R.boxes[0]);
+        if (R.lay === "pip") K.rim(ctx, R.boxes[1], "#fff", Math.max(2, m * .006));
+        one(s.j, R.boxes[1]);
+      }
     } else if (s.i != null) one(s.i, box);
     ctx.save(); ctx.strokeStyle = "rgba(216,195,160,.55)"; ctx.lineWidth = Math.max(1.5, m * .002);
     ctx.strokeRect(box[0] - m * .012, box[1] - m * .012, box[2] + m * .024, box[3] + m * .024); ctx.restore();
@@ -327,6 +354,7 @@ const TEMPLATES = [];
   TEMPLATES.push({
     key: "poster", name: "무빙포스터", desc: "포스터 한 장이 천천히 움직여요. 사진 1~10장, 반복 재생용", photos: [1, 10],
     box: M => pbox(M), duo: M => ({ box: pbox(M), gap: mm(M) * .012, lay: tall(M) ? "tb" : "lr", corner: "br" }),
+    duoBg: [{ c: POSTER, name: "검정" }, { c: GOLD, name: "골드" }, { c: "#3B1820", name: "버건디" }, { c: "#1F2E27", name: "딥 그린" }, { c: "#18233A", name: "네이비" }, { c: "#EFE6D6", name: "아이보리" }],
     bg: POSTER, xf: 1.6, trans: "fade", loop: true, fill: true, keepXf: true,   // keepXf: 박자에 맞출 때도 천천히 겹쳐 넘어가게 (2차 업데이트)
     time: { open: 6, parents: 6, thanks: 6, close: 6, min: 5, max: 9, fast: 2.5, short: { open: 4, parents: 4, thanks: 4, close: 4 } },
     openPhoto: true, thanksPhoto: true, closePhoto: "first",

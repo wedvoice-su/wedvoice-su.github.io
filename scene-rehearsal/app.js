@@ -32,7 +32,12 @@ const IC = {
   tap: svg('<circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="8"/>'),
   lr: svg('<rect x="3" y="6" width="8" height="12" rx="1.5"/><rect x="13" y="6" width="8" height="12" rx="1.5"/>'),
   tb: svg('<rect x="5" y="3.5" width="14" height="7.5" rx="1.5"/><rect x="5" y="13" width="14" height="7.5" rx="1.5"/>'),
-  pip: svg('<rect x="3" y="5" width="18" height="14" rx="2"/><rect x="12.5" y="7.2" width="6.3" height="5" rx="1" fill="currentColor" stroke="none"/>')
+  pip: svg('<rect x="3" y="5" width="18" height="14" rx="2"/><rect x="12.5" y="7.2" width="6.3" height="5" rx="1" fill="currentColor" stroke="none"/>'),
+  edit: svg('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>'),
+  order: svg('<path d="M4 8h13M14 4.5L17.5 8 14 11.5M20 16H7M10 12.5L6.5 16l3.5 3.5"/>'),
+  swap: svg('<path d="M4.5 12a7.5 7.5 0 0112.8-5.3L19.5 9M19.5 4.5V9H15M19.5 12a7.5 7.5 0 01-12.8 5.3L4.5 15M4.5 19.5V15H9"/>'),
+  trash: svg('<path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l.8 12.5h9.4L17.5 7M10 10.5v6M14 10.5v6"/>'),
+  cut: svg('<circle cx="6.5" cy="7" r="2.5"/><circle cx="6.5" cy="17" r="2.5"/><path d="M8.6 8.4L20 16.5M8.6 15.6L20 7.5"/>')
 };
 const NEWTAG = '<em class="newtag">NEW</em>';
 
@@ -180,34 +185,34 @@ async function insertClip(at, c){
   const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   const ok = await DB.set("ph:" + id, { id, bytes: c.bytes, thumbBytes: c.thumbBytes, w: c.w, h: c.h, taken: c.taken, vid: c.vid });
   const ok2 = await DB.set("cl:" + id, c.clip);
-  PH.splice(at, 0, { id, bytes: c.bytes, thumbBytes: c.thumbBytes, w: c.w, h: c.h, taken: c.taken, vid: c.vid, clip: c.clip, url: URL.createObjectURL(jpg(c.thumbBytes)), meta: null, caption: "", pair: false, duo: null });
+  PH.splice(at, 0, { id, bytes: c.bytes, thumbBytes: c.thumbBytes, w: c.w, h: c.h, taken: c.taken, vid: c.vid, clip: c.clip, src: c.src || null, url: URL.createObjectURL(jpg(c.thumbBytes)), meta: null, caption: "", pair: false, duo: null });   // src: 원본 영상 파일(이 화면을 연 동안만, 저장 안 함)
   UNDO = null; saveOrder();
   return ok && ok2;
 }
-async function replaceClip(i, c){
+async function replaceClip(i, c, keepMeta){   // keepMeta: 같은 영상에서 쓸 부분만 바꿀 때는 맞춰 둔 위치·크기를 그대로
   const old = PH[i];
   URL.revokeObjectURL(old.url);
-  Object.assign(old, { bytes: c.bytes, thumbBytes: c.thumbBytes, w: c.w, h: c.h, taken: c.taken, vid: c.vid, clip: c.clip, url: URL.createObjectURL(jpg(c.thumbBytes)), meta: null });
+  Object.assign(old, { bytes: c.bytes, thumbBytes: c.thumbBytes, w: c.w, h: c.h, taken: c.taken, vid: c.vid, clip: c.clip, src: c.src || null, url: URL.createObjectURL(jpg(c.thumbBytes)), meta: keepMeta ? old.meta : null });
   await DB.set("ph:" + old.id, { id: old.id, bytes: c.bytes, thumbBytes: c.thumbBytes, w: c.w, h: c.h, taken: c.taken, vid: c.vid });
   await DB.set("cl:" + old.id, c.clip);
   savePhoto(old); normalize();   // 두 장 장면에 있던 사진이면 한 장씩으로 풀려요
 }
 // 폰 영상에서 쓸 3~5초를 고르는 창. 고르면 그 부분만 작게 다시 만들어서 돌려줘요(안 넣으면 null). 뒤로 가기 = 안 넣기
-function pickClip(file, label){
+function pickClip(file, label, init){   // init = { len, at }: 이미 넣은 영상에서 쓸 부분을 다시 고를 때 지금 값
   return new Promise(resolve => {
     const url = URL.createObjectURL(file), box = document.createElement("div");
-    let len = 4, start = 0, dur = 0, busy = false, over = false, result = null;
+    let len = init && CLIP_LENS.includes(init.len) ? init.len : 4, start = (init && init.at) || 0, dur = 0, busy = false, over = false, result = null;
     box.className = "editor clipper"; box.setAttribute("role", "dialog"); box.setAttribute("aria-label", "영상에서 쓸 부분 고르기");
     box.innerHTML = `<div class="in">
       <div class="ed-top"><b>영상에서 쓸 부분 고르기</b><span class="count">${esc(label || "")}</span></div>
-      <div class="ed-stage clip-stage"><video playsinline muted preload="auto"></video></div>
+      <div class="ed-stage clip-stage"><video playsinline muted preload="auto"></video><button type="button" class="playbtn" id="clplay" aria-label="재생" hidden>${PLAY}</button></div>
       <p class="drag" id="clhint">영상을 여는 중…</p>
       <p class="ed-label">몇 초를 쓸까요?</p>
       <div class="seg" id="cllen">${CLIP_LENS.map(v => `<button data-v="${v}" class="${v === len ? "on" : ""}">${v}초</button>`).join("")}</div>
       <p class="ed-label">어디부터 쓸까요?</p>
       <label class="range"><span id="clat">0:00부터</span><input type="range" id="clstart" min="0" max="0" step="0.05" value="0" aria-label="시작 위치"></label>
-      <button class="btn main" id="clok" disabled>이 부분 넣기</button>
-      <button class="btn ghost" id="clno">이 영상은 안 넣기</button>
+      <button class="btn main" id="clok" disabled>${init ? "이 부분으로 바꾸기" : "이 부분 넣기"}</button>
+      <button class="btn ghost" id="clno">${init ? "그대로 두기" : "이 영상은 안 넣기"}</button>
       <p class="msg" id="clmsg" role="status"></p>
     </div>`;
     document.body.appendChild(box); document.body.style.overflow = "hidden";
@@ -228,7 +233,8 @@ function pickClip(file, label){
       q("#clat").textContent = `${mmss(start)}부터`;
       box.querySelectorAll("#cllen button").forEach(b => { b.classList.toggle("on", +b.dataset.v === len); b.disabled = busy || (+b.dataset.v > dur + .05 && +b.dataset.v !== CLIP_LENS[0]); });
     };
-    const play = () => { try { v.currentTime = start; } catch (e) {} v.play().catch(() => {}); };
+    // 저절로 재생이 안 되는 휴대폰(절전 모드 등)에서는 가운데 재생 버튼을 보여 줘요 — 누르면 고른 부분이 되풀이돼요
+    const play = () => { try { v.currentTime = start; } catch (e) {} v.play().then(() => { q("#clplay").hidden = true; }, () => { if (!over && !busy) q("#clplay").hidden = false; }); };
     const ready = () => {   // 영상 길이를 알게 되면 한 번만
       if (dur || over) return;
       const d = isFinite(v.duration) ? v.duration : 0;
@@ -248,15 +254,17 @@ function pickClip(file, label){
     sl.oninput = () => { start = +sl.value; q("#clat").textContent = `${mmss(start)}부터`; v.pause(); try { v.currentTime = start; } catch (e) {} };
     sl.onchange = () => { if (!busy) play(); };
     box.querySelectorAll("#cllen button").forEach(b => b.onclick = () => { if (busy) return; len = +b.dataset.v; show(); play(); });
+    q("#clplay").onclick = v.onclick = () => { if (!busy && dur) play(); };
     q("#clno").onclick = () => leave(null);
     q("#clok").onclick = async () => {
       if (busy || !dur) return;
-      busy = true; v.pause(); q("#clok").disabled = true; show();
+      busy = true; v.pause(); q("#clok").disabled = true; q("#clplay").hidden = true; show();
       const msg = q("#clmsg");
       msg.textContent = "영상 준비 중…";
       try {
         const c = await Movie.clip(file, start, Math.min(len, dur), p => { msg.textContent = `영상 준비 중… ${Math.round(Math.max(0, Math.min(1, p)) * 100)}%`; }, DEBUG && QS.has("capturetest") ? "capture" : undefined);
         if (DEBUG) console.log("clip", c.how, c.why, c.vid, c.w, c.h, c.clip.byteLength);
+        c.vid = { ...c.vid, at: +start.toFixed(2) }; c.src = file;
         if (!over) leave(c);
       } catch (e) {
         if (over) return;
@@ -396,12 +404,12 @@ function render(){
 // ===== 새 기능 알림 (11/9): 첫 화면과 단계 화면 위에 작게. 닫으면 이 휴대폰에서 다시 안 보여요 — 예전에 링크를 받은 분도 새 기능을 알 수 있게 =====
 // 다음 업데이트 때는 v를 바꾸고 글을 고치면 다시 한 번 보여요. 만들던 단계로 바로 들어가는 분은 첫 화면을 안 거치니 단계 화면(topBar)에도 넣어요
 // 11/11 손질: 긴 글 한 덩어리 대신 ① 첫 화면에는 기능마다 그림 + 한 줄(뭐가 좋은지) ② 단계 화면에는 한 줄짜리 띠 → 누르면 안내 창(어떻게 쓰는지 + "○단계에서 해 보기")
-const NEWS = { v: "v2-2", title: "새 기능 5가지" };   // 1차(11/9): "duo-1" 한 장면에 사진 두 장, 2차 초안(11/10): "v2-1" 글 한 덩어리
+const NEWS = { v: "v2-3", title: "새 기능" };   // 개수는 안 적어요: 릴스 대본은 "네 가지 + 영상 길이"라서 숫자가 어긋나 보여요 (11/11 사회자님 "추천대로")   // 1차(11/9): "duo-1" 한 장면에 사진 두 장, 2차 초안(11/10): "v2-1" 글 한 덩어리
 // k: 그림(IC), step: 그 기능이 있는 단계, good: 뭐가 좋은지, how: 어떻게 쓰는지 (사회자님 문구 검토 대상)
 const FEATS = [
   { k: "beat", step: 4, name: "박자에 맞춰 넘기기", good: "노래 박자에 사진이 착착 바뀌어요.", how: "음악을 넣으면 저절로 켜져요. 내 사진으로 미리 느껴 볼 수 있어요." },
-  { k: "clip", step: 2, name: "폰 영상 넣기", good: "움직이는 장면이 3~5초씩 들어가요.", how: "'영상 넣기'를 누르고, 쓸 부분만 골라요." },
-  { k: "duo", step: 2, name: "한 장면에 사진 두 장", good: "어릴 적 사진을 나란히 놓을 수 있어요.", how: "사진을 누르고 '다음 사진과 묶기'를 눌러요." },
+  { k: "clip", step: 2, name: "폰 영상 넣기", good: "움직이는 장면이 3~5초씩 들어가요.", how: "'영상 넣기'를 누르면 바로 들어가요. 긴 영상은 쓸 부분만 골라요." },
+  { k: "duo", step: 2, name: "한 장면에 사진 두 장", good: "어릴 적 사진을 하트·원 프레임에 나란히 놓을 수 있어요.", how: "사진을 누르고 '두 장'에서 묶은 뒤, 프레임을 골라요." },
   { k: "sort", step: 2, name: "찍은 날짜순 정렬", good: "옛날 사진부터 차례로, 버튼 하나로 줄 세워요.", how: "사진을 넣고 '찍은 날짜순으로 정렬'을 눌러요." },
   { k: "len", step: 4, name: "영상 길이 고르기", good: "1분짜리 인스타용도 만들 수 있어요.", how: "30초·1분·3분 중에 고르고, 음악의 어느 부분을 쓸지 정해요." }
 ];
@@ -584,20 +592,93 @@ const tipDone = () => { try { localStorage.setItem(TIP_KEY, "1"); } catch (e) {}
 // 두 장 장면의 배치 (안 골랐으면 템플릿 기본: 가로 영상은 좌우, 세로 영상은 위아래)
 const tallNow = () => { const [W, H] = Movie.size(S.ratio, "720"); return H > W; };
 const layOf = p => (p.duo && p.duo.lay) || (tallNow() ? "tb" : "lr");
-// 고른 장면이 영상에서 어떻게 보일지 작게 (두 장 장면은 고른 배치 그대로 — 눈으로 바로 확인)
+// 프레임 (11/11): 두 장 장면의 사진을 네모 대신 모양 틀에. duo.fr = 모양, duo.bg = 바탕색 번호(템플릿 duoBg), duo.fp = 칸마다 [옮긴 x, 옮긴 y, 크기]
+const FRS = [["", "네모"], ["round", "둥근"], ["circle", "원"], ["heart", "하트"], ["arch", "아치"]];
+const FR_IC = {
+  "": svg('<rect x="4.5" y="4.5" width="15" height="15" rx=".8"/>'),
+  round: svg('<rect x="4.5" y="4.5" width="15" height="15" rx="4.5"/>'),
+  circle: svg('<circle cx="12" cy="12" r="8"/>'),
+  heart: svg('<path d="M12 19.5S4.5 15 4.5 9.6A4.1 4.1 0 0112 7.3a4.1 4.1 0 017.5 2.3c0 5.4-7.5 9.9-7.5 9.9z"/>'),
+  arch: svg('<path d="M6 19.5V11a6 6 0 0112 0v8.5z"/>')
+};
+const frOf = p => (p && p.duo && p.duo.fr && Movie.kit.FRAMES[p.duo.fr] ? p.duo.fr : "");
+const bgOf = p => { const pal = tpl().duoBg || []; return pal[(p.duo && p.duo.bg) | 0] || pal[0] || null; };
+function setDuo(p, patch){ p.duo = { ...(p.duo || {}), ...patch }; savePhoto(p); }   // 다른 값(배치·프레임·바탕색)은 그대로 두고 바꿀 것만
+// 고른 장면이 영상에서 어떻게 보일지 작게 (두 장 장면은 고른 배치·프레임·바탕색 그대로 — 눈으로 바로 확인)
 function miniScene(sc){
   const a = PH[sc[0]], b = sc.length === 2 ? PH[sc[1]] : null, tall = tallNow() ? " tall" : "";
   if (!b) return `<div class="mini${tall}"><img src="${a.url}" alt=""></div>`;
-  const lay = layOf(a), r = (a.duo && a.duo.r) || Movie.kit.DUO_R[lay];
-  return `<div class="mini ${lay}${tall}" style="--r:${r}"><img src="${a.url}" alt=""><img src="${b.url}" alt=""></div>`;
+  const lay = layOf(a), r = (a.duo && a.duo.r) || Movie.kit.DUO_R[lay], fr = frOf(a), bg = fr ? bgOf(a) : null;
+  return `<div class="mini ${lay}${tall}${fr ? ` fr fr-${fr}` : ""}" style="--r:${r}${bg ? `;--bg:${bg.c}` : ""}"><img src="${a.url}" alt=""><img src="${b.url}" alt=""></div>`;
+}
+// 영상 길이를 미리 알아봐요 (5초 안쪽이면 고를 게 없으니 창 없이 바로 넣으려고). 모르면 0
+function videoDur(file){
+  return new Promise(res => {
+    const v = document.createElement("video"), url = URL.createObjectURL(file);
+    let done = false;
+    const end = d => { if (done) return; done = true; try { v.pause(); v.removeAttribute("src"); v.load(); } catch (e) {} v.remove(); URL.revokeObjectURL(url); res(d); };
+    v.muted = true; v.playsInline = true; v.setAttribute("playsinline", ""); v.preload = "metadata";
+    v.style.cssText = "position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none";
+    v.onloadedmetadata = v.ondurationchange = () => { if (isFinite(v.duration) && v.duration > 0) end(v.duration); };
+    v.onerror = () => end(0);
+    document.body.appendChild(v); v.src = url;
+    v.play().catch(() => {});   // 아이폰은 재생을 걸어야 영상 정보를 읽어 오기도 해요
+    setTimeout(() => end(0), 4000);
+  });
+}
+// 영상 하나를 넣을 준비 (11/11 손질: 영상이 쉽게 들어가게)
+//   5초 안쪽 영상은 통째로 바로 — 고를 게 없으니 창을 띄우지 않아요. 더 긴 영상만 쓸 부분을 고르는 창
+//   돌려주는 것: Movie.clip 결과 + vid.at(시작 초) + src(원본 파일: 이 화면을 연 동안에는 다시 고르지 않고 쓸 부분을 바꿀 수 있게) + auto(창 없이 넣었는지). 안 넣으면 null
+const CLIP_MAX = CLIP_LENS[CLIP_LENS.length - 1];
+async function clipOf(file, label, onp){
+  const dur = await videoDur(file);
+  if (dur >= 1 && dur <= CLIP_MAX + .5) {
+    const c = await Movie.clip(file, 0, Math.min(dur, CLIP_MAX), onp, DEBUG && QS.has("capturetest") ? "capture" : undefined);
+    c.vid = { ...c.vid, at: 0 }; c.src = file; c.auto = true;
+    return c;
+  }
+  return pickClip(file, label);
+}
+const pct = p => Math.round(Math.max(0, Math.min(1, p || 0)) * 100);
+// 고른 장면 도구에서 열어 둔 묶음("" 없음 · order 순서 · swap 바꾸기 · duo 두 장 · clip 쓸 부분)과 자리 고르기 중인지
+let TAB = "", MOVING = false;
+// 사진·영상을 바꾸는 동안: 목록과 위쪽 단계 줄을 잠그고, 끝나면 아직 사진 단계일 때만 화면을 다시 그려요. fn은 끝에 보여 줄 말을 돌려줘요
+async function busyDo(fn){
+  if (ADDING) return;
+  ADDING = true; lockPhotos();
+  let msg = "";
+  try { msg = await fn(); } catch (e) { msg = "이 파일은 열 수 없어요."; } finally { ADDING = false; }
+  if (S.step === 2) { stepPhotos(); if (msg) say(msg, $("#ptmsg") ? "#ptmsg" : "#busy"); }
 }
 function stepPhotos(){
   const SC = scenes(), pairOf = i => { const s = SC.find(x => x.includes(i)); return s && s.length === 2 ? (s[0] === i ? "pa" : "pb") : ""; };
   const cur = SEL >= 0 && PH[SEL] ? SC.find(x => x.includes(SEL)) : null, q = cur ? SC.indexOf(cur) : -1, pr = !!(cur && cur.length === 2);
-  const nv = clipCount(), isV = !!(cur && PH[SEL].vid), T = tpl();
+  const nv = clipCount(), isV = !!(cur && PH[SEL].vid);
+  if (!cur) MOVING = false;
+  if ((TAB === "duo" && isV) || (TAB === "clip" && !isV)) TAB = "";
   // 한 장면에 두 장으로 묶을 짝: 다음 사진이 먼저, 안 되면(마지막 사진 · 다음이 영상 · 다음이 이미 두 장 장면) 앞 사진. joinAt = 앞 칸이 될 사진 번호
   const single = i => i >= 0 && i < PH.length && !PH[i].vid && sceneOf(i).length === 1;
   const joinAt = cur && !pr && !isV ? (single(SEL + 1) ? SEL : single(SEL - 1) ? SEL - 1 : -1) : -1, canJoin = joinAt >= 0;
+  const fr = pr ? frOf(PH[cur[0]]) : "", tab = k => (TAB === k ? ' class="on"' : "");
+  const head = !cur ? "" : `<div class="pt-head">${miniScene(cur)}
+      <p class="which">${pr ? `${cur[0] + 1}·${cur[1] + 1}번 사진 <small>한 장면</small>` : isV ? `${SEL + 1}번 영상 <small>${Math.round(PH[SEL].vid.len)}초 · 소리 없이</small>` : `${SEL + 1}번 사진`}${MOVING ? `<span class="when go">옮길 자리의 사진을 눌러 주세요. 그 사진 앞으로 가요.</span>` : PH[SEL].taken != null ? `<span class="when">${pr ? `${SEL + 1}번 ` : ""}${whenKo(PH[SEL].taken)} 찍음</span>` : ""}</p>
+      ${MOVING ? "" : `<button type="button" class="pt-x" id="ptx" aria-label="고른 것 풀기">×</button>`}</div>`;
+  const pane = !cur || MOVING ? "" : TAB === "order" ? `<div class="pt-pane">
+        <div class="pt-three"><button class="btn ghost" id="mvl"${q === 0 ? " disabled" : ""}>◀ 앞으로</button><button class="btn ghost" id="mvr"${q === SC.length - 1 ? " disabled" : ""}>뒤로 ▶</button><button class="btn ghost" id="mvto"${SC.length < 2 ? " disabled" : ""}>자리 고르기</button></div>
+        <p class="pt-hint">멀리 옮길 땐 '자리 고르기'를 누르고, 옮길 자리의 사진을 눌러 주세요.</p></div>`
+    : TAB === "swap" ? `<div class="pt-pane">
+        <p class="pt-label"><b>${pr ? `${SEL + 1}번 사진을 ` : ""}무엇으로 바꿀까요?</b><span>넣어 둔 글은 그대로</span></p>
+        <div class="pt-two"><label class="btn ghost add"><input type="file" id="swap" accept="image/*">${IC.photo}<span>다른 사진으로</span></label><label class="btn ghost add"><input type="file" id="swapv" accept="video/*">${IC.clip}<span>영상으로</span></label></div></div>`
+    : TAB === "clip" ? `<div class="pt-pane">
+        <p class="pt-label"><b>영상에서 쓸 부분</b><span>${PH[SEL].vid.at != null ? `${mmss(PH[SEL].vid.at)}부터 ` : ""}${Math.round(PH[SEL].vid.len)}초</span></p>
+        ${PH[SEL].src ? `<button class="btn ghost" id="retrim">쓸 부분 바꾸기</button>` : `<label class="btn ghost add"><input type="file" id="retrimf" accept="video/*">영상을 다시 골라서 쓸 부분 바꾸기</label>`}</div>`
+    : TAB === "duo" ? `<div class="pt-pane">
+        <p class="pt-label">${IC.duo}<b>한 장면에 두 장</b>${pr ? `<span>배치 · 프레임</span>` : `<span>두 사진이 한 화면에</span>`}</p>
+        ${pr ? `<div class="pt-lay"><div class="seg lay" id="ptlay">${LAYS.map(([v, l]) => `<button type="button" data-v="${v}" class="${layOf(PH[cur[0]]) === v ? "on" : ""}">${IC[v]}${l}</button>`).join("")}</div><button class="btn ghost" id="unpair">따로 보이기</button></div>
+        <div class="frs" id="ptfr">${FRS.map(([v, l]) => `<button type="button" data-v="${v}" class="${fr === v ? "on" : ""}">${FR_IC[v]}<span>${l}</span></button>`).join("")}</div>
+        ${fr ? `<p class="pt-hint">바탕색을 고르거나 프레임을 옮기려면 '편집'을 눌러 주세요.</p>` : ""}`
+          : `<div class="pt-two"><button class="btn ghost" id="join"${canJoin ? "" : " disabled"}>${!canJoin ? "묶을 옆 사진이 없어요" : joinAt === SEL ? `다음 사진(${SEL + 2}번)과 묶기` : `앞 사진(${SEL}번)과 묶기`}</button>${PH.length < MAX_PHOTOS ? `<label class="btn ghost add"><input type="file" id="pairpick" accept="image/*">새 사진 넣어 묶기</label>` : ""}</div>`}
+        </div>` : "";
   app.innerHTML = `${topBar(2)}
     <h2 class="title">사진을 넣어 주세요</h2>
     <p class="sub">넣은 순서대로 영상에 나와요.</p>
@@ -605,7 +686,7 @@ function stepPhotos(){
       <label class="btn main add"><input type="file" id="pick" accept="image/*" multiple>${IC.photo}<span>사진 넣기</span></label>
       <label class="btn ghost add"><input type="file" id="pickv" accept="video/*" multiple>${IC.clip}<span>영상 넣기</span>${NEWTAG}</label>
     </div>
-    <p class="note addnote">영상은 3~5초만 골라 넣어요. 소리는 빼고, 배경 음악만 나와요.</p>
+    <p class="note addnote">영상은 3~5초가 들어가요. 소리는 빼고, 배경 음악만 나와요.</p>
     <p class="busy" id="busy" role="status"></p>
     ${PH.length ? `<div class="count-line"><span>${nv ? `사진 ${PH.length - nv}장 · 영상 ${nv}개` : `사진 ${PH.length}장`}${PH.length >= MAX_PHOTOS ? " (최대)" : ""}${SC.length < PH.length ? ` · 장면 ${SC.length}개` : ""}</span><span>${guess(PH.length)}</span></div>
     ${PH.length >= 2 ? `<div class="sortrow"><button type="button" class="chip" id="sortd">${IC.sort}<span>찍은 날짜순으로 정렬</span>${NEWTAG}</button>${UNDO ? `<button class="text-btn" id="unsort">정렬 되돌리기</button>` : ""}</div>` : ""}
@@ -614,37 +695,51 @@ function stepPhotos(){
       <p class="empty-h">${esc(guess(0))}</p>
       <ul class="feats">
         <li>${IC.tap}<p><b>넣은 뒤 사진을 누르면</b>순서를 바꾸고, 위치·크기를 맞추고, 글을 넣을 수 있어요.</p></li>
-        <li>${IC.duo}<p><b>한 장면에 사진 두 장</b>사진을 누르고 '다음 사진과 묶기'를 누르면 나란히 나와요.</p></li>
+        <li>${IC.duo}<p><b>한 장면에 사진 두 장</b>두 장을 묶고 하트·원 같은 프레임에 넣을 수 있어요.</p></li>
         <li>${IC.sort}<p><b>찍은 날짜순 정렬</b>옛날 사진부터 차례로, 버튼 하나로 줄 세워요.</p></li>
       </ul></div>`}
-    <div class="photos">${PH.map((p, i) => `<button data-i="${i}" class="${i === SEL ? "on " : ""}${pairOf(i)}" aria-label="${i + 1}번 ${p.vid ? "영상" : "사진"}${pairOf(i) ? " (한 장면에 두 장)" : ""}"><img src="${p.url}" alt=""><span class="no">${i + 1}</span>${pairOf(i) ? `<span class="pr">2장</span>` : p.vid ? `<span class="pr vd">▶ ${Math.round(p.vid.len)}초</span>` : ""}${p.caption ? `<span class="tag">글</span>` : edited(p) ? `<span class="tag">✎</span>` : ""}</button>`).join("")}</div>
-    ${cur ? `<div class="photo-tools">
-      <div class="pt-head">${miniScene(cur)}
-        <p class="which">${pr ? `${cur[0] + 1}·${cur[1] + 1}번 사진 <small>한 장면</small>` : isV ? `${SEL + 1}번 영상 <small>${Math.round(PH[SEL].vid.len)}초 · 소리 없이</small>` : `${SEL + 1}번 사진`}${PH[SEL].taken != null ? `<span class="when">${pr ? `${SEL + 1}번 ` : ""}${whenKo(PH[SEL].taken)} 찍음</span>` : ""}</p>
-        <button type="button" class="pt-x" id="ptx" aria-label="고른 것 풀기">×</button></div>
-      <button class="btn main" id="edit">위치·크기 맞추고 글 넣기</button>
-      <div class="pt-row">
-        <button class="btn ghost" id="mvl" aria-label="순서 앞으로"${q === 0 ? " disabled" : ""}>◀ 앞으로</button>
-        <button class="btn ghost" id="mvr" aria-label="순서 뒤로"${q === SC.length - 1 ? " disabled" : ""}>뒤로 ▶</button>
-        <label class="btn ghost add"><input type="file" id="swap" accept="image/*,video/*">${pr ? `${SEL + 1}번 ` : ""}바꾸기</label>
-        <button class="btn ghost" id="rm">${pr ? `${SEL + 1}번 ` : ""}빼기</button>
+    <div class="photos${MOVING ? " moving" : ""}">${PH.map((p, i) => `<button data-i="${i}" class="${i === SEL ? "on " : ""}${pairOf(i)}" aria-label="${i + 1}번 ${p.vid ? "영상" : "사진"}${pairOf(i) ? " (한 장면에 두 장)" : ""}"><img src="${p.url}" alt=""><span class="no">${i + 1}</span>${pairOf(i) ? `<span class="pr">2장</span>` : p.vid ? `<span class="pr vd">▶ ${Math.round(p.vid.len)}초</span>` : ""}${p.caption ? `<span class="tag">글</span>` : edited(p) ? `<span class="tag">✎</span>` : ""}</button>`).join("")}</div>
+    ${!cur ? "" : MOVING ? `<div class="photo-tools">${head}
+      <div class="pt-two"><button class="btn ghost" id="mvend"${q === SC.length - 1 ? " disabled" : ""}>맨 뒤로 보내기</button><button class="btn ghost" id="mvno">그만두기</button></div></div>`
+    : `<div class="photo-tools">${head}
+      <div class="pt-bar">
+        <button type="button" id="edit">${IC.edit}<span>편집</span></button>
+        <button type="button" data-tab="order"${tab("order")}>${IC.order}<span>순서</span></button>
+        <button type="button" data-tab="swap"${tab("swap")}>${IC.swap}<span>바꾸기</span></button>
+        ${isV ? `<button type="button" data-tab="clip"${tab("clip")}>${IC.cut}<span>쓸 부분</span></button>` : `<button type="button" data-tab="duo"${tab("duo")}>${IC.duo}<span>두 장</span>${NEWTAG}</button>`}
+        <button type="button" id="rm">${IC.trash}<span>${pr ? `${SEL + 1}번 ` : ""}빼기</span></button>
       </div>
-      ${isV ? "" : `<div class="pt-duo">
-        <p class="pt-label">${IC.duo}<b>한 장면에 두 장</b>${NEWTAG}${pr ? `<span>배치 고르기</span>` : `<span>두 사진이 나란히</span>`}</p>
-        ${pr ? `<div class="pt-lay"><div class="seg lay" id="ptlay">${LAYS.map(([v, l]) => `<button type="button" data-v="${v}" class="${layOf(PH[cur[0]]) === v ? "on" : ""}">${IC[v]}${l}</button>`).join("")}</div><button class="btn ghost" id="unpair">따로 보이기</button></div>`
-          : `<div class="pt-two"><button class="btn ghost" id="join"${canJoin ? "" : " disabled"}>${!canJoin ? "묶을 옆 사진이 없어요" : joinAt === SEL ? `다음 사진(${SEL + 2}번)과 묶기` : `앞 사진(${SEL}번)과 묶기`}</button>${PH.length < MAX_PHOTOS ? `<label class="btn ghost add"><input type="file" id="pairpick" accept="image/*">새 사진 넣어 묶기</label>` : ""}</div>`}
-      </div>`}
+      ${pane}
       <p class="msg pt-msg" id="ptmsg" role="status"></p>
-    </div>` : ""}
+    </div>`}
     <p class="safe">${LOCK}<span>${SAFE}</span></p>
     ${navBar("이전", "다음: 글 넣기", PH.length === 0)}`;
   $("#pick").onchange = $("#pickv").onchange = e => addPhotos(e.target.files);
-  if ($("#ptx")) $("#ptx").onclick = () => { SEL = -1; stepPhotos(); };
-  if ($("#join")) $("#join").onclick = () => { if (!canJoin) return; const i = joinAt; pairUp(i); stepPhotos(); say(`${i + 1}·${i + 2}번 사진이 한 장면에 나와요. 배치를 골라 보세요.`, "#ptmsg"); };
-  app.querySelectorAll("#ptlay button").forEach(b => b.onclick = () => { const p = PH[cur[0]]; p.duo = { lay: b.dataset.v, r: null }; savePhoto(p); stepPhotos(); });
   if (LOST) { say(`예전에 넣은 사진 ${LOST}장을 다시 불러오지 못했어요. 다시 넣어 주세요.`, "#busy"); LOST = 0; }
   if (ADDING) lockPhotos();
-  app.querySelectorAll(".photos button").forEach(b => b.onclick = () => { const i = +b.dataset.i; SEL = SEL === i ? -1 : i; tipDone(); stepPhotos(); });
+  // 고른 장면을 tq번째 장면 앞으로 (tq가 장면 수와 같으면 맨 뒤로). 두 장 장면은 둘이 같이 움직여요
+  const moveTo = tq => {
+    if (q < 0 || tq === q) { MOVING = false; stepPhotos(); return; }
+    const off = SEL - cur[0], at = tq >= SC.length ? PH.length - cur.length : SC[tq][0] - (tq > q ? cur.length : 0);
+    const block = PH.splice(cur[0], cur.length);
+    PH.splice(at, 0, ...block); SEL = at + off; MOVING = false;
+    saveOrder(); stepPhotos(); say(`${SEL + 1}번 자리로 옮겼어요.`, "#ptmsg");
+  };
+  app.querySelectorAll(".photos button").forEach(b => b.onclick = () => {
+    const i = +b.dataset.i;
+    if (MOVING) { moveTo(SC.findIndex(s => s.includes(i))); return; }
+    SEL = SEL === i ? -1 : i; tipDone();
+    if (SEL >= 0 && !TAB && sceneOf(SEL).length === 2) TAB = "duo";   // 두 장 장면을 누르면 배치·프레임이 바로 보이게 (다른 묶음을 열어 뒀으면 그대로)
+    stepPhotos();
+  });
+  app.querySelectorAll(".pt-bar [data-tab]").forEach(b => b.onclick = () => { TAB = TAB === b.dataset.tab ? "" : b.dataset.tab; stepPhotos(); });
+  if ($("#ptx")) $("#ptx").onclick = () => { SEL = -1; stepPhotos(); };
+  if ($("#mvto")) $("#mvto").onclick = () => { MOVING = true; stepPhotos(); };
+  if ($("#mvno")) $("#mvno").onclick = () => { MOVING = false; stepPhotos(); };
+  if ($("#mvend")) $("#mvend").onclick = () => moveTo(SC.length);
+  if ($("#join")) $("#join").onclick = () => { if (!canJoin) return; const i = joinAt; pairUp(i); TAB = "duo"; stepPhotos(); say(`${i + 1}·${i + 2}번 사진이 한 장면에 나와요. 배치와 프레임을 골라 보세요.`, "#ptmsg"); };
+  app.querySelectorAll("#ptlay button").forEach(b => b.onclick = () => { setDuo(PH[cur[0]], { lay: b.dataset.v, r: null, fp: null }); stepPhotos(); });
+  app.querySelectorAll("#ptfr button").forEach(b => b.onclick = () => { setDuo(PH[cur[0]], { fr: b.dataset.v || null, fp: null }); stepPhotos(); });
   // 순서 바꾸기는 장면 단위예요 (두 장 장면은 둘이 같이 움직여요)
   const move = d => {
     const t = q + d; if (q < 0 || t < 0 || t >= SC.length) return;
@@ -661,22 +756,36 @@ function stepPhotos(){
     say(!r.moved ? "이미 찍은 날짜순이에요." : `찍은 날짜순으로 정렬했어요.${r.unknown ? ` 날짜를 모르는 사진 ${r.unknown}장은 맨 뒤에 있어요.` : ""}`, "#busy");
   };
   if ($("#unsort")) $("#unsort").onclick = () => { const ok = undoSort(); SEL = -1; stepPhotos(); say(ok ? "정렬하기 전 순서로 되돌렸어요." : "사진이 바뀌어서 되돌릴 수 없어요.", "#busy"); };
-  if ($("#swap")) $("#swap").onchange = async e => {
+  // 바꾸기: 사진으로든 영상으로든 그 자리에서 (영상이 5초 안쪽이면 바로, 길면 쓸 부분을 고르는 창)
+  const swapWith = e => {
     const f = e.target.files && e.target.files[0], at = SEL; if (!f) return;
-    try {
-      if (Movie.isVideo(f)) {   // 영상이면 쓸 부분부터 골라요 (안 넣기를 누르면 그대로)
-        if (!PH[at].vid && clipCount() >= MAX_CLIPS) { say(`영상은 ${MAX_CLIPS}개까지 넣을 수 있어요.`, "#busy"); return; }
-        lockPhotos();
-        const c = await pickClip(f, "");
-        if (c && PH[at]) { await replaceClip(at, c); UNDO = null; }
-        SEL = at; stepPhotos();
-        if (c) say(`${at + 1}번을 영상으로 바꿨어요. 넣어 둔 글은 그대로예요.`, "#ptmsg");
-        return;
+    busyDo(async () => {
+      if (Movie.isVideo(f)) {
+        if (!PH[at].vid && clipCount() >= MAX_CLIPS) return `영상은 ${MAX_CLIPS}개까지 넣을 수 있어요.`;
+        say("영상 여는 중…", "#ptmsg");
+        const c = await clipOf(f, "", p => say(`영상 준비 중… ${pct(p)}%`, "#ptmsg"));
+        if (!c || !PH[at]) return "";
+        await replaceClip(at, c); UNDO = null; SEL = at; TAB = "";
+        return `${at + 1}번을 영상으로 바꿨어요. 넣어 둔 글은 그대로예요.`;
       }
       say("사진 바꾸는 중…", "#ptmsg");
-      await replacePhoto(at, f); stepPhotos(); say(`${at + 1}번 사진을 바꿨어요. 넣어 둔 글은 그대로예요.`, "#ptmsg");
-    } catch (x) { stepPhotos(); say("이 파일은 열 수 없어요.", "#ptmsg"); }
+      await replacePhoto(at, f); TAB = "";
+      return `${at + 1}번 사진을 바꿨어요. 넣어 둔 글은 그대로예요.`;
+    });
   };
+  if ($("#swap")) $("#swap").onchange = $("#swapv").onchange = swapWith;
+  // 영상에서 쓸 부분 바꾸기: 이 화면을 연 동안 넣은 영상이면 원본을 들고 있어서 바로, 아니면 영상을 다시 골라요
+  const retrim = file => {
+    const at = SEL, p = PH[at]; if (!file || !p || !p.vid) return;
+    busyDo(async () => {
+      const c = await pickClip(file, "", { len: Math.round(p.vid.len), at: p.vid.at || 0 });
+      if (!c || !PH[at]) return "";
+      await replaceClip(at, c, true); SEL = at;
+      return "영상에서 쓸 부분을 바꿨어요.";
+    });
+  };
+  if ($("#retrim")) $("#retrim").onclick = () => retrim(PH[SEL] && PH[SEL].src);
+  if ($("#retrimf")) $("#retrimf").onchange = e => retrim(e.target.files && e.target.files[0]);
   if ($("#mvl")) $("#mvl").onclick = () => move(-1);
   if ($("#mvr")) $("#mvr").onclick = () => move(1);
   if ($("#rm")) $("#rm").onclick = () => {
@@ -685,11 +794,10 @@ function stepPhotos(){
     SEL = Math.min(SEL, PH.length - 1); normalize(); saveOrder(); stepPhotos();
   };
   if ($("#unpair")) $("#unpair").onclick = () => { unpair(cur[0]); stepPhotos(); say(`${cur[0] + 1}번과 ${cur[1] + 1}번 사진이 한 장씩 따로 나와요.`, "#ptmsg"); };
-  if ($("#pairpick")) $("#pairpick").onchange = async e => {
-    const f = e.target.files && e.target.files[0]; if (!f) return;
-    say("사진 넣는 중…", "#ptmsg"); lockPhotos();
-    try { await insertPhoto(SEL + 1, f); pairUp(SEL); stepPhotos(); say(`${SEL + 1}·${SEL + 2}번 사진이 한 장면에 나와요. 배치를 골라 보세요.`, "#ptmsg"); }
-    catch (x) { stepPhotos(); say("이 사진은 열 수 없어요.", "#ptmsg"); }
+  if ($("#pairpick")) $("#pairpick").onchange = e => {
+    const f = e.target.files && e.target.files[0], at = SEL; if (!f) return;
+    say("사진 넣는 중…", "#ptmsg");
+    busyDo(async () => { await insertPhoto(at + 1, f); pairUp(at); SEL = at; TAB = "duo"; return `${at + 1}·${at + 2}번 사진이 한 장면에 나와요. 배치와 프레임을 골라 보세요.`; });
   };
   bindNav(() => go(3));
 }
@@ -698,6 +806,7 @@ function stepPhotos(){
 const DRAG_HINT = "사진을 끌어서 옮기고, 두 손가락으로 벌려서 확대할 수 있어요";
 const VID_HINT = "영상의 첫 장면이에요. 여기서 맞춘 위치·크기가 영상 내내 똑같이 적용돼요";
 const DUO_HINT = ["① 칸 사진을 맞추는 중이에요. 다른 칸을 누르면 그 칸을 맞춰요", "② 칸 사진을 맞추는 중이에요. 다른 칸을 누르면 그 칸을 맞춰요"];
+const FRAME_HINT = ["① 프레임을 끌어서 옮기고, 두 손가락으로 크기를 바꿔요", "② 프레임을 끌어서 옮기고, 두 손가락으로 크기를 바꿔요"];
 const LAYS = [["lr", "좌우"], ["tb", "위아래"], ["pip", "큰+작은"]];
 const ZMAX = 3;
 let RESUME_AT = null;   // 미리 보기에서 편집하러 갔다 오면 그 장면부터
@@ -705,7 +814,7 @@ async function replacePhoto(i, file){
   const p = await Movie.shrink(file), old = PH[i];
   URL.revokeObjectURL(old.url);
   if (old.vid) DB.del("cl:" + old.id);   // 영상을 사진으로 바꾸면 클립은 지워요
-  Object.assign(old, { bytes: p.bytes, thumbBytes: p.thumbBytes, w: p.w, h: p.h, taken: p.taken, vid: null, clip: null, url: URL.createObjectURL(jpg(p.thumbBytes)), meta: null });
+  Object.assign(old, { bytes: p.bytes, thumbBytes: p.thumbBytes, w: p.w, h: p.h, taken: p.taken, vid: null, clip: null, src: null, url: URL.createObjectURL(jpg(p.thumbBytes)), meta: null });
   DB.set("ph:" + old.id, { id: old.id, bytes: p.bytes, thumbBytes: p.thumbBytes, w: p.w, h: p.h, taken: p.taken });
   savePhoto(old);
 }
@@ -716,6 +825,7 @@ function editPhoto(start){
   if (!PH[start]) return;
   const first = sceneOf(start);
   let i = first[0], act = first.length === 2 && start === first[1] ? 1 : 0;   // i: 장면의 앞 사진, act: 두 장 장면에서 지금 맞추는 칸(0 앞, 1 뒤)
+  let mv = "photo";   // 손가락으로 움직일 것: photo 사진(칸 안에서) · frame 프레임(칸 자체) — 프레임을 골랐을 때만 (11/11)
   let P = null, M = null, seg = null, raf = 0, saveT = 0, edgeT = 0;
   const T = tpl(), [W, H] = Movie.size(S.ratio, "720"), tall = H > W, touches = new Map();
   let bank = Movie.bank(PH);
@@ -725,7 +835,19 @@ function editPhoto(start){
   history.pushState({ step: S.step, ed: 1 }, "");
   const two = () => !!(PH[i].pair && i + 1 < PH.length);     // 두 장 장면인지
   const cur = () => (two() && act === 1 ? i + 1 : i);          // 지금 맞추는 사진 번호
-  const hint = () => two() ? DUO_HINT[act] : PH[i].vid ? VID_HINT : DRAG_HINT;
+  const fr = () => (two() ? frOf(PH[i]) : "");                 // 이 장면의 프레임 모양 ("" = 네모 칸)
+  const hint = () => two() ? (mv === "frame" && fr() ? FRAME_HINT[act] : DUO_HINT[act]) : PH[i].vid ? VID_HINT : DRAG_HINT;
+  // 프레임 옮기기·크기: duo.fp[칸] = [옮긴 x, 옮긴 y, 크기] (x·y는 두 장 틀 너비·높이에 대한 비율). 틀 밖으로는 못 나가요(엔진 frameBox와 같은 규칙)
+  const FL = Movie.kit.FP_LIM;
+  const fpOf = () => { const d = (PH[i].duo = { ...(PH[i].duo || {}) }); d.fp = [0, 1].map(k => (d.fp && d.fp[k] ? [d.fp[k][0] || 0, d.fp[k][1] || 0, d.fp[k][2] || 1] : [0, 0, 1])); return d.fp; };
+  const frameBy = (dx, dy, ks = 1) => {   // 지금 칸의 프레임을 화면 좌표로 dx·dy만큼 옮기고, 크기를 ks배로
+    const f = fpOf()[act];
+    if (ks !== 1) f[2] = Math.max(FL[0], Math.min(FL[1], f[2] * ks));
+    const R = duoR(); if (!R || !R.fr) return;
+    const [ax, ay, aw, ah] = R.D.box, [x, y, w, h] = R.boxes[act], c = R.cells[act];
+    const nx = Math.max(ax, Math.min(ax + aw - w, x + dx)), ny = Math.max(ay, Math.min(ay + ah - h, y + dy));
+    f[0] = (nx + w / 2 - (c[0] + c[2] / 2)) / aw; f[1] = (ny + h / 2 - (c[1] + c[3] / 2)) / ah;
+  };
   const meta = () => (PH[cur()].meta = PH[cur()].meta || { cx: .5, cy: .5, z: 1, fit: "auto" });
   const dirty = new Set();   // 곧 저장할 사진들 (칸을 오가며 고쳐도 하나도 안 빠지게)
   const flush = () => { clearTimeout(saveT); dirty.forEach(savePhoto); dirty.clear(); };
@@ -747,7 +869,13 @@ function editPhoto(start){
       x.setTransform(c.width / W, 0, 0, c.width / W, 0, 0);
       Movie.frame(x, seg.start + seg.dur * .5, M);
       const R = duoR();
-      if (R) {   // 지금 맞추는 칸에 흰 테두리
+      if (R && R.fr) {   // 프레임: 지금 맞추는 프레임의 모양대로 흰 테두리 (프레임을 옮기는 중이면 점선)
+        const lw = Math.max(3, W * .004);
+        x.save(); x.lineJoin = "round"; x.beginPath(); R.path(x, act);
+        x.lineWidth = lw * 2; x.strokeStyle = "rgba(0,0,0,.35)"; x.stroke();
+        if (mv === "frame") x.setLineDash([lw * 3, lw * 2.4]);
+        x.lineWidth = lw; x.strokeStyle = "#fff"; x.stroke(); x.restore();
+      } else if (R) {   // 지금 맞추는 칸에 흰 테두리
         const [bx, by, bw, bh] = R.boxes[act], lw = Math.max(3, W * .004);
         x.save(); x.lineWidth = lw * 2; x.strokeStyle = "rgba(0,0,0,.35)"; x.strokeRect(bx + lw, by + lw, bw - 2 * lw, bh - 2 * lw);
         x.lineWidth = lw; x.strokeStyle = "#fff"; x.strokeRect(bx + lw, by + lw, bw - 2 * lw, bh - 2 * lw); x.restore();
@@ -771,16 +899,27 @@ function editPhoto(start){
     const pr = two(), m = PH[cur()].meta || {}, introHere = S.introOn && i < 2 && PH.length >= 2;
     const R = duoR(), LIM = R ? Movie.kit.DUO_LIM[R.lay] : null, SC = scenes(), q = SC.findIndex(s => s[0] === i);
     const isV = !!PH[i].vid, canJoin = !pr && !isV && i + 1 < PH.length && !PH[i + 1].pair && !PH[i + 1].vid, slot = pr ? (act ? "② " : "① ") : "";
+    const F = pr && R.fr ? R.fr : "", pal = T.duoBg || [], bgi = F ? Math.max(0, pal.indexOf(R.bg)) : 0;
+    if (!F) mv = "photo";
+    const fm = F && mv === "frame";   // 프레임을 움직이는 중: 사진 맞추기 칸은 숨기고 프레임 크기 칸을 보여요
     box.innerHTML = `<div class="in">
       <div class="ed-top"><b>${isV ? "영상 편집" : "사진 편집"}</b><span class="count">${pr ? `${i + 1}·${i + 2}` : i + 1} / ${PH.length}</span><button type="button" class="btn main ed-ok" id="eddone2">완료</button></div>
       <div class="ed-stage${tall ? " tall" : ""}"><canvas width="${W >= H ? 720 : 405}" height="${W >= H ? 405 : 720}"></canvas></div>
       <p class="drag" id="edhint">${hint()}</p>
-      ${pr ? `<p class="ed-label">${IC.duo}두 장 배치</p>
+      ${pr ? `<p class="ed-label">${FR_IC.heart}프레임${NEWTAG}<span>사진이 이 모양이 돼요</span></p>
+      <div class="frs" id="edfr">${FRS.map(([v, l]) => `<button type="button" data-v="${v}" class="${F === v ? "on" : ""}">${FR_IC[v]}<span>${l}</span></button>`).join("")}</div>
+      ${F ? `<p class="ed-label">바탕색<span id="edbgn">${esc(pal[bgi] ? pal[bgi].name : "")}</span></p>
+      <div class="sws" id="edbg">${pal.map((c, k) => `<button type="button" data-k="${k}" class="${k === bgi ? "on" : ""}" style="--c:${c.c}" aria-label="바탕색 ${esc(c.name)}"></button>`).join("")}</div>
+      <p class="ed-label">손가락으로 움직일 것</p>
+      <div class="seg" id="edmv"><button type="button" data-v="photo" class="${fm ? "" : "on"}">사진</button><button type="button" data-v="frame" class="${fm ? "on" : ""}">프레임</button></div>` : ""}
+      <p class="ed-label">${IC.duo}두 장 배치</p>
       <div class="seg lay" id="edlay">${LAYS.map(([v, l]) => `<button data-v="${v}" class="${R.lay === v ? "on" : ""}">${IC[v]}${l}</button>`).join("")}</div>
       <label class="range"><span id="edrl">${R.lay === "pip" ? "작은 사진 크기" : "앞 칸 비중"}</span><input type="range" id="edr" min="${LIM[0]}" max="${LIM[1]}" step="0.01" value="${R.r}"></label>` : ""}
-      <p class="ed-label">${pr ? "칸 안의 사진 맞추기" : isV ? "영상 맞추기" : "사진 맞추기"}</p>
+      ${F ? `<div class="ed-grp" id="edfg"${fm ? "" : " hidden"}><p class="ed-label">프레임 맞추기</p>
+      <label class="range"><span id="edfsl">${slot}프레임 크기</span><input type="range" id="edfs" min="${FL[0]}" max="${FL[1]}" step="0.01" value="${(PH[i].duo.fp && PH[i].duo.fp[act] && PH[i].duo.fp[act][2]) || 1}"></label></div>` : ""}
+      <div class="ed-grp" id="edpg"${fm ? " hidden" : ""}><p class="ed-label">${pr ? (F ? "프레임 안의 사진 맞추기" : "칸 안의 사진 맞추기") : isV ? "영상 맞추기" : "사진 맞추기"}</p>
       <label class="range"><span id="edzl">${slot}사진 크기</span><input type="range" id="edzoom" min="1" max="${ZMAX}" step="0.01" value="${m.z || 1}"></label>
-      <div class="seg" id="edfit">${[["auto", "자동"], ["cover", "꽉 채우기"], ["whole", "사진 전체"]].map(([v, l]) => `<button data-v="${v}" class="${(m.fit || "auto") === v ? "on" : ""}">${l}</button>`).join("")}</div>
+      <div class="seg" id="edfit">${[["auto", "자동"], ["cover", "꽉 채우기"], ["whole", "사진 전체"]].map(([v, l]) => `<button data-v="${v}" class="${(m.fit || "auto") === v ? "on" : ""}">${l}</button>`).join("")}</div></div>
       <label class="field"><span>이 ${pr ? "장면" : isV ? "영상" : "사진"}에 넣을 글 <em>(안 써도 돼요)</em></span><textarea id="edcap" rows="2" maxlength="40" placeholder="예: 헬스장에서 시작된 이야기">${esc(PH[i].caption || "")}</textarea></label>
       ${introHere ? `<p class="note" style="margin-top:-4px">1·2번 사진에는 신랑·신부 소개가 나와서, 여기 쓴 글은 영상에 안 나와요.</p>` : ""}
       <div class="ed-nav"><button class="btn ghost" id="edprev"${q <= 0 ? " disabled" : ""}>← 이전 ${pr ? "장면" : "사진"}</button><button class="btn ghost" id="ednext"${q >= SC.length - 1 ? " disabled" : ""}>다음 ${pr ? "장면" : "사진"} →</button></div>
@@ -797,7 +936,7 @@ function editPhoto(start){
     const toV = e => { const r = c.getBoundingClientRect(), k = W / r.width; return { x: e.clientX * k, y: e.clientY * k }; };   // 끌기용 (차이만 써요)
     const toC = e => { const r = c.getBoundingClientRect(), k = W / r.width; return { x: (e.clientX - r.left) * k, y: (e.clientY - r.top) * k }; };   // 누른 자리 (화면 안 좌표)
     // 칸을 바꾸면 슬라이더·버튼·안내도 그 칸 것으로 (화면을 다시 만들지 않아요: 끌던 손가락이 끊기지 않게)
-    const syncSlot = () => { const mm = PH[cur()].meta || {}; q$("#edzoom").value = mm.z || 1; syncFit(); q$("#edhint").textContent = hint(); q$("#edzl").textContent = `${act ? "② " : "① "}사진 크기`; q$("#edswapl").textContent = `${act ? "② " : "① "}다른 사진으로 바꾸기`; };
+    const syncSlot = () => { const mm = PH[cur()].meta || {}; q$("#edzoom").value = mm.z || 1; syncFit(); q$("#edhint").textContent = hint(); q$("#edzl").textContent = `${act ? "② " : "① "}사진 크기`; q$("#edswapl").textContent = `${act ? "② " : "① "}다른 사진으로 바꾸기`; if (q$("#edfs")) { const f = (PH[i].duo && PH[i].duo.fp && PH[i].duo.fp[act]) || []; q$("#edfs").value = f[2] || 1; q$("#edfsl").textContent = `${act ? "② " : "① "}프레임 크기`; } };
     const slotAt = v => {   // 두 장 장면: 누른 자리의 칸 (큰+작은은 작은 사진 먼저)
       const R2 = duoR(); if (!R2) return -1;
       const inb = ([x, y, w, h]) => v.x >= x && v.x <= x + w && v.y >= y && v.y <= y + h;
@@ -807,7 +946,7 @@ function editPhoto(start){
       const v = toV(e);
       if (two() && touches.size === 0) { const k = slotAt(toC(e)); if (k >= 0 && k !== act) { act = k; syncSlot(); draw(); } }
       const g = geom(); if (!g) return;
-      if (whole(g)) { meta().fit = "cover"; syncFit(); draw(); }   // 사진 전체로 보이는 중에 끌면 꽉 채우기로 바꿔요
+      if (!fm && whole(g)) { meta().fit = "cover"; syncFit(); draw(); }   // 사진 전체로 보이는 중에 끌면 꽉 채우기로 바꿔요
       try { c.setPointerCapture(e.pointerId); } catch (x) {}   // 일부 브라우저는 붙잡기를 거절해요 — 그래도 끌기는 돼요
       touches.set(e.pointerId, v);
     };
@@ -816,6 +955,15 @@ function editPhoto(start){
       const g = geom(); if (!g) return;
       const m = meta(), prev = touches.get(e.pointerId), now = toV(e);
       touches.set(e.pointerId, now);
+      if (fm) {   // 프레임 옮기기(한 손가락) · 크기(두 손가락)
+        if (touches.size === 1) frameBy(now.x - prev.x, now.y - prev.y);
+        else {
+          const other = [...touches].find(([id]) => id !== e.pointerId)[1];
+          const d0 = Math.hypot(prev.x - other.x, prev.y - other.y), d1 = Math.hypot(now.x - other.x, now.y - other.y);
+          if (d0 >= 1) { frameBy(0, 0, d1 / d0); q$("#edfs").value = PH[i].duo.fp[act][2]; }
+        }
+        draw(); later(PH[i]); return;
+      }
       if (touches.size === 1) {
         const a = Movie.kit.place(g.ph.img, g.bw, g.bh, m.z, m.cx, m.cy);
         const want = { cx: m.cx - (now.x - prev.x) / a.dw, cy: m.cy - (now.y - prev.y) / a.dh };
@@ -835,6 +983,7 @@ function editPhoto(start){
     c.onpointerup = c.onpointercancel = e => { touches.delete(e.pointerId); };
     c.onwheel = e => {
       e.preventDefault();
+      if (fm) { frameBy(0, 0, Math.exp(-e.deltaY * .0015)); q$("#edfs").value = PH[i].duo.fp[act][2]; draw(); later(PH[i]); return; }
       const g = geom(); if (!g) return;
       const m = meta(); if (whole(g)) { m.fit = "cover"; syncFit(); }
       m.z = Math.max(1, Math.min(ZMAX, m.z * Math.exp(-e.deltaY * .0015)));
@@ -851,13 +1000,23 @@ function editPhoto(start){
     box.querySelectorAll("#edfit button").forEach(b => b.onclick = () => { meta().fit = b.dataset.v; syncFit(); draw(); later(); });
     if (pr) {
       box.querySelectorAll("#edlay button").forEach(b => b.onclick = () => {
-        PH[i].duo = { lay: b.dataset.v, r: null }; later(PH[i]);   // 배치를 바꾸면 비율은 그 배치의 기본값으로
+        PH[i].duo = { ...(PH[i].duo || {}), lay: b.dataset.v, r: null, fp: null }; later(PH[i]);   // 배치를 바꾸면 비율은 그 배치의 기본값으로, 옮겨 둔 프레임도 처음 자리로 (프레임·바탕색은 그대로)
+        if (q$("#edfs")) q$("#edfs").value = 1;
         box.querySelectorAll("#edlay button").forEach(x => x.classList.toggle("on", x === b));
         const R2 = duoR(), L2 = Movie.kit.DUO_LIM[R2.lay], r = q$("#edr"); r.min = L2[0]; r.max = L2[1]; r.value = R2.r;
         q$("#edrl").textContent = R2.lay === "pip" ? "작은 사진 크기" : "앞 칸 비중";
         draw();
       });
-      q$("#edr").oninput = e => { PH[i].duo = { lay: (PH[i].duo || {}).lay || null, r: +e.target.value }; later(PH[i]); draw(); };
+      q$("#edr").oninput = e => { PH[i].duo = { ...(PH[i].duo || {}), lay: (PH[i].duo || {}).lay || null, r: +e.target.value }; later(PH[i]); draw(); };
+      // 프레임: 모양을 고르면 사진이 그 모양으로 다듬어져요. 바탕색은 템플릿에 맞춘 색 중에서, 움직일 것은 사진/프레임
+      box.querySelectorAll("#edfr button").forEach(b => b.onclick = () => { flush(); setDuo(PH[i], { fr: b.dataset.v || null, fp: null }); if (!b.dataset.v) mv = "photo"; shell(); });
+      box.querySelectorAll("#edbg button").forEach(b => b.onclick = () => {
+        PH[i].duo = { ...(PH[i].duo || {}), bg: +b.dataset.k }; later(PH[i]);
+        box.querySelectorAll("#edbg button").forEach(x => x.classList.toggle("on", x === b));
+        q$("#edbgn").textContent = (pal[+b.dataset.k] || {}).name || ""; draw();
+      });
+      box.querySelectorAll("#edmv button").forEach(b => b.onclick = () => { if (mv === b.dataset.v) return; flush(); mv = b.dataset.v; shell(); });
+      if (q$("#edfs")) q$("#edfs").oninput = e => { fpOf()[act][2] = +e.target.value; frameBy(0, 0); draw(); later(PH[i]); };
       q$("#edsplit").onclick = () => { flush(); unpair(i); act = 0; shell(); };
     } else if (!isV) {
       q$("#edpair").onchange = async e => {
@@ -870,7 +1029,7 @@ function editPhoto(start){
     }
     let capT = 0;
     q$("#edcap").oninput = e => { PH[i].caption = e.target.value; clearTimeout(capT); capT = setTimeout(() => { replan(); draw(); }, 150); later(PH[i]); };
-    const go2 = j => { flush(); i = j; act = 0; shell(); };
+    const go2 = j => { flush(); i = j; act = 0; mv = "photo"; shell(); };
     q$("#edprev").onclick = () => { if (q > 0) go2(SC[q - 1][0]); };
     q$("#ednext").onclick = () => { if (q < SC.length - 1) go2(SC[q + 1][0]); };
     q$("#eddone").onclick = q$("#eddone2").onclick = () => history.back();
@@ -880,7 +1039,10 @@ function editPhoto(start){
       try { const k = cur(); await replacePhoto(k, f); bank.drop(k); shell(); }
       catch (x) { q$("#edmsg").textContent = "이 사진은 열 수 없어요."; }
     };
-    q$("#edreset").onclick = () => { PH[cur()].meta = { cx: .5, cy: .5, z: 1, fit: "auto" }; q$("#edzoom").value = 1; syncFit(); draw(); later(); };
+    q$("#edreset").onclick = () => {
+      if (fm) { fpOf()[act] = [0, 0, 1]; q$("#edfs").value = 1; draw(); later(PH[i]); return; }   // 프레임을 움직이는 중이면 프레임을 처음 자리·크기로
+      PH[cur()].meta = { cx: .5, cy: .5, z: 1, fit: "auto" }; q$("#edzoom").value = 1; syncFit(); draw(); later();
+    };
     await Movie.fonts(T, sampleText(data()));
     await bank.need(pr ? [i, i + 1] : [i], [i - 1, i + (pr ? 2 : 1)].filter(j => j >= 0 && j < PH.length));
     draw();
@@ -896,25 +1058,29 @@ async function addPhotos(files){
   ADDING = true;
   const arr = [...(files || [])], room = MAX_PHOTOS - PH.length, use = arr.slice(0, Math.max(0, room));
   const vn = use.filter(Movie.isVideo).length;
-  let bad = 0, unsaved = 0, vi = 0, vover = 0;
+  let bad = 0, unsaved = 0, vi = 0, vover = 0, clips = 0;
   lockPhotos();
   try {
     for (let i = 0; i < use.length; i++) {
       if (S.step === 2) say(`사진 정리 중… ${i + 1} / ${use.length}`, "#busy");
       try {
-        if (Movie.isVideo(use[i])) {   // 영상: 쓸 부분을 고르는 창을 하나씩 열어요 (2차 업데이트)
+        if (Movie.isVideo(use[i])) {   // 영상: 5초 안쪽이면 통째로 바로, 길면 쓸 부분을 고르는 창을 하나씩 (clipOf)
           vi++;
           if (clipCount() >= MAX_CLIPS) { vover++; continue; }
-          const c = await pickClip(use[i], vn > 1 ? `영상 ${vi} / ${vn}` : "");
-          if (c && !(await insertClip(PH.length, c))) unsaved++;
+          const tag = vn > 1 ? ` ${vi} / ${vn}` : "";
+          if (S.step === 2) say(`영상 여는 중…${tag}`, "#busy");
+          const c = await clipOf(use[i], vn > 1 ? `영상 ${vi} / ${vn}` : "", p => { if (S.step === 2) say(`영상 준비 중…${tag} ${pct(p)}%`, "#busy"); });
+          if (c) { if (!(await insertClip(PH.length, c))) unsaved++; clips++; }
         } else if (!(await insertPhoto(PH.length, use[i]))) unsaved++;
       }
       catch (e) { bad++; }
     }
   } finally { ADDING = false; }
   if (S.step !== 2) return;   // 그사이 다른 화면으로 갔으면 그 화면을 덮지 않아요
+  if (clips && PH.length && PH[PH.length - 1].vid) { SEL = PH.length - 1; TAB = "order"; }   // 방금 넣은 영상을 골라 두고 '순서'를 열어 둬요: 맨 뒤에 들어가니 바로 자리를 옮길 수 있게
   stepPhotos();
   const notes = [];
+  if (clips) notes.push(`영상 ${clips}개를 맨 뒤에 넣었어요. 아래 '자리 고르기'로 원하는 자리에 옮길 수 있어요.`);
   if (arr.length > use.length) notes.push(`사진은 ${MAX_PHOTOS}장까지 넣을 수 있어요.`);
   if (vover) notes.push(`영상은 ${MAX_CLIPS}개까지 넣을 수 있어요.`);
   if (bad) notes.push(`${bad}장은 열 수 없어서 뺐어요.`);

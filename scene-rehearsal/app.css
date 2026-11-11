@@ -263,24 +263,33 @@ em.newtag,.sec em.newtag{font-style:normal;display:inline-block;background:var(-
 .empty{background:var(--card);border-radius:20px;padding:14px 16px 4px;margin:4px 0 0}
 .empty-h{margin:0 0 2px;font-size:15px;font-weight:900}
 
-/* 고른 장면 도구: 작은 미리 보기 + 편집 + 순서·바꾸기·빼기 + 한 장면에 두 장 */
+/* 고른 장면 도구 (11/11 2판): 작은 미리 보기 + 도구 줄(편집 · 순서 · 바꾸기 · 두 장/쓸 부분 · 빼기) — 누른 도구의 묶음만 아래에 펼쳐요 (기능이 늘어도 높이가 그대로) */
 .photo-tools{position:sticky;bottom:calc(86px + env(safe-area-inset-bottom,0px));z-index:6;display:flex;flex-direction:column;gap:8px;margin:12px -8px 0;padding:10px 8px 6px;background:var(--paper);border-top:1px solid var(--line);box-shadow:0 -12px 18px -14px rgba(0,0,0,.4)}
 .photo-tools .btn{padding:12px 6px;font-size:14.5px}
 .pt-head{display:flex;align-items:center;gap:12px}
 .pt-head .which{flex:1;min-width:0;margin:0;font-size:16px;font-weight:900;color:var(--ink);line-height:1.35}
 .pt-head .which small{font-size:13px;font-weight:500;color:var(--sub);margin-left:2px}
 .pt-head .which .when{display:block;font-size:13px;font-weight:500;color:var(--sub)}
+.pt-head .which .when.go{color:var(--accent);font-weight:700}
 .pt-x{flex:0 0 36px;width:36px;height:36px;border:0;border-radius:50%;background:var(--card);color:var(--sub);font-size:22px;line-height:1;padding:0}
-.pt-row{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
-.pt-row .btn{padding:12px 2px;font-size:14px;white-space:nowrap}
-.pt-duo{background:var(--card);border-radius:16px;padding:10px;display:flex;flex-direction:column;gap:8px}
-.pt-duo .btn{background:var(--paper)}
+.pt-bar{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.pt-bar button{position:relative;border:0;background:var(--card);border-radius:14px;padding:8px 2px 7px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:12.5px;font-weight:700;color:var(--ink);line-height:1.2;white-space:nowrap}
+.pt-bar svg{width:22px;height:22px}
+.pt-bar button.on{background:var(--ink);color:var(--paper)}
+.pt-bar #edit{background:var(--accent);color:#fff}   /* 가장 자주 쓰는 편집만 분홍, 펼쳐 둔 묶음은 검정 — 둘이 헷갈리지 않게 */
+.pt-bar .newtag{position:absolute;top:-6px;right:2px;margin:0}
+.pt-bar button:disabled{opacity:.5}
+.pt-pane{background:var(--card);border-radius:16px;padding:10px;display:flex;flex-direction:column;gap:8px}
+.pt-pane .btn{background:var(--paper)}
 .pt-label{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0;font-size:13px;color:var(--sub)}
 .pt-label svg{width:18px;height:18px;color:var(--accent)}
 .pt-label b{color:var(--ink);font-size:14.5px;font-weight:900}
-.pt-label .newtag{margin-left:0}
 .pt-label span{margin-left:auto}
+.pt-hint{margin:0;font-size:12.5px;line-height:1.45;color:var(--sub);word-break:keep-all}
 .pt-two{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.pt-two .add svg{width:19px;height:19px;flex:0 0 19px}
+.pt-three{display:grid;grid-template-columns:1fr 1fr 1.15fr;gap:6px}
+.pt-three .btn{white-space:nowrap;padding:12px 2px}
 .pt-lay{display:grid;grid-template-columns:1fr auto;gap:6px}
 .pt-lay .seg{background:var(--paper)}
 .pt-lay .btn{width:auto;padding:10px 12px;white-space:nowrap}
@@ -288,6 +297,27 @@ em.newtag,.sec em.newtag{font-style:normal;display:inline-block;background:var(-
 .seg.lay svg{width:22px;height:22px}
 .msg.pt-msg{min-height:0;text-align:left;color:var(--accent);font-weight:700}
 .pt-msg:empty{display:none}
+/* 자리 고르기 중: 옮길 자리를 누르라고 사진마다 점선 */
+.photos.moving button{outline:2px dashed var(--accent);outline-offset:-2px}
+.photos.moving button.on{outline:3px solid var(--accent);outline-offset:-3px;opacity:.45}
+/* 프레임 고르기 (목록 도구 · 편집 창 같이): 모양 그림 + 이름 */
+.frs{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
+.frs button{border:0;background:var(--paper);border-radius:12px;padding:7px 2px 6px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:12.5px;font-weight:700;color:var(--sub);line-height:1.2}
+.frs svg{width:24px;height:24px}
+.frs button.on{background:var(--ink);color:var(--paper)}
+.editor .frs button{background:var(--card);padding:9px 2px 8px;font-size:13px}
+.editor .frs button.on{background:var(--ink)}
+/* 바탕색 고르기: 템플릿에 맞춘 색 동그라미 */
+.sws{display:flex;gap:9px;flex-wrap:wrap;padding:3px 3px 0}
+.sws button{flex:0 0 36px;width:36px;height:36px;border-radius:50%;border:0;padding:0;background:var(--c);box-shadow:0 0 0 1.5px var(--line)}
+.sws button.on{box-shadow:0 0 0 3px var(--paper),0 0 0 6px var(--accent)}
+.ed-label{flex-wrap:wrap}
+.ed-label span{margin-left:auto;font-weight:500}
+.ed-grp{display:flex;flex-direction:column;gap:12px}
+/* 영상에서 쓸 부분 고르는 창: 저절로 재생이 안 될 때 가운데 재생 버튼 */
+.clipper .clip-stage{position:relative}
+.clipper .playbtn{position:absolute;inset:0;margin:auto;width:64px;height:64px;border-radius:50%;border:0;background:rgba(0,0,0,.55);color:#fff;display:grid;place-items:center;padding:0}
+.clipper .playbtn svg{width:26px;height:26px}
 /* 작은 장면 미리 보기 (두 장 장면은 배치 그대로) */
 .mini{position:relative;flex:0 0 auto;height:56px;aspect-ratio:16/9;border-radius:6px;overflow:hidden;background:#000;display:flex;gap:2px}
 .mini.tall{height:76px;aspect-ratio:9/16}
@@ -298,6 +328,15 @@ em.newtag,.sec em.newtag{font-style:normal;display:inline-block;background:var(-
 .mini.tb img{height:auto;flex:1 1 0}
 .mini.tb img:first-child{flex:0 0 calc(var(--r) * 100% - 1px)}
 .mini.pip img:last-child{position:absolute;right:5%;top:8%;width:calc(var(--r) * 100%);height:auto;aspect-ratio:4/3;border:1.5px solid #fff;border-radius:3px}
+/* 프레임을 고른 두 장 장면: 바탕색 위에 그 모양으로 (자리·크기를 옮긴 것까지는 안 그려요 — 어떤 모양인지만) */
+.mini.fr{background:var(--bg,#000);gap:2px;padding:3px}
+.mini.fr img{-webkit-mask:var(--mk) center/contain no-repeat;mask:var(--mk) center/contain no-repeat;border:0}
+.mini.fr-round img{-webkit-mask:none;mask:none;border-radius:6px}
+.mini.fr-circle{--mk:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50'/%3E%3C/svg%3E")}
+.mini.fr-heart{--mk:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 108 100'%3E%3Cpath d='M54 28C54 10 38.9 0 27 0C10.8 0 0 12 0 30C0 55 27 75 54 100C81 75 108 55 108 30C108 12 97.2 0 81 0C69.1 0 54 10 54 28Z'/%3E%3C/svg%3E")}
+.mini.fr-arch{--mk:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 78 100'%3E%3Cpath d='M0 100V39A39 39 0 0 1 78 39V100Z'/%3E%3C/svg%3E")}
+.mini.fr.pip img:last-child{right:6%;top:10%;border:0;border-radius:0;aspect-ratio:1}
+.mini.fr-round.pip img:last-child{border-radius:4px}
 
 /* 편집 창: 묶음 이름표, 위쪽 완료 */
 .ed-label{display:flex;align-items:center;gap:6px;margin:6px 0 -4px;font-size:13.5px;font-weight:900;color:var(--sub)}
