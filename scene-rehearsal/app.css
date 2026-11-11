@@ -272,12 +272,14 @@ em.newtag,.sec em.newtag{font-style:normal;display:inline-block;background:var(-
 .pt-head .which .when{display:block;font-size:13px;font-weight:500;color:var(--sub)}
 .pt-head .which .when.go{color:var(--accent);font-weight:700}
 .pt-x{flex:0 0 36px;width:36px;height:36px;border:0;border-radius:50%;background:var(--card);color:var(--sub);font-size:22px;line-height:1;padding:0}
-.pt-bar{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.pt-bar{display:grid;grid-template-columns:repeat(6,1fr);gap:5px}   /* 3판: 프레임 칸이 생겨 6칸 */
 .pt-bar button{position:relative;border:0;background:var(--card);border-radius:14px;padding:8px 2px 7px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:12.5px;font-weight:700;color:var(--ink);line-height:1.2;white-space:nowrap}
 .pt-bar svg{width:22px;height:22px}
 .pt-bar button.on{background:var(--ink);color:var(--paper)}
 .pt-bar #edit{background:var(--accent);color:#fff}   /* 가장 자주 쓰는 편집만 분홍, 펼쳐 둔 묶음은 검정 — 둘이 헷갈리지 않게 */
 .pt-bar .newtag{position:absolute;top:-6px;right:2px;margin:0}
+.pt-bar span i{font-style:normal}
+@media (max-width:379px){.pt-bar{gap:4px}.pt-bar button{font-size:12px}.pt-bar .lg{display:none}}   /* 좁은 화면: "3번 빼기" → "빼기" (어느 사진인지는 위 제목에) */
 .pt-bar button:disabled{opacity:.5}
 .pt-pane{background:var(--card);border-radius:16px;padding:10px;display:flex;flex-direction:column;gap:8px}
 .pt-pane .btn{background:var(--paper)}

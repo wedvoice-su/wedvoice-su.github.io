@@ -512,6 +512,24 @@ const Movie = (() => {
     }
     return R;
   }
+  // 한 장 장면의 프레임 (11/11 3판, 사회자님: "한 장 장면에도 선택할 수 있도록"): 두 장 장면과 같은 값(d.fr · d.bg · d.fp[0])을 그 사진에 붙여 써요
+  // 틀 하나를 템플릿의 두 장 틀(duo().box) 자리에 넣고, 바탕색도 그 자리에. 프레임이 없으면 null → 템플릿이 전과 똑같이 그려요
+  function soloBox(M, tpl, d){
+    const F = d && d.fr ? FRAMES[d.fr] : null;
+    if (!F) return null;
+    const D = tpl.duo(M), pal = tpl.duoBg || [];
+    const R = { fr: d.fr, lay: 'one', D, cells: [D.box], boxes: [frameBox(F, D.box, D.box, d.fp && d.fp[0])], bg: pal[d.bg | 0] || pal[0] || null };
+    R.path = ctx => F.path(ctx, ...R.boxes[0]);
+    return R;
+  }
+  function solo(ctx, M, s, u, o = {}){
+    const R = soloBox(M, M.tpl, M.bank.duo && M.bank.duo(s.i));
+    if (!R) return null;
+    const p = M.bank.get(s.i);
+    duoBack(ctx, M, R);
+    if (p) { duoShade(ctx, M, R, 0); photo(ctx, M, p, s, u, { box: R.boxes[0], zoom: o.zoom, auto: 'cover', fit: o.fit ? o.fit(s.i) : undefined, clip: c => R.path(c, 0) }); }
+    return R;
+  }
   function rim(ctx, b, color, w){ ctx.save(); ctx.fillStyle = color; ctx.fillRect(b[0] - w, b[1] - w, b[2] + 2 * w, b[3] + 2 * w); ctx.restore(); }
   // 틀이 있는 두 장 장면의 바탕과 틀 아래 것: 바탕색(두 장 틀 안), 틀마다 옅은 그림자(조금 어긋나게 한 번 — 흐림 효과는 느려서 안 써요)
   function duoBack(ctx, M, R){
@@ -1119,6 +1137,6 @@ const Movie = (() => {
     decode, mix, make, player, probe, cleanup, beats, clip, isVideo,
     segAt: (P, t) => P.segs[at(P.segs, t)],
     kit: { cl, ease, out3, lerp, rise, veil, cover, place, framed, photo, text, wrap, block, typed, grain, vignette, scrim, font,
-      slots, duoBoxes, duo, rim, DUO_R, DUO_LIM, FRAMES, FP_LIM, duoBack, duoShade, rr }
+      slots, duoBoxes, duo, rim, DUO_R, DUO_LIM, FRAMES, FP_LIM, duoBack, duoShade, rr, soloBox, solo }
   };
 })();

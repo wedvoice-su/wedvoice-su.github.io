@@ -148,6 +148,7 @@ const TEMPLATES = [];
         return;
       }
       const p = ph(M, s);
+      if (K.solo(ctx, M, s, u)) { pillText(ctx, M, s, u); return; }   // 한 장 장면에 프레임을 골랐을 때 (11/11 3판) — 사진을 아직 못 불러왔어도 바탕색은 칠해요
       if (p) K.photo(ctx, M, p, s, u);
       if (s.intro) intro(ctx, M, s, u); else if (s.caption) caption(ctx, M, s, u);
     },
@@ -206,6 +207,7 @@ const TEMPLATES = [];
         return;
       }
       const p = ph(M, s);
+      if (K.solo(ctx, M, s, u, { zoom: .06 })) { pillText(ctx, M, s, u, { bottom: box[1] + box[3] }); return; }   // 한 장 장면 프레임
       if (p) K.photo(ctx, M, p, s, u, { box, zoom: .06 });
       if (s.intro) intro(ctx, M, s, u, { accent: "#D9C08C", y: box[1] + box[3] - mm(M) * .26 }); else if (s.caption) caption(ctx, M, s, u, { chapter: "#D9C08C", bottom: box[1] + box[3] });
     },
@@ -284,6 +286,8 @@ const TEMPLATES = [];
         return;
       }
       if (p) {
+        const R = K.solo(ctx, M, s, u, { zoom: .04, fit: whole });   // 한 장 장면 프레임: 두 장 틀 자리에 모양 하나, 글은 그 아래
+        if (R) { under(R.D.box[1] + R.D.box[3]); return; }
         const box = mbox(M, p);
         shade(box);
         K.photo(ctx, M, p, s, u, { box, fit: whole(s.i), zoom: .04 });
@@ -329,7 +333,11 @@ const TEMPLATES = [];
         if (R.lay === "pip") K.rim(ctx, R.boxes[1], "#fff", Math.max(2, m * .006));
         one(s.j, R.boxes[1]);
       }
-    } else if (s.i != null) one(s.i, box);
+    } else if (s.i != null) {
+      const R = s.kind === "photo" ? K.soloBox(M, M.tpl, M.bank.duo && M.bank.duo(s.i)) : null;   // 한 장 장면 프레임 (여는·닫는 장면의 사진에는 안 써요)
+      if (R) { K.duoBack(ctx, M, R); K.duoShade(ctx, M, R, 0); one(s.i, R.boxes[0], c => R.path(c, 0)); }
+      else one(s.i, box);
+    }
     ctx.save(); ctx.strokeStyle = "rgba(216,195,160,.55)"; ctx.lineWidth = Math.max(1.5, m * .002);
     ctx.strokeRect(box[0] - m * .012, box[1] - m * .012, box[2] + m * .024, box[3] + m * .024); ctx.restore();
     const en = nameEn(M.d);
