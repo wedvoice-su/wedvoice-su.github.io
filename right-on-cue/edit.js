@@ -2,7 +2,8 @@
 // 자르는 도구가 아니라, 고민을 고르면 알아서 고쳐 주는 편집기예요.
 //   intro : 전주가 너무 길어요        → 하이라이트를 찍고 "몇 초 전부터 틀지" 고르면 앞을 잘라요. 입장 시간도 같이 맞춰져요
 //                                     하이라이트 전에는 음량을 줄였다가(기본 50%) 하이라이트에서 원래 음량으로 (사회자님 11/12)
-//                                     하이라이트 앞에 가사 없는 반주 구간을 가져와 붙일 수도 있어요 (사회자님 11/12)
+//   range : 빼거나 옮기고 싶은 부분이 있어요 → 구간(시작~끝)을 골라 지우거나, 복사해서 다른 자리(하이라이트 앞 · 맨 앞 · 맨 끝 · 듣는 자리)에 붙여요
+//                                     (사회자님 11/12 저녁: "하이라이트 앞에만 붙이는 게 아니라, 구간 선택 후 복사/삭제/붙여넣기로")
 //   long  : 곡이 짧아요              → 뒤에 같은 곡이나 다른 곡을 이어 붙여요 (겹쳐서 넘어가요)
 //   fade  : 끝이 뚝 끊겨요           → 끝을 서서히 줄여요
 //   sil   : 틀어도 바로 소리가 안 나요 → 앞 무음을 지워요
@@ -19,6 +20,9 @@ const ED_FADES = [3, 5, 8];       // "끝을 몇 초 동안 줄일지"
 const ED_DUCKS = [100, 70, 50, 30];   // "하이라이트 전 음량" 빠른 선택 (%, 100 = 그대로)
 const ED_DUCK = 50;               // 그 기본값. 하이라이트 전에는 사회자 멘트가 들리게 음량을 줄여요
 const ED_SWELL = 0.5;             // 줄인 음량이 하이라이트 직전 몇 초 동안 원래대로 커지는지
+const ED_JOIN = 0.5;              // 구간을 지우거나 붙여서 이어진 곳이 겹치는 길이(초)
+const ED_SELMIN = 0.5;            // 고르는 구간의 가장 짧은 길이(초)
+const ED_KEEP = 10;               // 구간을 지워도 곡이 이만큼(초)은 남아야 해요
 const ED_QUIET = 131;             // 이보다 작은 소리는 무음으로 봐요 (약 −48dB)
 const ED_SILMIN = 0.3;            // 앞 무음이 이보다 길 때만 알려요(초)
 const ED_KBPS = 192;              // 저장하는 mp3 음질
@@ -26,24 +30,25 @@ const ED_LAME = "https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js
 const ED_LAME_SRI = "sha512-xT0S/xXvkrfkRXGBPlzZPCAncnMK5c1N7slRkToUbv8Z901aUEuKO84tLy8dWU+3ew4InFEN7TebPaVMy2npZw==";
 
 // ===== 상태 =====
-//   S.ed (app.js) = { src, hl, lead, sil, more, fade }
+//   S.ed (app.js) = { src, hl, lead, duck, clips, ops, sil, more, fade }
 //     src  : 처음 연 원본 파일
-//     hl   : 하이라이트 자리(원본 기준 초). 안 정했으면 null
+//     clips: 구간 편집을 한 곡의 모양. 원본의 어디부터 어디까지(a~b, 샘플)를 순서대로 늘어놓은 것. null = 원곡 그대로
+//     ops  : 구간 편집에서 한 일 (지움 · 붙임). 되돌릴 수 있게 하기 전 모양(prev)을 같이 둬요
+//     hl   : 하이라이트 자리(초). 구간 편집을 했으면 그 뒤의 곡 기준이에요 (구간을 지우거나 붙이면 따라 움직여요). 안 정했으면 null
 //     lead : 하이라이트 몇 초 전부터 틀지
 //     duck : 하이라이트 전 음량(%). 100 = 그대로. lead가 0이면(바로 틀기) 쓰이지 않아요
-//     pre  : 하이라이트 앞에 가져와 붙일 구간(반주)의 시작(원본 기준 초). null = 하이라이트 바로 앞부분을 그대로
 //     sil  : 앞 무음을 지울지
 //     more : 뒤에 붙인 곡들. { same:true } = 같은 곡 한 번 더, { file } = 다른 곡
 //     fade : 끝을 몇 초 동안 줄일지 (0 = 안 줄여요)
-let ED = null;       // 풀어 둔 소리 { src, main, extra(Map 파일→소리), url0(원본을 그대로 듣는 주소) }. 편집 화면을 나가면 비워요
+let ED = null;       // 풀어 둔 소리 { src, main, extra(Map 파일→소리), body(구간 편집까지 한 곡을 듣는 주소·물결), clip(복사해 둔 구간) }. 편집 화면을 나가면 비워요
 let DR = null;       // 고민 화면에서 고치는 중인 값. "적용"을 누르면 S.ed가 돼요
 let ED_MP3 = null;   // 편집본을 mp3로 바꿔 둔 것 { src(wav 파일), blob }
 let edLameJob = null;
 
-function edNew(file){ return { src:file, hl:null, lead:15, duck:ED_DUCK, pre:null, sil:false, more:[], fade:0 }; }
-function edCopy(E){ return { src:E.src, hl:E.hl, lead:E.lead, duck:E.duck, pre:E.pre, sil:E.sil, more:E.more.slice(), fade:E.fade }; }
-function edOn(E){ return !!E && (E.hl!=null || E.sil || E.more.length>0 || E.fade>0); }
-function edFree(){ edPrevStop(); if(ED && ED.url0){ try{ URL.revokeObjectURL(ED.url0); }catch(e){} } ED=null; DR=null; }
+function edNew(file){ return { src:file, hl:null, lead:15, duck:ED_DUCK, clips:null, ops:[], sil:false, more:[], fade:0 }; }
+function edCopy(E){ return { src:E.src, hl:E.hl, lead:E.lead, duck:E.duck, clips:edClipCopy(E.clips), ops:E.ops.slice(), sil:E.sil, more:E.more.slice(), fade:E.fade }; }
+function edOn(E){ return !!E && (E.hl!=null || E.clips!=null || E.sil || E.more.length>0 || E.fade>0); }
+function edFree(){ edPrevStop(); if(ED && ED.body){ try{ URL.revokeObjectURL(ED.body.url); }catch(e){} } ED=null; DR=null; }
 function edTopOf(fn){ return stack[stack.length-1]===fn; }
 
 // ===== 시간·글자 =====
@@ -131,66 +136,125 @@ function edDur(file){
   });
 }
 async function edLoad(){
-  const E={ src:S.ed.src, main:null, extra:new Map(), url0:"" };
+  const E={ src:S.ed.src, main:null, extra:new Map(), body:null, clip:null };
   E.main = await edDecode(S.ed.src);
   for(const m of S.ed.more) if(!m.same) E.extra.set(m.file, await edDecode(m.file));
   return E;
 }
 
+// ===== 구간 (곡의 모양) =====
+// 곡의 모양 = 원본의 a~b(샘플) 조각을 순서대로 늘어놓은 것. 아래 x · y · t는 "지금 모양"에서의 자리(샘플)예요
+function edClipCopy(cl){ return cl ? cl.map(c=>({ a:c.a, b:c.b })) : null; }
+function edClips(E){ return E.clips || [{ a:0, b:ED.main.len }]; }
+function edLen(cl){ let n=0; for(const c of cl) n+=c.b-c.a; return n; }
+function edSig(E){ return E && E.clips ? E.clips.map(c=>c.a+"-"+c.b).join(",") : ""; }
+// 원본에서 바로 이어지는 조각은 하나로 합쳐요. 원곡 그대로가 되면 null
+function edTidy(cl){
+  const o=[];
+  for(const c of cl){ if(c.b<=c.a) continue; const p=o[o.length-1]; if(p && p.b===c.a) p.b=c.b; else o.push({ a:c.a, b:c.b }); }
+  return o.length===1 && o[0].a===0 && o[0].b===ED.main.len ? null : o;
+}
+// x~y 구간을 이루는 조각들
+function edSlice(cl, x, y){
+  const o=[]; let T=0;
+  for(const c of cl){ const n=c.b-c.a, s=Math.max(x,T), e=Math.min(y,T+n); if(e>s) o.push({ a:c.a+(s-T), b:c.a+(e-T) }); T+=n; }
+  return o;
+}
+function edDel(cl, x, y){ return edTidy(edSlice(cl,0,x).concat(edSlice(cl,y,edLen(cl)))); }                     // x~y를 지워요
+function edIns(cl, t, pieces){ return edTidy(edSlice(cl,0,t).concat(edClipCopy(pieces), edSlice(cl,t,edLen(cl)))); }   // t 자리에 끼워 넣어요
+// 조각과 조각이 이어진 자리들(초)
+function edJoints(cl){ const o=[]; let T=0; cl.forEach((c,i)=>{ if(i) o.push(T/ED_SR); T+=c.b-c.a; }); return o; }
+// t 자리부터 틀면 처음 몇 샘플 동안 소리가 없는지 (원본 맨 앞의 무음에 걸쳐 있을 때만)
+function edSilAt(cl, t){
+  const s0=ED.main.s0; let T=0;
+  for(const c of cl){ const n=c.b-c.a; if(t<T+n){ const o=c.a+(t-T); return o<s0 && c.b>s0 ? s0-o : 0; } T+=n; }
+  return 0;
+}
+// 하이라이트 몇 초 전부터 틀기로 했을 때 그 자리(샘플). 무음 지우기는 아직 안 넣은 값
+function edCut0(E){ return E.hl!=null ? Math.max(0, Math.round(E.hl*ED_SR)-Math.round(E.lead*ED_SR)) : 0; }
+// 구간 편집에서 한 일을 글로 (한 줄씩)
+function edOpText(op){
+  if(op.k==="del") return `${edT(op.a)}~${edT(op.b)} 지움`;
+  return `${op.label} 구간을 ${op.where==="hl" ? "하이라이트 앞" : op.where==="top" ? "맨 앞" : op.where==="end" ? "맨 끝" : edT(op.at)}에 붙임`;
+}
+function edOpsSum(E){
+  if(!E.clips || !E.ops.length) return "";
+  if(E.ops.length<=2) return E.ops.map(edOpText).join(" · ");
+  const d=E.ops.filter(o=>o.k==="del").length, p=E.ops.length-d;
+  return [d ? `구간 ${d}곳 지움` : "", p ? `구간 ${p}번 붙임` : ""].filter(Boolean).join(" · ");
+}
+// 구간 편집까지 한 곡(앞 자르기 · 음량 · 뒤에 붙인 곡은 빼고)을 듣는 주소와 물결. 하이라이트 · 구간 고르는 화면이 이걸 틀어요
+// 찍는 자리와 자르는 자리가 정확히 같게, 풀어 둔 소리로 직접 만들어요
+function edBody(E){
+  const key="b:"+edSig(E);
+  if(ED.body && ED.body.key===key) return ED.body;
+  if(ED.body){ try{ URL.revokeObjectURL(ED.body.url); }catch(e){} }
+  let pcm, n;
+  if(!E.clips){ pcm=edInter(ED.main); n=ED.main.len; }
+  else { const P=edPlan({ src:E.src, hl:null, lead:0, duck:100, clips:E.clips, ops:[], sil:false, more:[], fade:0 }); pcm=edMix(P); n=P.total; }
+  return ED.body={ key, url:URL.createObjectURL(edWav(pcm,"듣기.wav")), peaks:edPeaks(pcm,2,0,n,240), dur:n/ED_SR };
+}
+
 // ===== 편집 계획 =====
 // 어느 소리의 어디부터 어디까지(a~b)를 결과의 어디(at)에 놓을지. 단위는 샘플
 //   fi : 서서히 커지는 길이, fo : 서서히 작아지는 길이 (조각과 조각이 겹치는 부분)
-// 조각 순서: (반주 구간을 가져오면 그 구간) → 원곡(하이라이트부터 또는 자른 곳부터) → 뒤에 붙인 곡들
+// 조각 순서: 원곡(구간 편집을 했으면 그 조각들. 앞을 자르면 자른 곳부터) → 뒤에 붙인 곡들
+//   j : 0 = 맨 처음, 1 = 구간 편집으로 이어진 곳(0.5초 겹침), 2 = 다음 곡으로 넘어가는 곳(4초 겹침)
 function edPlan(E){
-  const M=ED.main, hasHl=E.hl!=null, hlS = hasHl ? Math.round(E.hl*ED_SR) : 0, leadS = hasHl ? Math.round(E.lead*ED_SR) : 0;
-  const paste = hasHl && E.pre!=null && E.lead>0;      // 하이라이트 앞에 다른 구간(반주)을 가져와 붙이는지
-  const soft = a => a > M.s0 + Math.round(.05*ED_SR);  // 소리가 나는 중간에서 시작하는지 (그러면 서서히 커지게)
+  const M=ED.main, cl=edClips(E), bodyLen=edLen(cl), hasHl=E.hl!=null;
+  const hlS = hasHl ? Math.min(bodyLen, Math.round(E.hl*ED_SR)) : 0;
+  let cut=edCut0(E);
+  if(E.sil) cut+=edSilAt(cl,cut);                         // 틀기 시작하는 곳이 무음이면 그만큼 더 잘라요
+  cut=Math.max(0, Math.min(cut, bodyLen-ED_SR));
   const parts=[];
-  let cut;
-  if(paste){
-    // 가져온 구간(lead초) 다음에 원곡의 하이라이트를 이어요. 하이라이트 직전 0.5초 동안 겹쳐서 넘어가요
-    const X=Math.round(Math.min(ED_SWELL*ED_SR, leadS/2, hlS));
-    const lo = M.s0>=ED_SILMIN*ED_SR ? M.s0 : 0;         // 앞 무음이 정말 있을 때만 그 뒤에서 시작해요 (아주 짧으면 0:00 그대로)
-    const a=Math.max(0, Math.min(Math.max(lo, Math.round(E.pre*ED_SR)), M.len-leadS));
-    parts.push({ p:M, a, b:a+leadS, soft:soft(a) });
-    parts.push({ p:M, a:hlS-X, x:X });
-    cut = hlS-leadS;                                    // 큐시트 계산용: 원본의 이 자리부터 튼 셈
-  } else {
-    cut = E.sil ? M.s0 : 0;
-    if(hasHl) cut=Math.max(cut, hlS-leadS);
-    cut=Math.max(0, Math.min(cut, M.len-ED_SR));
-    parts.push({ p:M, a:cut, soft:soft(cut) });
-  }
-  E.more.forEach(m=>{ const p = m.same ? M : ED.extra.get(m.file); parts.push({ p, a:p.s0 }); });
-  const last=parts.length-1, segs=[];
+  const body = (from, j) => { let T=0, first=true; cl.forEach(c=>{ const n=c.b-c.a; if(T+n>from){ parts.push({ p:M, a:c.a+Math.max(0,from-T), b:c.b, j:first ? j : 1, song:first }); first=false; } T+=n; }); };
+  body(cut,0);
+  E.more.forEach(m=>{
+    if(m.same) body(edSilAt(cl,0),2);                     // 같은 곡 한 번 더 = 구간 편집을 한 그 곡을 처음부터
+    else { const p=ED.extra.get(m.file); parts.push({ p, a:p.s0, b:p.len, j:2, song:true }); }
+  });
+  const last=parts.length-1, segs=[], joints=[], songs=[];
   parts.forEach((q,k)=>{
-    const p=q.p, a=q.a;
-    let b = q.b!=null ? q.b : k<last ? p.s2 : E.fade>0 ? p.s1 : p.len;   // 뒤에 곡이 오면 거의 안 들리는 꼬리까지, 끝을 줄일 때는 끝의 무음을 빼요
-    if(b<=a) b=p.len;
-    let fi=0, at=0;
+    const p=q.p; let a=q.a, b=q.b, fi=0, at=0;
+    // 곡의 끝까지 가는 조각: 뒤에 곡이 오면 거의 안 들리는 꼬리까지, 끝을 줄일 때는 끝의 무음을 빼요
+    if(b===p.len){ const e = k<last && parts[k+1].j===2 ? p.s2 : k===last && E.fade>0 ? p.s1 : p.len; if(e>a) b=e; }
     if(k===0){
-      // 서서히 커지게 (하이라이트 전까지의 절반, 길어도 1.5초)
-      if(q.soft){
-        const room = hasHl ? (paste ? leadS : Math.max(0, hlS-a)) : 3*ED_SR;
+      // 소리가 나는 중간에서 시작하면 서서히 커지게 (하이라이트 전까지의 절반, 길어도 1.5초)
+      if(a > M.s0 + Math.round(.05*ED_SR)){
+        const room = hasHl ? Math.max(0, hlS-cut) : 3*ED_SR;
         fi = Math.max(Math.round(.02*ED_SR), Math.round(Math.min(1.5*ED_SR, room*.5)));
       }
     } else {
-      const pv=segs[k-1], X = q.x!=null ? q.x : Math.round(Math.min(ED_CROSS*ED_SR, (pv.b-pv.a)/4, (b-a)/4));
-      pv.fo=X; fi=X; at=pv.at+(pv.b-pv.a)-X;
+      const pv=segs[k-1], pn=pv.b-pv.a;
+      if(q.j===2){
+        // 겹치는 길이: 앞 곡 · 뒤 곡 길이의 1/4까지. 구간 편집으로 조각난 곡이면 맞닿는 조각 안에서만 겹쳐요
+        const ps=songs[songs.length-1], nx = k<last && parts[k+1].j===1;
+        let sn=b-a; for(let i=k+1; i<parts.length && !parts[i].song; i++) sn+=parts[i].b-parts[i].a;
+        const X=Math.round(Math.max(0, Math.min(ED_CROSS*ED_SR, (ps.end-ps.at)/4, sn/4, pn-pv.fi, (b-a)-(nx ? ED_JOIN*ED_SR : 0))));
+        pv.fo=X; fi=X; at=pv.at+pn-X;
+        joints.push(at/ED_SR);
+      } else {
+        // 이어진 자리(=이 조각의 a)가 정확히 그 자리에 오도록, 이 조각을 X만큼 앞에서부터 겹쳐서 키워요
+        let X=Math.round(Math.min(ED_JOIN*ED_SR, a, pn/2, (b-a)/2));
+        if(X<Math.round(.02*ED_SR)){ X=0; pv.fo=Math.round(Math.min(.03*ED_SR, pn/2)); } else pv.fo=X;   // 겹칠 소리가 없으면(곡 맨 앞) 앞 조각만 짧게 줄여요
+        a-=X; fi=X; at=pv.at+pn-X;
+        joints.push((at+X)/ED_SR);
+      }
     }
+    if(q.song) songs.push({ at:k ? at : 0, end:0 });
     segs.push({ p, a, b, at, fi, fo:0 });
+    songs[songs.length-1].end=at+(b-a);
   });
   const end=segs[last], total=end.at+(end.b-end.a);
-  const hlOut = !hasHl ? 0 : paste ? leadS : Math.max(0, hlS-cut);      // 결과에서 하이라이트가 나오는 자리
+  const hlOut = hasHl ? Math.max(0, hlS-cut) : 0;          // 결과에서 하이라이트가 나오는 자리
   // 하이라이트 전 음량: 줄였다가(duck%), 하이라이트 직전 0.5초 동안 원래대로 커져요
   const dk = hasHl && hlOut>0 && E.duck<100 ? { to:hlOut, lv:E.duck/100, up:Math.round(Math.min(ED_SWELL*ED_SR, hlOut/2)) } : null;
   return {
-    segs, total, cut, dk,
+    segs, total, cut, dk, songs,
     fade: E.fade>0 ? Math.round(Math.min(E.fade*ED_SR, total/2)) : 0,
     hl: hasHl ? hlOut/ED_SR : null,                          // 결과에서 하이라이트가 나오는 초
     duck: dk ? E.duck : 100,                                 // 하이라이트 전 음량(%). 줄이지 않았으면 100
-    paste: paste ? { a:segs[0].a/ED_SR, b:segs[0].b/ED_SR } : null,   // 가져온 구간 (원본 기준 초)
-    joints: segs.map((sg,k)=>k>0 && !(paste && k===1) ? sg.at/ED_SR : -1).filter(t=>t>=0),   // 결과에서 다음 곡이 나오기 시작하는 초
+    joints: joints.filter(t=>!hasHl || Math.abs(t-hlOut/ED_SR)>.1),   // 결과에서 이어지는 자리(초). 하이라이트 자리와 같으면 깃발만 보여요
     dur: total/ED_SR
   };
 }
@@ -231,11 +295,15 @@ function edWav(pcm, name){
   return new File([h,pcm], name, { type:"audio/wav" });
 }
 // 편집 내용을 한 줄씩 (큐시트·파일 열기 화면에 보여요)
+function edHlSum(E, P){
+  const cut=P.cut/ED_SR;
+  return (cut>.05 ? `앞 ${edT(cut)} 자름 · ` : "") + (P.hl<.5 ? "틀자마자 하이라이트" : `하이라이트 ${fmt(Math.round(P.hl))}`) + (P.duck<100 ? ` · 하이라이트 전 음량 ${P.duck}%` : "");
+}
 function edSum(E, P){
-  const L=[], cut=P.cut/ED_SR;
-  if(E.hl!=null) L.push((P.paste ? `앞에 ${edT(P.paste.a)}~${edT(P.paste.b)} 구간 붙임 · ` : cut>.05 ? `앞 ${edT(cut)} 자름 · ` : "")
-    + (P.hl<.5 ? "틀자마자 하이라이트" : `하이라이트 ${fmt(Math.round(P.hl))}`) + (P.duck<100 ? ` · 하이라이트 전 음량 ${P.duck}%` : ""));
+  const L=[], cut=P.cut/ED_SR, ops=edOpsSum(E);
+  if(E.hl!=null) L.push(edHlSum(E,P));
   else if(E.sil && cut>.05) L.push(`앞 무음 ${edSec(cut)} 지움`);
+  if(ops) L.push(ops);
   if(E.more.length) L.push("뒤에 " + E.more.map(m=>m.same ? "같은 곡 한 번 더" : `‘${edShortName(m.file.name)}’`).join(", ") + " 이어 붙임");
   if(E.fade>0) L.push(`끝 ${E.fade}초 서서히 줄임`);
   return L;
@@ -249,13 +317,16 @@ function edCue(){
 }
 // 편집 내용을 적용해요: 결과 파일을 만들어 큐시트가 쓰는 파일로 바꾸고, 입장 시간도 따라 바꿔요
 async function edCommit(E){
-  const was=S.t0||0;
+  const was=S.t0||0, moved=edSig(S.ed)!==edSig(E);          // moved : 구간 편집으로 곡의 모양이 바뀌었는지
   for(const f of Array.from(ED.extra.keys())) if(!E.more.some(m=>m.file===f)) ED.extra.delete(f);
+  if(!E.clips) E.ops=[];
+  if(E.hl!=null){ E.hl=Math.min(E.hl, edLen(edClips(E))/ED_SR); if(E.lead>E.hl) E.lead=Math.floor(E.hl); }
   S.ed=E; ED_MP3=null;
   let d;
   if(edOn(E)){
     const P=edPlan(E), out=edMix(P);
-    S.edInfo={ peaks:edPeaks(out,2,0,P.total,240), dur:P.dur, cut:P.cut/ED_SR, hl:P.hl, paste:!!P.paste, joints:P.joints, fade:P.fade/ED_SR, sum:edSum(E,P) };
+    S.edInfo={ peaks:edPeaks(out,2,0,P.total,240), dur:P.dur, cut:P.cut/ED_SR, hl:P.hl, joints:P.joints, fade:P.fade/ED_SR,
+      sum:edSum(E,P), hlSum:E.hl!=null ? edHlSum(E,P) : "", opSum:edOpsSum(E) };
     d = await loadFile(edWav(out, songBase()+"_편집.wav"));
     S.t0=S.edInfo.cut;
   } else {
@@ -264,21 +335,27 @@ async function edCommit(E){
     S.t0=0;
   }
   if(E.hl!=null) edCue();
-  else if(S.enter!=null){ const n=Math.round(S.enter+was-S.t0); S.enter = n>=1 ? n : null; }   // 앞을 자른 만큼 찍어 둔 시간을 당겨요
+  else if(S.enter!=null){
+    if(moved) S.enter=null;                                  // 곡의 모양이 바뀌면 찍어 둔 시간이 안 맞아요. 다시 찍어요
+    else { const n=Math.round(S.enter+was-S.t0); S.enter = n>=1 ? n : null; }   // 앞을 자른 만큼 찍어 둔 시간을 당겨요
+  }
   return d;
 }
 
 // ===== 물결 + 플레이어 =====
-// o = { head(지금 자리), from·to(색칠할 구간, 초), marks(하이라이트 자리들 = 깃발), joints(곡이 넘어가는 자리들 = 점선), duck({from,to,lv} 음량을 줄인 구간 = 낮게), band([a,b] 따로 색칠할 구간) }
+// o = { head(지금 자리), from·to(색칠할 구간, 초), marks(하이라이트 자리들 = 깃발), joints(이어지는 자리들 = 점선), duck({from,to,lv} 음량을 줄인 구간 = 낮게),
+//       sel([a,b] 고른 구간 = 검게 + 손잡이. 하나만 정했으면 다른 쪽은 null), dim(이 초보다 앞은 안 트는 부분 = 회색) }
 function edWave(cv, peaks, D, o){
   const dpr=Math.min(2,window.devicePixelRatio||1), w=cv.clientWidth||300, h=cv.clientHeight||56;
   if(cv.width!==Math.round(w*dpr) || cv.height!==Math.round(h*dpr)){ cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr); }
   if(!cv._c){ const css=getComputedStyle(cv); cv._c=[css.getPropertyValue("--accent").trim()||"#C2185B", css.getPropertyValue("--line").trim()||"#ccc", css.getPropertyValue("--ink").trim()||"#111"]; }
   const [on,off,ink]=cv._c, x=cv.getContext("2d"), n=peaks.length, bw=w/n, a=o.from||0, b=o.to==null ? D : o.to;
+  const sa = o.sel ? o.sel[0] : null, sb = o.sel ? o.sel[1] : null, both = sa!=null && sb!=null;
   x.setTransform(dpr,0,0,dpr,0,0); x.clearRect(0,0,w,h);
+  if(both){ x.fillStyle=ink; x.globalAlpha=.1; x.fillRect(sa/D*w,0,(sb-sa)/D*w,h); x.globalAlpha=1; }
   for(let i=0;i<n;i++){
     const t=(i+.5)/n*D, bh=Math.max(2,peaks[i]*(h-12)*(o.duck && t>=o.duck.from && t<o.duck.to ? o.duck.lv : 1));
-    x.fillStyle = (t>=a && t<=b) || (o.band && t>=o.band[0] && t<o.band[1]) ? on : off;
+    x.fillStyle = both && t>=sa && t<sb ? ink : o.dim && t<o.dim ? off : t>=a && t<=b ? on : off;
     x.fillRect(i*bw+bw*.15,(h-bh)/2,bw*.7,bh);
   }
   x.fillStyle=ink;
@@ -291,23 +368,33 @@ function edWave(cv, peaks, D, o){
     const px=Math.max(0,Math.min(w-2,t/D*w-1));
     for(let y=0;y<h;y+=7) x.fillRect(px,y,2,4);
   });
+  // 고른 구간의 손잡이 (아래쪽 동그라미. 끌어서 옮겨요)
+  [sa,sb].forEach(t=>{
+    if(t==null) return;
+    const px=Math.max(1.5,Math.min(w-1.5,t/D*w));
+    x.fillRect(px-1.5,0,3,h);
+    x.beginPath(); x.arc(Math.max(6,Math.min(w-6,px)),h-6,6,0,Math.PI*2); x.fill();
+  });
   if(o.head!=null){ x.globalAlpha=.5; x.fillRect(Math.max(0,Math.min(w-2,o.head/D*w-1)),0,2,h); x.globalAlpha=1; }
 }
-function edPlayerHtml(D){
+// cls : 물결에 더할 모양 이름, extra : 플레이어 안 맨 아래에 넣을 것
+function edPlayerHtml(D, cls, extra){
   return `
     <div class="player">
       <div class="now"><span class="t" id="now">0:00</span><span class="d">/ ${fmt(D)}</span></div>
-      <canvas class="wave" id="wave" aria-hidden="true"></canvas>
+      <canvas class="wave${cls ? " "+cls : ""}" id="wave" aria-hidden="true"></canvas>
       <input type="range" id="seek" min="0" max="${D}" step="0.1" value="0" aria-label="재생 위치">
       <div class="ctl">
         <button id="b5">−5초</button>
         <button id="play" class="playbtn">재생</button>
         <button id="f5">+5초</button>
       </div>
+      ${extra||""}
     </div>`;
 }
 // wave(head) : 물결을 다시 그리는 함수. 물결을 누르거나 끌어도 자리가 옮겨져요
-function edBindPlayer(D, wave){
+// grab(t, px, w) : 누른 곳에 손잡이가 있으면 { move(t), end() }를 돌려줘요. 그러면 자리를 옮기지 않고 손잡이를 끌어요
+function edBindPlayer(D, wave, grab){
   const now=document.getElementById("now"), seek=document.getElementById("seek"), play=document.getElementById("play"), cv=document.getElementById("wave");
   const paint = t => { now.textContent=fmt(t); seek.value=t; play.textContent=(audio.paused||audio.ended) ? "재생" : "멈춤"; wave(t); };
   const to = t => { audio.currentTime=Math.max(0,Math.min(D,t)); paint(audio.currentTime); };
@@ -317,8 +404,13 @@ function edBindPlayer(D, wave){
   document.getElementById("f5").onclick = ()=>to(audio.currentTime+5);
   seek.oninput = ()=>{ audio.currentTime=+seek.value; now.textContent=fmt(seek.value); wave(+seek.value); };
   const at = e => { const r=cv.getBoundingClientRect(); return (e.clientX-r.left)/r.width*D; };
-  cv.onpointerdown = e => { try{ cv.setPointerCapture(e.pointerId); }catch(_){} to(at(e)); cv.onpointermove = ev => to(at(ev)); };
-  cv.onpointerup = cv.onpointercancel = ()=>{ cv.onpointermove=null; };
+  cv.onpointerdown = e => {
+    try{ cv.setPointerCapture(e.pointerId); }catch(_){}
+    const r=cv.getBoundingClientRect(), g = grab ? grab(at(e), e.clientX-r.left, r.width) : null;
+    if(g){ cv._end=g.end; cv.onpointermove = ev => g.move(at(ev)); return; }
+    to(at(e)); cv.onpointermove = ev => to(at(ev));
+  };
+  cv.onpointerup = cv.onpointercancel = ()=>{ cv.onpointermove=null; const f=cv._end; cv._end=null; if(f) f(); };
   paint(audio.currentTime||0);
   return paint;
 }
@@ -345,7 +437,7 @@ function edPrevStop(){
 function edPrevPlay(E, done){
   edPrevStop();
   try{ audio.pause(); }catch(e){}
-  const P=edPlan({ src:E.src, hl:E.hl, lead:E.lead, duck:E.duck, pre:E.pre, sil:E.sil, more:[], fade:0 });
+  const P=edPlan(Object.assign(edCopy(E), { more:[], fade:0 }));
   const a=new Audio(URL.createObjectURL(edWav(edMix(P, Math.round((P.hl+5)*ED_SR)), "미리듣기.wav")));
   a._done=done; edPrevA=a;
   a.onended = ()=>{ if(edPrevA===a) edPrevStop(); };
@@ -394,20 +486,24 @@ async function editStep(){
 function edMain(){
   plain();
   const O=ORDERS[S.order], E=S.ed, M=ED.main, on=edited(), I=S.edInfo;
-  const sil=M.s0/ED_SR, hasSil=sil>=ED_SILMIN, cutOver=on && E.hl!=null && (I.paste || I.cut>=sil);   // 앞을 자르면서 무음도 같이 없어진 경우
+  const cl=edClips(E), c0=edCut0(E);
+  const sil=edSilAt(cl,c0)/ED_SR, hasSil=sil>=ED_SILMIN;                     // 지금 틀기 시작하는 곳의 무음
+  const cutOver=!hasSil && c0>0 && edSilAt(cl,0)/ED_SR>=ED_SILMIN;           // 앞을 자르면서 무음도 같이 없어진 경우
   const D = on ? I.dur : (isFinite(audio.duration) ? audio.duration : M.dur), peaks = on ? I.peaks : M.peaks;
   const short = S.dur!=null && S.dur<O.min;
   const rows = [
     { k:"intro", t:"전주가 너무 길어요", s:`하이라이트에 ${O.verb}하도록 앞을 잘라요`, on:E.hl!=null,
-      done: on && E.hl!=null ? I.sum[0] : "" },
+      done: on && E.hl!=null ? I.hlSum : "" },
+    { k:"range", t:"빼거나 옮기고 싶은 부분이 있어요", s:"구간을 골라 지우거나, 복사해서 붙여요", on:E.clips!=null,
+      done: on && E.clips!=null ? I.opSum : "" },
     { k:"long", t:"곡이 짧아요", s:"뒤에 곡을 이어 붙여요", on:E.more.length>0,
       chip: short ? `${O.minText}보다 ${edGap(O.min-S.dur)} 짧아요` : "",
       done: E.more.length ? `${E.more.length}곡 이어 붙임 · 모두 ${fmt(S.dur)}` : "" },
     { k:"fade", t:"끝이 뚝 끊겨요", s:"끝을 서서히 줄여요", on:E.fade>0, done: E.fade>0 ? `끝 ${E.fade}초 서서히 줄임` : "" },
-    { k:"sil", t:"틀어도 바로 소리가 안 나요", on:E.sil && !cutOver,
-      s: cutOver && hasSil ? "앞을 자르면서 무음도 같이 없어졌어요" : hasSil ? "앞의 소리 없는 부분을 지워요" : "확인해 보니 앞에 소리 없는 부분이 없어요",
-      chip: hasSil && !E.sil && !cutOver ? `앞 ${edSec(sil)} 동안 소리가 없어요` : "",
-      done: E.sil && !cutOver ? `앞 무음 ${edSec(sil)} 지움` : "", off: !hasSil || cutOver }
+    { k:"sil", t:"틀어도 바로 소리가 안 나요", on:E.sil && hasSil,
+      s: cutOver ? "앞을 자르면서 무음도 같이 없어졌어요" : hasSil ? "앞의 소리 없는 부분을 지워요" : "확인해 보니 앞에 소리 없는 부분이 없어요",
+      chip: hasSil && !E.sil ? `앞 ${edSec(sil)} 동안 소리가 없어요` : "",
+      done: E.sil && hasSil ? `앞 무음 ${edSec(sil)} 지움` : "", off: !hasSil }
   ];
   const ia=edInApp();
   const jumps = !on ? [] : [
@@ -442,7 +538,7 @@ function edMain(){
   edBindPlayer(D, t=>edWave(document.getElementById("wave"), peaks, D, { head:t, marks, joints }));
   app.querySelectorAll(".edrows button").forEach(b=>b.onclick=()=>{
     DR=edCopy(S.ed);
-    go({ intro:edIntro, long:edLong, fade:edFade, sil:edSil }[b.dataset.k]);
+    go({ intro:edIntro, range:edRange, long:edLong, fade:edFade, sil:edSil }[b.dataset.k]);
   });
   app.querySelectorAll(".edjump button").forEach(b=>b.onclick=()=>edPlayFrom(+b.dataset.t));
   document.getElementById("next").onclick = ()=>{ stack.pop(); edFree(); go(qMode); };   // 풀어 둔 소리를 비우고 넘어가요. "이전"을 누르면 파일 열기 화면으로 돌아가요
@@ -464,23 +560,26 @@ async function edApply(fn){
 }
 
 // ===== 고민 1. 전주가 너무 길어요 → 하이라이트에 맞춰 앞 자르기 =====
-// 정하는 것: ① 하이라이트 자리 ② 몇 초 전부터 틀지 ③ 그 앞에 틀 부분 (바로 앞부분 그대로 / 가사 없는 반주 구간 가져오기) ④ 그때의 음량
+// 정하는 것: ① 하이라이트 자리 ② 몇 초 전부터 틀지 ③ 그때의 음량
+// 하이라이트 앞에 다른 구간(가사 없는 반주)을 붙이거나 구간을 지우는 건 "구간 편집"(edRange)에서 해요. 여기서 바로 넘어갈 수 있어요
 async function edIntro(){
   stopAudio(); edPrevStop(); plain();
-  const O=ORDERS[S.order], M=ED.main, D=DR, had=S.ed.hl!=null, PREV="이렇게 들려요 (미리 듣기)";
-  const top0 = M.s0/ED_SR<ED_SILMIN ? 0 : Math.ceil(M.s0/ED_SR*10)/10;      // 곡 맨 앞 (앞 무음이 있으면 그게 끝나는 곳. 거의 없으면 0:00)
-  // 원본을 푼 소리 그대로 들려줘요 (찍는 자리와 자르는 자리가 정확히 같게)
-  if(!ED.url0) ED.url0=URL.createObjectURL(edWav(edInter(M),"원본.wav"));
+  const O=ORDERS[S.order], D=DR, had=S.ed.hl!=null, PREV="이렇게 들려요 (미리 듣기)";
+  const B=edBody(D), bj=edJoints(edClips(D));      // 구간 편집까지 한 곡을 들려줘요 (찍는 자리와 자르는 자리가 정확히 같게)
   app.innerHTML = `
     ${edTop()}
     <h2 class="title">하이라이트가 시작될 때<br>“여기!”를 눌러 주세요</h2>
     <p class="lead2">그 순간에 ${esc(O.verb)}하도록 앞부분을 잘라 드려요. 물결이 커지는 곳이 하이라이트일 때가 많아요.</p>
-    <div class="stick">${edPlayerHtml(M.dur)}</div>
+    <div class="stick">${edPlayerHtml(B.dur)}</div>
     <div class="marks">
       <div class="mark" id="hlBox"></div>
       <div class="mark" id="leadBox"></div>
-      <div class="mark" id="preBox" hidden></div>
       <div class="mark" id="duckBox" hidden></div>
+      <div class="mark" id="moreBox" hidden>
+        <div class="mk-head"><b>하이라이트 앞에<br>가사가 나오나요?</b></div>
+        <p class="mk-hint">가사 없는 구간(전주·간주)을 복사해서 하이라이트 앞에 붙이거나, 필요 없는 구간을 지울 수 있어요.</p>
+        <div class="mk-btns"><button id="toRange">이렇게 자르고, 구간 지우기 · 붙이기로</button></div>
+      </div>
     </div>
     <div class="facts" id="facts"></div>
     <div class="btns gap">
@@ -492,16 +591,15 @@ async function edIntro(){
     ${nav()}
     ${foot()}`;
   bindNav();
-  await edUse(ED.url0);
+  await edUse(B.url);
   if(!edTopOf(edIntro)) return;
   let P=null;
   const wave = t => {
-    const o={ head:t, marks:D.hl!=null ? [D.hl] : [] };
-    if(P && P.paste){ o.from=D.hl; o.band=[P.paste.a,P.paste.b]; o.joints=[P.paste.a]; }       // 가져온 구간 + 하이라이트부터
-    else if(P){ o.from=P.cut/ED_SR; if(P.duck<100) o.duck={ from:P.cut/ED_SR, to:D.hl, lv:P.duck/100 }; }
-    edWave(document.getElementById("wave"), M.peaks, M.dur, o);
+    const o={ head:t, marks:D.hl!=null ? [D.hl] : [], joints:bj };
+    if(P){ o.from=P.cut/ED_SR; if(P.duck<100) o.duck={ from:P.cut/ED_SR, to:D.hl, lv:P.duck/100 }; }
+    edWave(document.getElementById("wave"), B.peaks, B.dur, o);
   };
-  const tick = edBindPlayer(M.dur, wave);
+  const tick = edBindPlayer(B.dur, wave);
   const r10 = v => Math.round(v*10)/10;
   const paint = ()=>{
     const hl=D.hl;
@@ -518,28 +616,15 @@ async function edIntro(){
         <button id="from" ${hl==null?"disabled":""}>여기부터 듣기</button>
       </div>`;
     document.getElementById("leadBox").innerHTML = `
-      <div class="mk-head"><b>하이라이트 몇 초 전부터<br>틀까요?</b><span class="unit"><input class="mk-t" id="leadT" inputmode="numeric" value="${hl!=null ? D.lead : ""}" placeholder="0" ${hl==null?"disabled":""} aria-label="하이라이트 몇 초 전부터 틀지">초</span></div>
+      <div class="mk-head"><b>하이라이트 몇 초 전부터<br>틀까요?</b><span class="unit"><input class="mk-t" id="leadT" inputmode="decimal" value="${hl!=null ? D.lead : ""}" placeholder="0" ${hl==null?"disabled":""} aria-label="하이라이트 몇 초 전부터 틀지">초</span></div>
       <div class="chips" id="leads">${ED_LEADS.map(v=>`<button data-v="${v}" class="${hl!=null && D.lead===v?"on":""}" ${hl==null||v>hl?"disabled":""}>${v ? v+"초 전" : "바로"}</button>`).join("")}</div>
       <p class="mk-hint">${hl==null ? "하이라이트를 먼저 찍어 주세요."
         : D.lead===0 ? `“${esc(O.call)}” 하고 틀면 하이라이트가 바로 나와요.`
         : `음원을 틀고 ${D.lead}초 동안 전주가 흐른 뒤 하이라이트가 나와요. 그동안 사회자가 멘트를 할 수 있어요.`}</p>`;
-    // 하이라이트 전에 틀 부분 · 그때의 음량 (바로 틀기면 전주가 없어서 안 보여요)
-    const before = hl!=null && D.lead>0, pbox=document.getElementById("preBox"), dbox=document.getElementById("duckBox");
-    pbox.hidden = dbox.hidden = !before;
-    pbox.innerHTML = !before ? "" : `
-      <div class="mk-head"><b>하이라이트 전에 틀 부분</b></div>
-      <div class="chips" id="pres"><button data-v="0" class="${D.pre==null?"on":""}">바로 앞부분</button><button data-v="1" class="${D.pre!=null?"on":""}">반주 구간 가져오기</button></div>
-      ${D.pre==null
-        ? `<p class="mk-hint">하이라이트 바로 앞 ${D.lead}초를 그대로 틀어요. 거기에 가사가 나오면 ‘반주 구간 가져오기’로 가사 없는 부분을 대신 넣을 수 있어요.</p>`
-        : `<div class="mk-head sub"><b>반주 시작</b><input class="mk-t" id="preT" inputmode="decimal" value="${edT(P.paste.a)}" aria-label="반주 시작 시간"></div>
-           <p class="mk-hint">가사가 없는 부분(전주·간주)이 시작될 때 “여기!”를 눌러 주세요. 거기서부터 ${D.lead}초를 가져와 하이라이트 앞에 붙여요.</p>
-           <div class="mk-btns">
-             <button class="stamp" id="preStamp">여기!</button>
-             <button id="preTop">곡 맨 앞</button>
-             <button class="adj" data-d="-0.5">−0.5초</button>
-             <button class="adj" data-d="0.5">+0.5초</button>
-             <button id="preFrom">여기부터 듣기</button>
-           </div>`}`;
+    // 하이라이트 전 음량 (바로 틀기면 전주가 없어서 안 보여요)
+    const before = hl!=null && D.lead>0, dbox=document.getElementById("duckBox");
+    dbox.hidden = !before;
+    document.getElementById("moreBox").hidden = hl==null;
     dbox.innerHTML = !before ? "" : `
       <div class="mk-head"><b>하이라이트 전 음량</b><span class="unit"><input class="mk-t" id="duckT" inputmode="numeric" value="${D.duck}" aria-label="하이라이트 전 음량">%</span></div>
       <div class="chips" id="ducks">${ED_DUCKS.map(v=>`<button data-v="${v}" class="${D.duck===v?"on":""}">${v===100 ? "그대로" : v+"%"}</button>`).join("")}</div>
@@ -550,45 +635,28 @@ async function edIntro(){
     const f=[];
     if(P){
       const cut=P.cut/ED_SR, n=Math.round(P.hl);
-      if(P.paste){
-        f.push(`앞에 붙이는 구간 <b>${edT(P.paste.a)}~${edT(P.paste.b)}</b>`);
-        f.push(`그 뒤로 하이라이트(원래 <b>${edT(hl)}</b>)부터 이어져요`);
-      } else f.push(cut>.05 ? `앞에서 <b>${edT(cut)}</b>만큼 잘라요` : "앞을 자르지 않아요 (하이라이트가 이미 그 자리에 있어요)");
+      f.push(cut>.05 ? `앞에서 <b>${edT(cut)}</b>만큼 잘라요` : "앞을 자르지 않아요 (하이라이트가 이미 그 자리에 있어요)");
       f.push(n>0 ? `음원을 틀고 <b>${n}초</b> 뒤에 하이라이트 → ${esc(O.verb)} 시간 <b>${fmt(n)}</b>` : `틀자마자 하이라이트 → 0:00이 곧 ${esc(O.verb)}`);
       if(P.duck<100) f.push(`하이라이트 전 음량 <b>${P.duck}%</b> → 하이라이트부터 원래 음량`);
       f.push(`자른 뒤 길이 <b>${fmt(P.dur)}</b>` + (P.dur<O.min ? ` · ${O.minText}보다 짧아져요. ‘곡이 짧아요’에서 뒤를 이어 붙일 수 있어요.` : ""));
     }
     document.getElementById("facts").innerHTML = f.join("<br>");
-    const ap=document.getElementById("apply");
-    ap.disabled = hl==null;
-    ap.textContent = P && P.paste ? "이렇게 만들기" : "이렇게 자르기";      // 반주 구간을 가져올 때는 자르기만이 아니라서
+    document.getElementById("apply").disabled = hl==null;
     document.getElementById("prev").disabled = hl==null;
     // 하이라이트
-    const set = v => { D.hl = v==null ? null : Math.max(0, Math.min(M.dur-1, r10(v))); paint(); };
+    const set = v => { D.hl = v==null ? null : Math.max(0, Math.min(B.dur-1, r10(v))); paint(); };
     const inp=document.getElementById("hlT");
     inp.onchange = ()=>{ const v=edParse(inp.value); if(v==null){ inp.value = hl!=null ? edT(hl) : ""; return; } set(v); };
     inp.onkeydown = ev=>{ if(ev.key==="Enter") inp.blur(); };
     document.getElementById("stamp").onclick = ()=>set(audio.currentTime);
     document.querySelectorAll("#hlBox .adj").forEach(b=>b.onclick=()=>set((D.hl||0)+ +b.dataset.d));
     document.getElementById("from").onclick = ()=>edPlayFrom(D.hl-3);
-    // 몇 초 전부터
-    const lead = v => { D.lead=Math.max(0, Math.min(Math.floor(D.hl), Math.round(v))); paint(); };
+    // 몇 초 전부터 (구간을 붙이면 14.5초처럼 소수가 될 수도 있어요)
+    const lead = v => { D.lead=Math.max(0, Math.min(D.hl, r10(v))); paint(); };
     document.querySelectorAll("#leads button").forEach(b=>b.onclick=()=>lead(+b.dataset.v));
     const li=document.getElementById("leadT");
-    li.onchange = ()=>{ const v=parseInt(li.value,10); if(isNaN(v)){ li.value=D.lead; return; } lead(v); };
+    li.onchange = ()=>{ const v=parseFloat(li.value); if(isNaN(v)){ li.value=D.lead; return; } lead(v); };
     li.onkeydown = ev=>{ if(ev.key==="Enter") li.blur(); };
-    // 하이라이트 전에 틀 부분
-    const pre = v => { D.pre = v==null ? null : Math.max(0, Math.min(M.dur-D.lead, r10(v))); paint(); };
-    document.querySelectorAll("#pres button").forEach(b=>b.onclick=()=>pre(b.dataset.v==="1" ? (D.pre!=null ? D.pre : top0) : null));
-    const pi=document.getElementById("preT");
-    if(pi){
-      pi.onchange = ()=>{ const v=edParse(pi.value); if(v==null){ pi.value=edT(D.pre); return; } pre(v); };
-      pi.onkeydown = ev=>{ if(ev.key==="Enter") pi.blur(); };
-      document.getElementById("preStamp").onclick = ()=>pre(audio.currentTime);
-      document.getElementById("preTop").onclick = ()=>pre(top0);
-      document.querySelectorAll("#preBox .adj").forEach(b=>b.onclick=()=>pre(D.pre+ +b.dataset.d));
-      document.getElementById("preFrom").onclick = ()=>edPlayFrom(P.paste.a);
-    }
     // 음량
     const duck = v => { D.duck=Math.max(10, Math.min(100, Math.round(v))); paint(); };
     document.querySelectorAll("#ducks button").forEach(b=>b.onclick=()=>duck(+b.dataset.v));
@@ -611,9 +679,235 @@ async function edIntro(){
   document.getElementById("apply").onclick = ()=>{ if(D.hl!=null) edApply(edIntro); };
   const un=document.getElementById("undo");
   if(un) un.onclick = ()=>{ D.hl=null; edApply(edIntro); };
+  // 지금 고른 대로 자르고 구간 편집 화면으로 (거기서 "이전"을 누르면 고민 화면으로 가요)
+  const tr=document.getElementById("toRange");
+  tr.onclick = async ()=>{
+    if(D.hl==null) return;
+    tr.disabled=true; edPrevStop();
+    edBusy("음원을 고치는 중…");
+    await new Promise(r=>setTimeout(r,30));
+    const d=await edCommit(DR);
+    if(!edTopOf(edIntro)) return;
+    if(d==null){ edBusy("음원을 고치지 못했어요. 다시 해 주세요."); tr.disabled=false; return; }
+    stack.pop(); DR=edCopy(S.ed); go(edRange);
+  };
 }
 
-// ===== 고민 2. 곡이 짧아요 → 뒤에 이어 붙이기 =====
+// ===== 고민 2. 빼거나 옮기고 싶은 부분이 있어요 → 구간을 골라 지우기 · 복사하기 · 붙여넣기 =====
+// ① 구간 고르기(시작 · 끝) ② 그 구간을 지우기 / 복사하기 ③ 복사한 구간을 붙일 자리 고르기
+// 누르면 바로 그렇게 돼요 (물결과 듣는 소리가 바뀌어요). "방금 한 것 되돌리기"로 하나씩 되돌려요.
+// 여기서 보는 시간은 모두 "지금 모양의 곡" 기준이에요. 하이라이트는 구간을 지우거나 붙이면 따라 움직여요.
+async function edRange(){
+  stopAudio(); edPrevStop(); plain();
+  const O=ORDERS[S.order], D=DR, r10 = v => Math.round(v*10)/10, r3 = v => Math.round(v*1000)/1000;
+  let B=null, sel={ a:null, b:null }, dirty=false, busy=false, stopAt=null, tick=null;
+  app.innerHTML = `
+    ${edTop()}
+    <h2 class="title">구간을 골라<br>지우거나 붙여요</h2>
+    <p class="lead2">시작과 끝을 정하면 그 구간을 지우거나, 복사해서 다른 자리에 붙일 수 있어요. 원래 파일은 바뀌지 않아요.</p>
+    <div class="stick" id="plBox"></div>
+    <div class="marks">
+      <div class="mark" id="selBox"></div>
+      <div class="mark" id="actBox"></div>
+      <div class="mark" id="pasteBox" hidden></div>
+      <div class="mark" id="logBox" hidden></div>
+    </div>
+    <div class="facts" id="facts"></div>
+    <div class="btns gap">
+      <button class="btn main" id="done">다 했어요</button>
+      <p class="msg" id="msg" role="status"></p>
+    </div>
+    ${nav()}
+    ${foot()}`;
+  bindNav();
+  const $ = id => document.getElementById(id);
+  const note = t => { const n=$("rnote"); if(n) n.textContent=t||""; };
+  const cutSec = ()=>edCut0(D)/ED_SR;                       // 하이라이트를 정했으면 여기부터 틀어요. 그 앞은 회색
+  const wave = t => {
+    if(stopAt!=null && t>=stopAt){ stopAt=null; audio.pause(); }      // "고른 구간 듣기"는 끝에서 멈춰요
+    const c=cutSec();
+    edWave($("wave"), B.peaks, B.dur, { head:t, marks:D.hl!=null ? [D.hl] : [], joints:edJoints(edClips(D)), sel:[sel.a,sel.b], dim:c>.05 ? c : 0 });
+    const h=$("pHere"); if(h) h.textContent=`듣는 자리 (${edT(Math.min(B.dur,t))})`;
+  };
+  // 고른 구간의 손잡이를 끌 때: 숫자와 물결만 바로바로 바꾸고, 손을 떼면 칸을 다시 그려요
+  const grab = (t, px, w) => {
+    const far = v => v==null ? 1e9 : Math.abs(v/B.dur*w-px), da=far(sel.a), db=far(sel.b);
+    if(Math.min(da,db)>22) return null;
+    const k = da<=db ? "a" : "b";
+    return {
+      move: v => {
+        v=r10(Math.max(0, Math.min(B.dur, v)));
+        if(k==="a") sel.a = sel.b!=null ? Math.min(v, r10(sel.b-ED_SELMIN)) : v;
+        else sel.b = Math.min(B.dur, Math.max(v, r10(sel.a+ED_SELMIN)));
+        const i=$(k==="a" ? "saT" : "sbT"); if(i) i.value=edT(sel[k]);
+        wave(audio.currentTime||0);
+      },
+      end: ()=>paint()
+    };
+  };
+  // 곡의 모양이 바뀌면 들려줄 소리를 다시 만들어요. t = 다시 그린 뒤 듣는 자리
+  const load = async t => {
+    const keep = $("rnote") ? $("rnote").textContent : "";
+    B=edBody(D);
+    $("plBox").innerHTML = edPlayerHtml(B.dur, "sel", `<p class="pl-note" id="rnote" role="status"></p>`);
+    note(keep);                                             // "고치는 중…"이 그대로 보이게
+    await edUse(B.url);
+    if(!edTopOf(edRange)) return false;
+    try{ audio.currentTime=Math.max(0, Math.min(B.dur, t||0)); }catch(e){}
+    tick = edBindPlayer(B.dur, wave, grab);
+    return true;
+  };
+  const clampLead = ()=>{ if(D.hl!=null && D.lead>D.hl) D.lead=Math.floor(D.hl); };
+  // 지우기 · 붙여넣기 · 되돌리기: fn()이 모양을 바꾸고 { at(듣는 자리), msg }를 돌려줘요
+  const run = async fn => {
+    if(busy) return; busy=true;
+    note("고치는 중…");
+    await new Promise(r=>setTimeout(r,30));
+    const r=fn(); dirty=true;
+    const ok=await load(r.at);
+    busy=false;
+    if(!ok) return;
+    paint(); note(r.msg);
+  };
+  const del = ()=>{
+    const a=sel.a, b=sel.b, cl=edClips(D), aS=Math.round(a*ED_SR), bS=Math.min(edLen(cl), Math.round(b*ED_SR)), len=(bS-aS)/ED_SR;
+    D.ops.push({ k:"del", a, b, len, prev:edClipCopy(D.clips) });
+    D.clips=edDel(cl,aS,bS);
+    if(D.hl!=null && D.hl>=b){ D.hl=r3(D.hl-len); clampLead(); }
+    sel={ a:null, b:null };
+    return { at:Math.max(0,a-3), msg:`${edT(a)}~${edT(b)} 구간을 지웠어요. 재생을 눌러 이어진 곳을 들어 보세요.` };
+  };
+  const paste = where => {
+    const C=ED.clip, cl=edClips(D), L=edLen(cl), len=C.len/ED_SR;
+    const t = where==="hl" ? D.hl : where==="top" ? 0 : where==="end" ? L/ED_SR : Math.min(L/ED_SR, r10(audio.currentTime||0));
+    const tS=Math.min(L, Math.round(t*ED_SR)), op={ k:"paste", label:C.label, where, at:t, len, prev:edClipCopy(D.clips), lead0:D.lead, lead1:null };
+    D.clips=edIns(cl,tS,C.pieces);
+    if(D.hl!=null && tS<=Math.round(D.hl*ED_SR)) D.hl=r3(D.hl+len);
+    // 하이라이트 앞에 붙이면 붙인 구간부터 틀도록 "몇 초 전부터"를 그 길이로 맞춰요
+    if(where==="hl") op.lead1 = D.lead = Math.min(D.hl, Math.floor(len*10)/10);
+    D.ops.push(op);
+    sel={ a:t, b:Math.min((L+C.len)/ED_SR, r3(t+len)) };
+    return { at:t, msg: where==="hl"
+      ? `하이라이트 앞에 붙였어요. 붙인 구간부터 틀도록 ‘하이라이트 ${D.lead}초 전부터’로 맞췄어요.`
+      : `${where==="top" ? "맨 앞" : where==="end" ? "맨 끝" : edT(t)}에 붙였어요. 재생을 눌러 들어 보세요.` };
+  };
+  const undo = ()=>{
+    const op=D.ops.pop();
+    D.clips=edClipCopy(op.prev);
+    if(D.hl!=null){
+      if(op.k==="del"){ if(D.hl>=op.a) D.hl=r3(D.hl+op.len); }
+      else if(D.hl>=op.at+op.len) D.hl=r3(D.hl-op.len);
+      else if(D.hl>op.at) D.hl=op.at;                        // 붙인 구간 안에 하이라이트를 다시 찍어 뒀으면 붙인 자리로
+    }
+    if(op.lead1!=null && D.lead===op.lead1) D.lead=op.lead0;
+    clampLead();
+    sel={ a:null, b:null };
+    return { at: op.k==="del" ? op.a : op.at, msg:"방금 한 것을 되돌렸어요." };
+  };
+  const paint = ()=>{
+    const a=sel.a, b=sel.b, both = a!=null && b!=null, hl=D.hl, C=ED.clip, dur=B.dur;
+    const hlIn = both && hl!=null && hl>=a && hl<b;          // 고른 구간 안에 하이라이트가 있으면 못 지워요
+    const tooShort = both && dur-(b-a)<ED_KEEP;
+    const pt = (k, name, v, edge) => `
+      <div class="mk-head${k==="b" ? " sub" : ""}"><b>${name}</b><input class="mk-t" id="s${k}T" inputmode="decimal" placeholder="0:00" value="${v!=null ? edT(v) : ""}" aria-label="구간 ${name} 시간"></div>
+      <div class="mk-btns" data-k="${k}">
+        <button class="stamp" data-s="now">여기!</button>
+        <button class="adj" data-d="-0.5" ${v==null?"disabled":""}>−0.5초</button>
+        <button class="adj" data-d="0.5" ${v==null?"disabled":""}>+0.5초</button>
+        <button data-s="edge">${edge}</button>
+        ${hl!=null ? `<button data-s="hl">하이라이트</button>` : ""}
+      </div>`;
+    $("selBox").innerHTML = `
+      <div class="mk-head"><b>① 구간 고르기</b>${both ? `<span class="sel-len">${edGap(b-a)}</span>` : ""}</div>
+      <p class="mk-hint">들으면서 구간이 시작될 때와 끝날 때 “여기!”를 눌러 주세요. 찍은 뒤에는 물결의 손잡이(●)를 끌어서 옮길 수도 있어요.</p>
+      ${pt("a","시작",a,"맨 앞")}
+      ${pt("b","끝",b,"맨 끝")}
+      <div class="mk-btns selrun"><button id="selPlay" ${both?"":"disabled"}>고른 구간 듣기</button><button id="selClear" ${a==null&&b==null?"disabled":""}>다시 고르기</button></div>`;
+    $("actBox").innerHTML = `
+      <div class="mk-head"><b>② 고른 구간을<br>어떻게 할까요?</b></div>
+      <div class="acts"><button id="rDel" ${both && !hlIn && !tooShort ? "" : "disabled"}>지우기</button><button id="rCopy" ${both?"":"disabled"}>복사하기</button></div>
+      <p class="mk-hint">${!both ? "먼저 위에서 시작과 끝을 정해 주세요."
+        : hlIn ? `이 구간 안에 하이라이트(${edT(hl)})가 있어서 지울 수 없어요. 복사는 할 수 있어요.`
+        : tooShort ? `지우면 곡이 ${ED_KEEP}초보다 짧아져서 지울 수 없어요. 복사는 할 수 있어요.`
+        : `${edT(a)}~${edT(b)}을 지우면 앞뒤가 자연스럽게 이어져요. 복사하면 다른 자리에 붙여 넣을 수 있어요.`}</p>`;
+    const pb=$("pasteBox"); pb.hidden=!C;
+    pb.innerHTML = !C ? "" : `
+      <div class="mk-head"><b>③ 복사한 구간<br>붙여넣기</b><span class="sel-len">${edGap(C.len/ED_SR)}</span></div>
+      <p class="mk-hint">복사한 구간(${esc(C.label)})을 어디에 붙일까요? 누르면 바로 붙어요.</p>
+      <div class="chips" id="pastes">
+        <button data-w="hl" ${hl==null?"disabled":""}>하이라이트 앞</button>
+        <button data-w="top">맨 앞</button>
+        <button data-w="end">맨 끝</button>
+        <button data-w="here" id="pHere">듣는 자리 (${edT(audio.currentTime||0)})</button>
+      </div>
+      <p class="mk-hint">${hl!=null ? "‘하이라이트 앞’에 붙이면 붙인 구간부터 틀도록 맞춰 드려요."
+        : "‘전주가 너무 길어요’에서 하이라이트를 정하면 ‘하이라이트 앞’에도 붙일 수 있어요."}</p>`;
+    const lb=$("logBox"); lb.hidden=!D.ops.length;
+    lb.innerHTML = !D.ops.length ? "" : `
+      <div class="mk-head"><b>지금까지 한 일</b></div>
+      <ol class="oplist">${D.ops.map((op,i)=>`<li><span class="pn">${i+1}</span><span>${esc(edOpText(op))}</span></li>`).join("")}</ol>
+      <div class="mk-btns"><button id="rUndo">방금 한 것 되돌리기</button></div>`;
+    // 숫자로 보여 주는 것
+    const f=[`지금 길이 <b>${fmt(dur)}</b>` + (D.clips ? ` (원래 ${fmt(ED.main.dur)})` : "")], c=cutSec();
+    if(hl!=null) f.push(`하이라이트 <b>${edT(hl)}</b>` + (c>.05 ? ` · ${D.lead}초 전인 <b>${edT(c)}</b>부터 틀어요 (회색 부분은 안 나와요)` : " · 처음부터 틀어요"));
+    $("facts").innerHTML = f.join("<br>");
+
+    // 구간 고르기
+    const setA = v => { sel.a=r10(Math.max(0, Math.min(dur-ED_SELMIN, v))); if(sel.b!=null && sel.b<sel.a+ED_SELMIN) sel.b=null; note(""); paint(); };
+    const setB = v => {
+      v=Math.min(dur, r10(Math.max(0, v)));
+      if(sel.a!=null && v<sel.a+ED_SELMIN){ note("끝은 시작보다 뒤여야 해요."); paint(); return; }
+      sel.b=v; note(""); paint();
+    };
+    [["a",setA],["b",setB]].forEach(([k,set])=>{
+      const inp=$("s"+k+"T");
+      inp.onchange = ()=>{ const v=edParse(inp.value); if(v==null){ inp.value = sel[k]!=null ? edT(sel[k]) : ""; return; } set(v); };
+      inp.onkeydown = ev=>{ if(ev.key==="Enter") inp.blur(); };
+      document.querySelectorAll(`#selBox .mk-btns[data-k="${k}"] button`).forEach(bt=>bt.onclick=()=>{
+        if(bt.dataset.d) set(sel[k]+ +bt.dataset.d);
+        else set(bt.dataset.s==="now" ? audio.currentTime : bt.dataset.s==="hl" ? D.hl : k==="a" ? 0 : dur);
+      });
+    });
+    $("selPlay").onclick = ()=>{
+      if(sel.a==null || sel.b==null) return;
+      const e=sel.b; stopAt=null;
+      audio.currentTime=sel.a;
+      audio.play().then(()=>{ stopAt=e; }).catch(()=>{});
+    };
+    $("selClear").onclick = ()=>{ sel={ a:null, b:null }; note(""); paint(); };
+    // 지우기 · 복사하기 · 붙여넣기 · 되돌리기
+    $("rDel").onclick = ()=>run(del);
+    $("rCopy").onclick = ()=>{
+      const cl=edClips(D), aS=Math.round(sel.a*ED_SR), bS=Math.min(edLen(cl), Math.round(sel.b*ED_SR));
+      ED.clip={ pieces:edSlice(cl,aS,bS), len:bS-aS, label:`${edT(sel.a)}~${edT(sel.b)}` };
+      paint(); note("복사했어요. 아래 ③에서 붙일 자리를 골라 주세요.");
+    };
+    document.querySelectorAll("#pastes button").forEach(bt=>bt.onclick=()=>{
+      if((edLen(edClips(D))+ED.clip.len)/ED_SR>ED_MAXLEN){ note("15분까지만 만들 수 있어요."); return; }
+      run(()=>paste(bt.dataset.w));
+    });
+    const ub=$("rUndo"); if(ub) ub.onclick = ()=>run(undo);
+    if(tick) tick(audio.currentTime||0);
+  };
+  if(!(await load(0))) return;
+  paint();
+  // "다 했어요"와 "이전" 둘 다: 여기서 한 일을 적용하고 고민 화면으로 돌아가요 (지우기 · 붙여넣기는 누를 때 이미 한 일이라서)
+  const leave = async ()=>{
+    if(busy) return;
+    if(!dirty){ back(); return; }
+    busy=true;
+    edBusy("음원을 고치는 중…");
+    await new Promise(r=>setTimeout(r,30));
+    const d=await edCommit(D);
+    if(!edTopOf(edRange)) return;
+    if(d==null){ busy=false; edBusy("음원을 고치지 못했어요. 다시 해 주세요."); return; }
+    back();
+  };
+  $("done").onclick = leave;
+  $("back").onclick = leave;
+}
+
+// ===== 고민 3. 곡이 짧아요 → 뒤에 이어 붙이기 =====
 function edLong(){
   stopAudio(); plain();
   const O=ORDERS[S.order], D=DR, again=S.order!=="march", had=S.ed.more.length>0;
@@ -634,11 +928,10 @@ function edLong(){
   bindNav();
   const paint = ()=>{
     const P=edPlan(D);
-    // 첫 줄 = 원래 곡 (하이라이트 앞에 반주 구간을 가져왔으면 그 구간까지 합친 길이), 그다음 줄부터 붙인 곡
-    const off = P.paste ? 1 : 0, ms=P.segs[off];
-    const list = [{ name:songBase(), len:(ms.at+ms.b-ms.a)/ED_SR }].concat(D.more.map((m,i)=>{
-      const sg=P.segs[off+1+i];
-      return { name: m.same ? "같은 곡 한 번 더" : m.file.name.replace(/\.[^.]+$/,""), len:(sg.b-sg.a)/ED_SR, at:sg.at/ED_SR };
+    // 첫 줄 = 원래 곡 (구간 편집을 했으면 그 모양대로), 그다음 줄부터 붙인 곡
+    const list = [{ name:songBase(), len:P.songs[0].end/ED_SR }].concat(D.more.map((m,i)=>{
+      const sg=P.songs[1+i];
+      return { name: m.same ? "같은 곡 한 번 더" : m.file.name.replace(/\.[^.]+$/,""), len:(sg.end-sg.at)/ED_SR, at:sg.at/ED_SR };
     }));
     document.getElementById("parts").innerHTML = list.map((r,i)=>
       `<li><span class="pn">${i+1}</span><span class="pt">${esc(r.name)}<small>${fmt(r.len)}${i ? ` · ${fmt(r.at)}에 넘어가요` : ""}</small></span>${i ? `<button class="px" data-i="${i-1}">빼기</button>` : ""}</li>`
@@ -675,7 +968,7 @@ function edLong(){
   document.getElementById("apply").onclick = ()=>edApply(edLong);
 }
 
-// ===== 고민 3. 끝이 뚝 끊겨요 → 끝을 서서히 =====
+// ===== 고민 4. 끝이 뚝 끊겨요 → 끝을 서서히 =====
 function edFade(){
   stopAudio(); plain();
   const D=DR, had=S.ed.fade>0;
@@ -710,11 +1003,12 @@ function edFade(){
   if(un) un.onclick = ()=>{ D.fade=0; edApply(edFade); };
 }
 
-// ===== 고민 4. 틀어도 바로 소리가 안 나요 → 앞 무음 지우기 =====
+// ===== 고민 5. 틀어도 바로 소리가 안 나요 → 앞 무음 지우기 =====
 function edSil(){
   stopAudio(); plain();
-  const O=ORDERS[S.order], M=ED.main, D=DR, had=S.ed.sil, sil=M.s0/ED_SR;
-  const Z=Math.min(M.dur, Math.max(8, Math.ceil(sil)+4));     // 물결에 보여 줄 앞부분 길이(초)
+  const O=ORDERS[S.order], M=ED.main, D=DR, had=S.ed.sil, cl=edClips(D), c0=edCut0(D), sil=edSilAt(cl,c0)/ED_SR;
+  const o0=M.s0-Math.round(sil*ED_SR);                        // 지금 틀기 시작하는 곳 (원본의 자리)
+  const Z=Math.min(M.dur-o0/ED_SR, Math.max(8, Math.ceil(sil)+4));     // 물결에 보여 줄 앞부분 길이(초)
   app.innerHTML = `
     ${edTop()}
     <h2 class="title">앞의 소리 없는 부분을<br>지워요</h2>
@@ -727,7 +1021,7 @@ function edSil(){
     ${nav()}
     ${foot()}`;
   bindNav();
-  edWave(document.getElementById("wave"), edPeaks(M.L,1,0,Math.round(Z*ED_SR),120), Z, { from:sil });
+  edWave(document.getElementById("wave"), edPeaks(M.L,1,o0,Math.min(M.len,o0+Math.round(Z*ED_SR)),120), Z, { from:sil });
   const ap=document.getElementById("apply"), un=document.getElementById("undo");
   if(ap) ap.onclick = ()=>{ D.sil=true; edApply(edSil); };
   if(un) un.onclick = ()=>{ D.sil=false; edApply(edSil); };
