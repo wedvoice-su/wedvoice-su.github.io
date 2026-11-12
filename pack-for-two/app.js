@@ -422,7 +422,10 @@ function result(resume){
     <section class="sec end">
       <div class="btns">
         <button class="btn main" id="share">목록 링크 보내기</button>
-        <button class="btn ghost" id="copy">목록 글로 복사하기</button>
+        <div class="btn-row">
+          <button class="btn ghost" id="copy">글로 복사하기</button>
+          <button class="btn ghost" id="xlsx">엑셀로 저장하기</button>
+        </div>
       </div>
       <p class="msg" id="msg"></p>
       <p class="note small">${PRIVACY} 링크를 받은 신랑·신부도 같은 목록을 보고, 체크는 각자 폰에 따로 해요.</p>
@@ -436,6 +439,7 @@ function result(resume){
   document.getElementById("editList").onclick = () => { editing = !editing; document.getElementById("editList").textContent = editing ? "다 고쳤어요" : "목록 고치기"; drawPack(); };
   document.getElementById("share").onclick = shareTrip;
   document.getElementById("copy").onclick = copyList;
+  document.getElementById("xlsx").onclick = saveXlsx;
   document.getElementById("allSrc").onclick = () => allSources(d);
   // 할 일 체크
   app.querySelectorAll("[data-todo]").forEach(b => b.onkeydown = e => { if(e.target === b && (e.key === " " || e.key === "Enter")){ e.preventDefault(); b.click(); } });
@@ -647,6 +651,11 @@ function watchTabs(){
     es.forEach(en => { if(en.isIntersecting){ tabs.querySelectorAll("a").forEach(a => a.classList.toggle("on", a.dataset.t === en.target.id)); } });
   }, { rootMargin: "-45% 0px -50% 0px" });
   ["s-wx", "s-todo", "s-pack", "s-leave", "s-local"].forEach(id => { const s = document.getElementById(id); if(s) io.observe(s); });
+  // 맨 아래에 닿으면 마지막 탭을 켜요 (끝 칸은 탭이 없어서)
+  if(!window._tabEnd){ window._tabEnd = true; window.addEventListener("scroll", () => {
+    const tb = document.getElementById("tabs"); if(!tb) return;
+    if(window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 8){ const as = tb.querySelectorAll("a"); as.forEach((a, i) => a.classList.toggle("on", i === as.length - 1)); }
+  }, { passive: true }); }
 }
 
 // ===== 보내기 · 복사 =====
@@ -678,6 +687,57 @@ async function copyList(){
   lines.push("", tripUrl(t));
   try { await navigator.clipboard.writeText(lines.join("\n")); msg.textContent = "목록을 복사했어요. 메모장이나 카톡에 붙여 넣으세요."; }
   catch (e) { msg.textContent = "복사하지 못했어요. 화면을 캡처해 주세요."; }
+}
+
+// ===== 엑셀로 저장 (xlsx.js) =====
+// 시트 5개: 짐 목록 · 출국 전 할 일 · 두고 갈 것 · 날씨 · 알아 둘 것. 시트마다 2행에 참고용 안내.
+function xlsxSheets(t){
+  const d = D(t.d), { items, w } = buildItems(t), c = S.checks[t.d] || {};
+  const title = `${NAME} — ${tripText(t)}${d.areas.length > 1 ? ` (${areaNames(t)})` : ""}`;
+  const ref = `※ 참고용이에요. ${CHECKED_TEXT}에 공식 자료로 확인했지만 입국 규정·관광세·현지 사정은 바뀔 수 있으니 떠나기 전 공식 사이트에서 다시 확인하세요.`;
+  const join = a => a.filter(Boolean).join(" / ");
+  const cat = Object.fromEntries(PACK.cats);
+  const pack = [];
+  for(const [cid] of PACK.cats) for(const x of items.filter(i => i.cat === cid))
+    pack.push([c[x.id] ? "✔" : "", cat[cid], x.name, x.qty || "", WHO[x.who] || "", x.need === "must" ? "꼭" : "", x.custom ? "직접 더함" : x.local ? "이 여행지" : "공통", join([x.why, x.wx, ...(x.notes || []), x.single ? "공식 출처 1곳에서만 확인" : ""])]);
+  const before = beforeOf(t).map(b => [c["todo:" + b.id] ? "✔" : "", b.title + (b.single ? " (공식 출처 1곳)" : ""), b.body, b.when || "", WHO[b.who] || "", b.link ? b.link.label : "", b.link ? b.link.url : ""]);
+  const leave = (d.leave || []).filter(x => inAreas(x, t.areas) && (optOk(x, t.o) || x.level === "ban"))
+    .map(x => [x.level === "ban" ? "가져가면 안 돼요" : "조건이 있어요", x.title + (x.single ? " (공식 출처 1곳)" : x.grade === "2순위" ? " (참고 출처)" : ""), x.body, x.link ? x.link.label : "", x.link ? x.link.url : ""])
+    .concat(FLIGHT.map(x => ["공항 보안검색 (한국 출발)", x.t, x.b, "", ""]));
+  const wx = w.rows.map(({ a, r }) => [a.label, r.hi == null ? "" : Math.round(r.hi), r.lo == null ? "" : Math.round(r.lo), r.rd == null ? "" : Math.round(r.rd), r.sea == null ? "" : Math.round(r.sea), r.uv ? UVL[r.uv] : "", r.season || ""]);
+  const know = issuesOf(t).map(x => { const all = x.dates && x.dates[String(t.y)]; return [`${t.m}월에 알아 둘 것`, x.title, x.body, all ? `${t.y}년: ${all}` : ""]; })
+    .concat(d.power ? [["전기", d.power.text || "", d.power.adapter || "", ""]] : [])
+    .concat((d.local || []).filter(x => inAreas(x, t.areas) && optOk(x, t.o)).map(x => ["현지", x.title + (x.single ? " (공식 출처 1곳)" : ""), x.body, ""]));
+  return [
+    { name: "짐 목록", title, note: `${ref} 챙긴 짐은 '챙김' 칸에서 ✔를 고르면 회색 줄로 바뀌어요. 머리줄의 ▼로 분류·누구별로 거를 수 있어요.`, check: true,
+      head: ["챙김", "분류", "짐", "수량", "누구", "꼭", "구분", "이유 · 날씨"], widths: [7, 13, 34, 22, 9, 6, 10, 62], styles: [5, 4, 4, 4, 5, 5, 5, 4], rows: pack },
+    { name: "출국 전 할 일", title, note: ref, check: true,
+      head: ["완료", "할 일", "내용", "언제", "누구", "공식 사이트", "주소"], widths: [7, 30, 58, 26, 8, 28, 46], styles: [5, 4, 4, 4, 5, 4, 4], rows: before },
+    { name: "두고 갈 것", title, note: ref,
+      head: ["구분", "항목", "내용", "공식 사이트", "주소"], widths: [18, 30, 66, 28, 46], styles: [4, 4, 4, 4, 4], rows: leave },
+    { name: "날씨", title, note: `그 달의 여러 해 평균(평년값)이라 실제 날씨와 달라요. 출발 1주 전 일기예보를 꼭 보세요. 옷차림·수량은 흔히 쓰는 기준이에요. ${ref}`,
+      head: ["지역", "낮 (°C)", "밤 (°C)", "비 온 날 (일)", "바닷물 (°C)", "자외선", "계절"], widths: [34, 9, 9, 12, 11, 11, 24], styles: [4, 5, 5, 5, 5, 5, 4], rows: wx },
+    { name: "알아 둘 것", title, note: ref,
+      head: ["구분", "제목", "내용", "날짜"], widths: [16, 30, 66, 40], styles: [4, 4, 4, 4], rows: know }
+  ];
+}
+function xlsxName(t){ return `신혼여행짐_${D(t.d).name.replace(/\s*\(.*\)/, "").replace(/[^0-9A-Za-z가-힣]+/g, "")}_${t.y}-${pad(t.m)}_${t.n}박.xlsx`; }
+async function saveXlsx(){
+  const t = S.trip, msg = document.getElementById("msg");
+  if(typeof window.xlsxBook !== "function"){ msg.textContent = "엑셀 파일을 만들지 못했어요. ‘글로 복사하기’를 써 주세요."; return; }
+  let file;
+  try { const blob = window.xlsxBook(xlsxSheets(t)); file = new File([blob], xlsxName(t), { type: blob.type }); }
+  catch (e) { msg.textContent = "엑셀 파일을 만들지 못했어요. ‘글로 복사하기’를 써 주세요."; return; }
+  // 휴대폰: 공유 창(파일에 저장 · 카톡 · 엑셀 앱)으로
+  if(navigator.canShare && navigator.canShare({ files: [file] })){
+    try { await navigator.share({ files: [file], title: `${NAME} — ${tripText(t)}` }); msg.textContent = ""; return; }
+    catch (e) { if(e && e.name === "AbortError"){ msg.textContent = ""; return; } }
+  }
+  // 컴퓨터 등: 파일로 내려받기
+  const url = URL.createObjectURL(file), a = document.createElement("a");
+  a.href = url; a.download = file.name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  msg.textContent = "엑셀 파일을 저장했어요. ‘다운로드’ 폴더(아이폰은 파일 앱)에서 열 수 있어요.";
 }
 
 // ===== 아직 공개 전 =====

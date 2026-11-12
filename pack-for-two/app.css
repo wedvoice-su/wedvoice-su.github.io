@@ -172,6 +172,8 @@
 /* 끝 */
 .sec.end{margin-top:28px}
 .sec.end .btns{display:flex;flex-direction:column;gap:10px}
+.btn-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn-row .btn{padding:15px 8px;font-size:16px}
 .sec.end .msg{margin-top:10px}
 .sec.end .btn-link{display:block;margin:14px auto 0;color:var(--sub);text-decoration:underline;text-underline-offset:4px;background:none;border:0;font-size:15px}
 
