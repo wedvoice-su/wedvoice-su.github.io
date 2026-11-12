@@ -150,7 +150,8 @@ function edPlan(E){
   if(paste){
     // 가져온 구간(lead초) 다음에 원곡의 하이라이트를 이어요. 하이라이트 직전 0.5초 동안 겹쳐서 넘어가요
     const X=Math.round(Math.min(ED_SWELL*ED_SR, leadS/2, hlS));
-    const a=Math.max(0, Math.min(Math.max(M.s0, Math.round(E.pre*ED_SR)), M.len-leadS));
+    const lo = M.s0>=ED_SILMIN*ED_SR ? M.s0 : 0;         // 앞 무음이 정말 있을 때만 그 뒤에서 시작해요 (아주 짧으면 0:00 그대로)
+    const a=Math.max(0, Math.min(Math.max(lo, Math.round(E.pre*ED_SR)), M.len-leadS));
     parts.push({ p:M, a, b:a+leadS, soft:soft(a) });
     parts.push({ p:M, a:hlS-X, x:X });
     cut = hlS-leadS;                                    // 큐시트 계산용: 원본의 이 자리부터 튼 셈
@@ -467,7 +468,7 @@ async function edApply(fn){
 async function edIntro(){
   stopAudio(); edPrevStop(); plain();
   const O=ORDERS[S.order], M=ED.main, D=DR, had=S.ed.hl!=null, PREV="이렇게 들려요 (미리 듣기)";
-  const top0=Math.ceil(M.s0/ED_SR*10)/10;      // 곡 맨 앞 (앞 무음이 끝나는 곳)
+  const top0 = M.s0/ED_SR<ED_SILMIN ? 0 : Math.ceil(M.s0/ED_SR*10)/10;      // 곡 맨 앞 (앞 무음이 있으면 그게 끝나는 곳. 거의 없으면 0:00)
   // 원본을 푼 소리 그대로 들려줘요 (찍는 자리와 자르는 자리가 정확히 같게)
   if(!ED.url0) ED.url0=URL.createObjectURL(edWav(edInter(M),"원본.wav"));
   app.innerHTML = `
