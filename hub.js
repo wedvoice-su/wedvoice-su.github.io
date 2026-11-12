@@ -39,7 +39,8 @@ const GROUPS = [
     { key: "groomQuiz",   label: "신랑 본식 역할 퀴즈" }
   ]},
   { name: "결혼식 후", items: [
-    { key: "thanks", label: "감사 문자·땡큐 카드 만들기" }
+    { key: "thanks", label: "감사 문자·땡큐 카드 만들기" },
+    { key: "pack",   label: "신혼여행 짐 체크리스트" }
   ]}
 ];
 // =========================================================
