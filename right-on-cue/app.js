@@ -6,7 +6,7 @@
 const OPEN = true;
 // 음원 편집(edit.js): 1단계 "파일 열기"에 "음원 편집하기" 버튼을 보여 줄지 정해요.
 // false면 주소 뒤에 ?preview 를 붙였을 때만 보여요. (예: …/right-on-cue/?preview)
-const EDIT_OPEN = false;
+const EDIT_OPEN = true;
 const EDIT_ON = EDIT_OPEN || new URLSearchParams(location.search).has("preview");
 // 새 기능 알림: 첫 화면의 "NEW 음원 편집" 소개와 "음원 편집하기" 버튼의 NEW 표시 (음원 편집이 보일 때만 같이 보여요).
 // 2026년 12월 1일(한국 시간)부터는 저절로 안 보여요 (사회자님 11/12: "new 표시는 12월 1일에 제거하자"). 날짜를 바꾸려면 아래 한 줄만.
