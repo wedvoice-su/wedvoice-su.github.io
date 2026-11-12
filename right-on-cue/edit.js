@@ -374,7 +374,7 @@ function edMain(){
       <p class="msg" id="msg" role="status"></p>
       ${on ? `<button class="text-btn btn-link" id="reset">편집 전으로 되돌리기</button>` : ""}
     </div>
-    ${on ? `<p class="qnote">타이밍까지 정하면 저장하는 파일 이름에 ${esc(O.verb)} 시간이 들어가요. (예: ${esc(O.no+"_"+O.label.replace(/\s/g,"")+"_0-15"+O.verb)}_곡 이름)</p>` : ""}
+    ${on ? `<p class="qnote">타이밍까지 정하면 저장하는 파일 이름에 ${esc(O.verb)} 시간이 들어가요. (예: ${esc(O.label.replace(/\s/g,"")+"_15초 "+O.verb+" 편집본")}_곡 이름)</p>` : ""}
     ${nav()}
     ${foot()}`;
   bindNav();

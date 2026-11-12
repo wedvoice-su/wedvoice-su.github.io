@@ -17,7 +17,6 @@ const EDIT_ON = EDIT_OPEN || new URLSearchParams(location.search).has("preview")
 // 찍는 지점은 "입장!"(N초) 하나뿐이에요. now는 찍을 게 없어서 리허설로 바로 가요.
 
 // ===== 순서별 설정 (문구를 바꾸려면 여기만 고치면 돼요) =====
-//   no       : 편집한 음원 파일 이름 맨 앞에 붙는 번호 (식순 순서)
 //   min      : 안전한 곡 길이(초). 이보다 짧으면 알려줘요
 //   call     : 사회자가 외치는 말
 //   moment   : "여기!"를 찍을 순간 (출발 위치 안내 포함)
@@ -27,7 +26,7 @@ const EDIT_ON = EDIT_OPEN || new URLSearchParams(location.search).has("preview")
 //   tip      : 큐시트 카드의 "사회자 한마디"
 const ORDERS = {
   groom: {
-    no: 1, label: "신랑 입장", song: "신랑 입장곡", who: "신랑", verb: "입장", call: "신랑, 입장!",
+    label: "신랑 입장", song: "신랑 입장곡", who: "신랑", verb: "입장", call: "신랑, 입장!",
     min: 120, minText: "2분",
     moment: "버진로드 위에서 발을 떼는 순간이에요. 문·커튼 뒤에서 입장하는 홀이면 문이 열리는 순간으로 찍고, 홀에 미리 확인하세요.",
     row: "입장",
@@ -36,7 +35,7 @@ const ORDERS = {
     tip: "신랑은 긴장해서 슝 들어가기 쉬워요. 입장곡은 2분이면 충분하니, 곡에 맞춰 천천히 여유롭게 걷는 게 더 중요해요."
   },
   bride: {
-    no: 2, label: "신부 입장", song: "신부 입장곡", who: "신부", verb: "입장", call: "신부, 입장~",
+    label: "신부 입장", song: "신부 입장곡", who: "신부", verb: "입장", call: "신부, 입장~",
     min: 240, minText: "4분",
     moment: "문이 열리고 신부가 혼자 나오는 순간이에요. 아버님은 버진로드 앞에서 만나 그때부터 함께 걸어요.",
     row: "문 열림 · 입장",
@@ -45,7 +44,7 @@ const ORDERS = {
     tip: "드레스 때문에 걸음이 느리고, 아버님과 입장하면 신랑과 인사·악수·포옹 뒤 함께 단상까지 걸어요. 곡이 뚝 끊기는 느낌이 들지 않게 뒤를 4분 이상 여유 있게 잡는 게 안전해요."
   },
   march: {
-    no: 3, label: "행진", song: "행진곡", who: "신랑 신부", verb: "행진", call: "신랑 신부, 행진!",
+    label: "행진", song: "행진곡", who: "신랑 신부", verb: "행진", call: "신랑 신부, 행진!",
     min: 480, minText: "8분",
     moment: "단상에서 돌아서서 발을 떼는 순간이에요.",
     row: "행진",
@@ -103,12 +102,13 @@ function songBase(){
   const n = (S.ed ? S.ed.src.name : S.name) || "";
   return n.replace(/\.[^.]+$/,"").replace(/[\\/:*?"<>|]+/g," ").replace(/\s+/g," ").trim().slice(0,30) || ORDERS[S.order].song;
 }
-// 편집한 음원을 저장할 때 이름: 번호_순서_입장 시간_곡 이름 (예: 2_신부입장_0-16입장_곡이름.mp3)
-// 음향팀이 파일 이름만 보고 순서와 입장 시간을 알아요. 타이밍을 정하기 전에는 시간 자리에 "편집본"
+// 편집한 음원을 저장할 때 이름: 순서_입장 시간 편집본_곡 이름 (사회자님 11/12 — 예: 신부입장_15초 입장 편집본_곡이름.mp3)
+// 음향팀이 파일 이름만 보고 순서와 입장 시간을 알아요. "바로 틀어요" 방식은 "바로 입장 편집본", 타이밍을 정하기 전에는 "편집본"만
+function secKo(s){ return s<60 ? s+"초" : Math.floor(s/60)+"분"+(s%60 ? " "+(s%60)+"초" : ""); }
 function outName(ext){
   const O=ORDERS[S.order];
-  const cue = !S.mode ? "편집본" : !timed() ? "바로"+O.verb : (S.enter!=null && !enterErr()) ? fmt(S.enter).replace(":","-")+O.verb : "편집본";
-  return [O.no, O.label.replace(/\s/g,""), cue, songBase()].join("_") + "." + (ext||"mp3");
+  const cue = !S.mode ? "" : !timed() ? "바로 "+O.verb+" " : (S.enter!=null && !enterErr()) ? secKo(S.enter)+" "+O.verb+" " : "";
+  return [O.label.replace(/\s/g,""), cue+"편집본", songBase()].join("_") + "." + (ext||"mp3");
 }
 // 큐시트에 적는 파일 이름 (편집했으면 저장될 이름)
 function fileLabel(){ return edited() ? outName() : (S.name || ORDERS[S.order].song); }
