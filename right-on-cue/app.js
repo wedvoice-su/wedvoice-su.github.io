@@ -1,9 +1,13 @@
-// 입장 타이밍 큐시트: 순서 고르기 → 파일 열기 → 방식 고르기 → 듣고 찍기 → 리허설 → 큐시트
+// 입장 타이밍 큐시트: 순서 고르기 → 파일 열기 (→ 음원 편집) → 방식 고르기 → 듣고 찍기 → 리허설 → 큐시트
 // 공통 기능은 shared/common.js. 음원 파일은 이 휴대폰 안에서만 쓰이고, 어디에도 올라가지 않아요.
 
 // ===== 공개 설정 ==========================================
 // 공개 전에는 false. 미리 보려면 주소 뒤에 ?preview 를 붙여요. (예: …/right-on-cue/?preview)
 const OPEN = true;
+// 음원 편집(edit.js): 1단계 "파일 열기"에 "음원 편집하기" 버튼을 보여 줄지 정해요.
+// false면 주소 뒤에 ?preview 를 붙였을 때만 보여요. (예: …/right-on-cue/?preview)
+const EDIT_OPEN = false;
+const EDIT_ON = EDIT_OPEN || new URLSearchParams(location.search).has("preview");
 // =========================================================
 
 // ===== 방식은 세 가지뿐이에요 (2026-11-02 사회자님 정리) =====
@@ -13,6 +17,7 @@ const OPEN = true;
 // 찍는 지점은 "입장!"(N초) 하나뿐이에요. now는 찍을 게 없어서 리허설로 바로 가요.
 
 // ===== 순서별 설정 (문구를 바꾸려면 여기만 고치면 돼요) =====
+//   no       : 편집한 음원 파일 이름 맨 앞에 붙는 번호 (식순 순서)
 //   min      : 안전한 곡 길이(초). 이보다 짧으면 알려줘요
 //   call     : 사회자가 외치는 말
 //   moment   : "여기!"를 찍을 순간 (출발 위치 안내 포함)
@@ -22,7 +27,7 @@ const OPEN = true;
 //   tip      : 큐시트 카드의 "사회자 한마디"
 const ORDERS = {
   groom: {
-    label: "신랑 입장", song: "신랑 입장곡", who: "신랑", verb: "입장", call: "신랑, 입장!",
+    no: 1, label: "신랑 입장", song: "신랑 입장곡", who: "신랑", verb: "입장", call: "신랑, 입장!",
     min: 120, minText: "2분",
     moment: "버진로드 위에서 발을 떼는 순간이에요. 문·커튼 뒤에서 입장하는 홀이면 문이 열리는 순간으로 찍고, 홀에 미리 확인하세요.",
     row: "입장",
@@ -31,7 +36,7 @@ const ORDERS = {
     tip: "신랑은 긴장해서 슝 들어가기 쉬워요. 입장곡은 2분이면 충분하니, 곡에 맞춰 천천히 여유롭게 걷는 게 더 중요해요."
   },
   bride: {
-    label: "신부 입장", song: "신부 입장곡", who: "신부", verb: "입장", call: "신부, 입장~",
+    no: 2, label: "신부 입장", song: "신부 입장곡", who: "신부", verb: "입장", call: "신부, 입장~",
     min: 240, minText: "4분",
     moment: "문이 열리고 신부가 혼자 나오는 순간이에요. 아버님은 버진로드 앞에서 만나 그때부터 함께 걸어요.",
     row: "문 열림 · 입장",
@@ -40,7 +45,7 @@ const ORDERS = {
     tip: "드레스 때문에 걸음이 느리고, 아버님과 입장하면 신랑과 인사·악수·포옹 뒤 함께 단상까지 걸어요. 곡이 뚝 끊기는 느낌이 들지 않게 뒤를 4분 이상 여유 있게 잡는 게 안전해요."
   },
   march: {
-    label: "행진", song: "행진곡", who: "신랑 신부", verb: "행진", call: "신랑 신부, 행진!",
+    no: 3, label: "행진", song: "행진곡", who: "신랑 신부", verb: "행진", call: "신랑 신부, 행진!",
     min: 480, minText: "8분",
     moment: "단상에서 돌아서서 발을 떼는 순간이에요.",
     row: "행진",
@@ -56,7 +61,10 @@ const LOCK = '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="7" widt
 // ===== 상태 =====
 //   mode  : now / after / ment
 //   enter : "입장!" 지점(초). now일 때는 쓰지 않아요 (N()이 0을 돌려줘요)
-const S = { order:null, file:null, url:"", name:"", dur:null, mode:null, enter:null };
+//   ed    : 음원 편집 내용 (edit.js가 채워요). 편집 화면에 들어간 적이 없으면 null
+//   edInfo: 편집한 음원의 요약 (자른 길이·하이라이트·이음새 자리·한 줄 설명). 편집본을 쓰는 동안에만 있어요
+//   t0    : 지금 파일이 원본의 몇 초부터 시작하는지. 앞을 자르면 입장 시간을 그만큼 당겨요
+const S = { order:null, file:null, url:"", name:"", dur:null, mode:null, enter:null, ed:null, edInfo:null, t0:0 };
 let stack = [];
 function go(fn){ stack.push(fn); fn(); }
 function back(){ stack.pop(); const f = stack[stack.length-1]; f ? f() : home(); }
@@ -87,6 +95,23 @@ function clearFile(){
   S.file=null; S.url=""; S.name=""; S.dur=null;
   try{ audio.removeAttribute("src"); audio.load(); }catch(e){}
 }
+// 편집한 내용을 버려요 (다른 파일을 열거나 순서를 바꿀 때)
+function clearEdit(){ S.ed=null; S.edInfo=null; S.t0=0; if(typeof edFree==="function") edFree(); }
+function edited(){ return !!(S.ed && S.edInfo); }
+// 곡 이름: 처음 연 파일 이름에서 확장자와 파일 이름에 못 쓰는 글자를 뺀 것
+function songBase(){
+  const n = (S.ed ? S.ed.src.name : S.name) || "";
+  return n.replace(/\.[^.]+$/,"").replace(/[\\/:*?"<>|]+/g," ").replace(/\s+/g," ").trim().slice(0,30) || ORDERS[S.order].song;
+}
+// 편집한 음원을 저장할 때 이름: 번호_순서_입장 시간_곡 이름 (예: 2_신부입장_0-16입장_곡이름.mp3)
+// 음향팀이 파일 이름만 보고 순서와 입장 시간을 알아요. 타이밍을 정하기 전에는 시간 자리에 "편집본"
+function outName(ext){
+  const O=ORDERS[S.order];
+  const cue = !S.mode ? "편집본" : !timed() ? "바로"+O.verb : (S.enter!=null && !enterErr()) ? fmt(S.enter).replace(":","-")+O.verb : "편집본";
+  return [O.no, O.label.replace(/\s/g,""), cue, songBase()].join("_") + "." + (ext||"mp3");
+}
+// 큐시트에 적는 파일 이름 (편집했으면 저장될 이름)
+function fileLabel(){ return edited() ? outName() : (S.name || ORDERS[S.order].song); }
 function loadFile(file){
   return new Promise(res=>{
     clearFile();
@@ -116,6 +141,7 @@ function plain(){ document.body.classList.remove("is-cover"); app.className="wra
 // ===== 첫 화면 =====
 function home(){
   stopAudio(); stack=[];
+  if(typeof edFree==="function") edFree();
   document.body.classList.add("is-cover");
   app.className = "wrap cover"; window.scrollTo(0,0);
   app.innerHTML = `
@@ -134,8 +160,9 @@ function home(){
 }
 
 function start(k){
-  if(S.order !== k) clearFile();
+  if(S.order !== k){ clearFile(); clearEdit(); }
   S.order=k; S.mode=null; S.enter=null;
+  if(edited() && typeof edCue==="function") edCue();   // 편집할 때 맞춘 하이라이트가 있으면 입장 시간을 다시 넣어요
   stack=[]; go(fileStep);
 }
 
@@ -158,20 +185,39 @@ function noFile(){
       ${siteLink(S.order, "btn ghost", `${esc(O.song)} 받기`)}
     </div>`;
 }
+// 음원 편집으로 가는 상자 (파일을 연 뒤에만 보여요. 편집 화면은 edit.js)
+function editBox(){
+  if(edited()) return `
+    <div class="edbox on">
+      <b>편집한 음원이에요</b>
+      <p>${esc(S.edInfo.sum.join(" · "))}</p>
+      <button class="btn ghost" id="edit">다시 편집하기</button>
+    </div>`;
+  return `
+    <div class="edbox">
+      <b>음원을 고치고 싶나요?</b>
+      <p>전주가 길 때, 곡이 짧을 때, 끝이 뚝 끊길 때 여기서 바로 고칠 수 있어요.</p>
+      <button class="btn ghost" id="edit">음원 편집하기</button>
+    </div>`;
+}
 // ※ accept는 확장자로 적어요. 아이폰 사파리는 accept="audio/*"를 영상처럼 취급해서 mp3·m4a가 회색으로 막혀요 (WebKit 버그 242110, 34442)
+const ACCEPT = ".mp3,.m4a,.wav,.aac,.flac,.ogg,.aiff,.aif";
 function fileStep(){
   stopAudio(); plain();
+  if(typeof edFree==="function") edFree();   // 편집 화면에서 돌아오면 풀어 둔 소리를 비워요
+  const ed = edited();
   app.innerHTML = `
     ${topBar(1)}
     <h2 class="title">웨딩홀에 보낼<br>바로 그 파일을 열어 주세요</h2>
     <p class="lead2">시간은 이 파일을 기준으로 찍혀요. 편집본을 쓸 거면 편집본을, 원곡 그대로면 원곡을 여세요.</p>
     <label class="drop${S.file?" has":""}" id="drop">
-      <input type="file" id="file" class="vh" accept=".mp3,.m4a,.wav,.aac,.flac,.ogg,.aiff,.aif">
+      <input type="file" id="file" class="vh" accept="${ACCEPT}">
       ${S.file
-        ? `<span class="fn">${esc(S.name)}</span><span class="fd">${S.dur!=null?"길이 "+fmt(S.dur):"길이를 읽지 못했어요"} · <u>다른 파일 열기</u></span>`
+        ? `<span class="fn">${esc(ed ? S.ed.src.name : S.name)}</span><span class="fd">${ed?"편집본 · ":""}${S.dur!=null?"길이 "+fmt(S.dur):"길이를 읽지 못했어요"} · <u>다른 파일 열기</u></span>`
         : `<span>파일 열기</span><span class="fd">mp3, m4a 등 음원 파일</span>`}
     </label>
     <div id="len">${lenBox()}</div>
+    ${S.file && EDIT_ON ? editBox() : ""}
     <p class="safe">${LOCK}<span>${SAFE} 아이폰은 “파일 선택”을 누르고 파일 앱에서 고르세요. 구글 드라이브·카카오톡 음원은 “파일에 저장”을 먼저 해 주세요. 음악 앱의 노래는 열 수 없어요.</span></p>
     ${S.file ? "" : noFile()}
     <div class="btns gap">
@@ -186,12 +232,15 @@ function fileStep(){
     const f=e.target.files && e.target.files[0]; if(!f) return;
     msg.textContent="파일을 읽는 중…";
     S.enter=null;   // 파일이 바뀌면 시간도 처음부터
+    clearEdit();    // 편집한 내용도 처음부터
     const d = await loadFile(f);
     if(d==null) clearFile();   // 재생하지 못하는 파일로는 못 가요 (음원이 있어야 찍을 수 있어요)
     fileStep();
     if(d==null) document.getElementById("msg").textContent="이 파일은 재생하지 못했어요. 다른 파일을 열어 주세요.";
   };
   next.onclick = ()=>{ if(S.file) go(qMode); };
+  const eb=document.getElementById("edit");
+  if(eb) eb.onclick = ()=>{ if(typeof editStep==="function") go(editStep); };
 }
 
 // ===== 2. 방식 고르기 (질문 하나, 답 셋) =====
@@ -206,6 +255,7 @@ function qMode(){
   app.innerHTML = `
     ${topBar(2)}
     <h2 class="question">${esc(v)}은\n어떻게 할까요?</h2>
+    ${edHint()}
     <div class="answers" role="group" aria-label="답 고르기">
       ${opts.map(o=>`<button data-v="${o.v}"${S.mode===o.v?' class="on"':""}><span class="box">${CHECK}</span><span>${esc(o.t)}<small>${esc(o.s)}</small></span></button>`).join('<div class="div"></div>')}
     </div>
@@ -223,6 +273,15 @@ function qMode(){
       go(timed() ? mark : rehearse);   // 바로 입장(now)은 찍을 게 없어요
     }, reduce?60:260);
   });
+}
+
+// 편집할 때 하이라이트를 맞췄으면, 그게 몇 초인지와 어울리는 방식을 알려줘요 (방식 고르기 · 듣고 찍기 화면)
+function edHL(){ return edited() && S.ed.hl!=null ? Math.max(0, Math.round(S.ed.hl - S.t0)) : null; }
+function edHint(){
+  const h=edHL(); if(h==null) return "";
+  return `<p class="ednote">${h===0
+    ? "편집한 음원은 틀자마자 하이라이트가 나와요. 첫 번째 방식이 잘 맞아요."
+    : `편집한 음원은 ${fmt(h)}에 하이라이트가 나와요. 두 번째나 세 번째 방식을 고르면 ${fmt(h)}에 ${esc(ORDERS[S.order].verb)}해요.`}</p>`;
 }
 
 // "입장!" 지점이 맞는지 (틀리면 이유를 돌려줘요)
@@ -267,6 +326,7 @@ function mark(){
     ${topBar(3)}
     <h2 class="title">곡을 들으면서<br>“여기!”를 눌러 주세요</h2>
     <p class="lead2">${esc(O.verb)}하는 순간에 “여기!”를 누르세요. 찍은 뒤에 1초씩 옮기거나 숫자를 바로 고칠 수 있어요.</p>
+    ${edHL() ? `<p class="ednote">편집한 음원은 ${fmt(edHL())}에 하이라이트가 나와요. 그 시간을 넣어 뒀어요. 바꿔도 돼요.</p>` : ""}
     ${player()}
     <div class="marks" id="marks"></div>
     <div class="facts" id="facts"></div>
@@ -406,7 +466,10 @@ function modeLine(){
 }
 function memos(){
   const O=ORDERS[S.order], L=[];
-  if(S.dur!=null && S.dur < O.min) L.push(`곡이 ${fmt(S.dur)}로 ${O.minText}보다 짧아요. ${O.longer}`, "편집하면 시간이 바뀌어요. 편집본 파일로 다시 찍어 주세요.");
+  if(S.dur!=null && S.dur < O.min){
+    L.push(`곡이 ${fmt(S.dur)}로 ${O.minText}보다 짧아요. ${O.longer}`);
+    if(!edited()) L.push("편집하면 시간이 바뀌어요. 편집본 파일로 다시 찍어 주세요.");   // 여기서 편집한 음원은 시간이 이미 따라 바뀌어 있어요
+  }
   return L;
 }
 function lenLine(){
@@ -416,11 +479,12 @@ function lenLine(){
 }
 function sheetText(){
   const O=ORDERS[S.order], L=[];
-  L.push(`[${O.song} 큐시트] ${S.name||O.song}${S.dur!=null?` · ${fmt(S.dur)}`:""}`);
+  L.push(`[${O.song} 큐시트] ${fileLabel()}${S.dur!=null?` · ${fmt(S.dur)}`:""}`);
   L.push(modeLine());
   cues().forEach(r=>L.push(`${fmt(r.t)} ${r.who} · ${r.text}`));
   L.push(`끝까지 재생해 주세요. 중간에 끊지 않아요.${lenLine()}`);
   memos().forEach(x=>L.push("※ "+x));
+  if(edited()) L.push(`※ 편집한 음원이에요 (${S.edInfo.sum.join(" · ")}). 시간은 편집한 파일 기준이에요.`);
   L.push("", "결혼식사회자 이상운 @wed_voice.su");
   return L.join("\n");
 }
@@ -433,13 +497,14 @@ function result(){
     <article class="card" id="card">
       <div class="head"><span class="kind">${esc(O.label)} 큐시트</span><span class="handle">@wed_voice.su</span></div>
       <h2>${head}</h2>
-      <p class="line">${esc(S.name||O.song)}${S.dur!=null?` · ${fmt(S.dur)}`:""}</p>
+      <p class="line${edited()?" long":""}">${esc(fileLabel())}${S.dur!=null?` · ${fmt(S.dur)}`:""}</p>
       <p class="desc">${esc(modeLine())}</p>
       <ol class="cues" aria-label="큐시트">
         ${rows.map(r=>`<li><span class="ct">${fmt(r.t)}</span><span class="cw">${esc(r.who)}</span><span>${esc(r.text)}</span></li>`).join("")}
       </ol>
       <p class="ending">끝까지 재생해요. 중간에 끊지 않아요.${esc(lenLine())}</p>
       ${ms.length?`<div class="memo"><b>편집 메모</b>${ms.map(x=>`<p>${esc(x)}</p>`).join("")}</div>`:""}
+      ${edited()?`<div class="memo"><b>편집한 음원</b><p>${esc(S.edInfo.sum.join(" · "))}</p><p>시간은 편집한 파일 기준이에요.</p></div>`:""}
       <div class="tip"><b>사회자 한마디</b><p>${esc(O.tip)}</p></div>
       ${sign()}
     </article>
@@ -449,6 +514,7 @@ function result(){
         <button class="btn main" id="save">이미지로 저장하기</button>
         <button class="btn ghost" id="copy">문자로 복사하기</button>
         <p class="msg" id="msg" role="status"></p>
+        ${edited()?`<div class="edsave" id="edsave"></div>`:""}
         <button class="btn ghost" id="other">다른 순서도 정하기</button>
         <a class="btn insta" href="${INSTA}" target="_blank" rel="noopener">인스타에서 결혼 준비 꿀팁 보기</a>
         <button class="text-btn btn-link" id="again">처음부터 다시</button>
@@ -460,6 +526,12 @@ function result(){
   document.getElementById("copy").onclick = ()=>copyText(sheetText(), document.getElementById("box"));
   document.getElementById("other").onclick = home;
   document.getElementById("again").onclick = ()=>start(S.order);
+  // 편집한 음원: 큐시트가 뜨면 mp3로 바꾸기 시작해요 (다 되면 저장 버튼이 나와요)
+  const sv=document.getElementById("edsave");
+  if(sv && typeof edSaveBox==="function"){
+    const run = edSaveBox(sv);
+    if(run) setTimeout(()=>{ if(sv.isConnected) run(); }, 700);
+  }
 }
 async function copyText(value, box){
   const msg=document.getElementById("msg"), done="복사했어요. 카톡이나 문자에 붙여 넣으세요.";

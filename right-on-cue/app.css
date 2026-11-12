@@ -80,3 +80,63 @@
 .memo p{margin:0 0 6px}
 .memo p:last-child{margin:0}
 .hiddenbox{position:absolute;left:-9999px;top:0;width:1px;height:1px;opacity:0}
+
+/* ===== 음원 편집 (edit.js) ===== */
+/* 파일 열기 화면의 "음원 편집하기" 상자 */
+.edbox{margin:14px 0 0;padding:16px;border:1.5px solid var(--line);border-radius:18px}
+.edbox.on{border-color:var(--accent)}
+.edbox b{display:block;font-size:15.5px;margin-bottom:4px}
+.edbox.on b{color:var(--accent)}
+.edbox p{margin:0 0 12px;font-size:14px;color:var(--sub);line-height:1.55}
+.ednote{margin:0 2px 14px;font-size:13.5px;line-height:1.55;color:var(--accent);font-weight:700}
+.ednote.warn{background:var(--box);color:var(--box-ink);border-radius:14px;padding:12px 14px;margin:0 0 14px;font-weight:500}
+.card .line.long{font-size:15px;word-break:break-all;line-height:1.45}
+
+/* 고민 고르기 */
+.edrows button{padding:16px 14px;font-size:17.5px;align-items:flex-start}
+.edrows button .box{margin-top:1px}
+.edrows button:disabled{cursor:default}
+.edrows button:disabled .box{border-color:var(--line)}
+.edrows button:disabled > span:last-child{color:var(--sub)}
+.edrows small.done{color:var(--accent);font-weight:700}
+.edchip{display:inline-block;margin-top:7px;padding:4px 9px;border-radius:8px;background:var(--box);color:var(--box-ink);font-size:12.5px;font-weight:700;font-style:normal;line-height:1.3}
+.edh{margin:24px 2px 10px;font-size:16px;font-weight:900}
+
+/* 물결 */
+.wave{display:block;width:100%;height:56px;margin:12px 0 2px;touch-action:pan-y;cursor:pointer}
+.wave.tall{height:84px;margin:0 0 8px;cursor:default}
+.player .mk-hint{margin:0}
+.player .wave + input[type=range]{margin-top:4px}
+
+/* 고르는 칸 (몇 초 전부터 · 몇 초 동안 · 듣는 자리) */
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chips button{border:0;border-radius:12px;padding:11px 13px;font-size:14.5px;font-weight:700;background:var(--paper)}
+.chips button.on{background:var(--accent);color:#fff}
+.chips button:disabled{opacity:.4;cursor:default}
+.mark .chips{margin:12px 0 0}
+.mark .chips + .mk-hint{margin:10px 0 0}
+.mark .mk-hint + .mk-btns{margin-top:12px}
+.edjump{margin:0 0 4px}
+.edjump button{background:var(--card)}
+.mk-head .unit{display:flex;align-items:center;gap:6px;font-size:15px;font-weight:700;flex:0 0 auto}
+.mk-head .unit .mk-t{width:64px}
+.mk-t:disabled{opacity:.5}
+
+/* 이어 붙인 곡 목록 */
+.parts{list-style:none;margin:0;padding:6px 14px;background:var(--card);border-radius:20px}
+.parts li{display:flex;align-items:center;gap:12px;padding:13px 2px;border-top:1px solid var(--line)}
+.parts li:first-child{border-top:0}
+.parts .pn{flex:0 0 26px;height:26px;border-radius:50%;background:var(--ink);color:var(--paper);font-size:13.5px;font-weight:900;display:grid;place-items:center}
+.parts .pt{flex:1;min-width:0;font-size:15.5px;font-weight:700;word-break:break-all;line-height:1.4}
+.parts .pt small{display:block;font-size:13px;font-weight:500;color:var(--sub);font-variant-numeric:tabular-nums}
+.parts .px{flex:0 0 auto;border:0;border-radius:10px;padding:8px 12px;font-size:13.5px;font-weight:700;background:var(--paper)}
+
+/* 편집한 음원 저장 */
+.edsave{display:flex;flex-direction:column;gap:10px}
+.edsave:empty{display:none}
+.edfile{margin:4px 2px 0;font-size:13.5px;line-height:1.5;color:var(--sub);text-align:center;word-break:break-all}
+.edfile b{color:var(--ink)}
+.edfile span{margin-left:6px;white-space:nowrap}
+.edsave .ednote{margin:0;text-align:center}
+.edprog{height:8px;border-radius:4px;background:var(--line);overflow:hidden}
+.edprog div{height:100%;width:0;background:var(--accent)}
