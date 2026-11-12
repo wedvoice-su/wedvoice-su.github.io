@@ -9,8 +9,9 @@ const OPEN = true;
 const EDIT_OPEN = false;
 const EDIT_ON = EDIT_OPEN || new URLSearchParams(location.search).has("preview");
 // 새 기능 알림: 첫 화면의 "NEW 음원 편집" 소개와 "음원 편집하기" 버튼의 NEW 표시 (음원 편집이 보일 때만 같이 보여요).
-// 새 기능이 아니게 되면 false로.
-const EDIT_NEW = true;
+// 2026년 12월 1일(한국 시간)부터는 저절로 안 보여요 (사회자님 11/12: "new 표시는 12월 1일에 제거하자"). 날짜를 바꾸려면 아래 한 줄만.
+const EDIT_NEW_UNTIL = "2026-12-01T00:00:00+09:00";
+const EDIT_NEW = Date.now() < Date.parse(EDIT_NEW_UNTIL);
 // =========================================================
 
 // ===== 방식은 세 가지뿐이에요 (2026-11-02 사회자님 정리) =====
