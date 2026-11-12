@@ -8,6 +8,9 @@ const OPEN = true;
 // false면 주소 뒤에 ?preview 를 붙였을 때만 보여요. (예: …/right-on-cue/?preview)
 const EDIT_OPEN = false;
 const EDIT_ON = EDIT_OPEN || new URLSearchParams(location.search).has("preview");
+// 새 기능 알림: 첫 화면의 "NEW 음원 편집" 소개와 "음원 편집하기" 버튼의 NEW 표시 (음원 편집이 보일 때만 같이 보여요).
+// 새 기능이 아니게 되면 false로.
+const EDIT_NEW = true;
 // =========================================================
 
 // ===== 방식은 세 가지뿐이에요 (2026-11-02 사회자님 정리) =====
@@ -151,6 +154,11 @@ function home(){
     <h1>이 곡,<br>몇 초에<br>입장할까요?</h1>
     <div class="bar"></div>
     <p class="lead">고른 음원을 들으면서 “여기!”만 누르세요. 사회자·음향팀에 보낼 큐시트가 나와요.</p>
+    ${EDIT_ON && EDIT_NEW ? `
+    <div class="news">
+      <p class="nt"><span class="newtag">NEW</span>음원 편집이 생겼어요</p>
+      <p>전주가 길거나 곡이 짧을 때, 아래에서 순서를 고르고 파일을 연 뒤 ‘음원 편집하기’를 누르세요. 하이라이트에 맞춰 ${ORDERS.bride.verb}하게 바로 고쳐 드려요.</p>
+    </div>` : ""}
     <div class="pick">
       ${["groom","bride","march"].map(k=>`<button data-k="${k}"><span>${ORDERS[k].label}</span><span class="q">${ORDERS[k].song}</span></button>`).join("")}
     </div>
@@ -197,7 +205,7 @@ function editBox(){
     <div class="edbox">
       <b>음원을 고치고 싶나요?</b>
       <p>전주가 길 때, 곡이 짧을 때, 끝이 뚝 끊길 때 여기서 바로 고칠 수 있어요.</p>
-      <button class="btn ghost" id="edit">음원 편집하기</button>
+      <button class="btn ghost" id="edit">음원 편집하기${EDIT_NEW ? ' <span class="newtag">NEW</span>' : ""}</button>
     </div>`;
 }
 // ※ accept는 확장자로 적어요. 아이폰 사파리는 accept="audio/*"를 영상처럼 취급해서 mp3·m4a가 회색으로 막혀요 (WebKit 버그 242110, 34442)
