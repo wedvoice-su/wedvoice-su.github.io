@@ -26,7 +26,8 @@ const SITES = {
   "film": { path: "opening-scene", reel: "https://www.instagram.com/reel/DfZNuphJytF/" },  // 식전영상 만들기 (공개 2026-11-05. 같은 날 now-showing에서 이름 바꿈. 릴스 주소 2026-11-09 넣음)
   "filmPlus": { path: "opening-scene-plus", reel: "https://www.instagram.com/reel/DfmC2ovpsAh/" },  // 식전영상 만들기 업그레이드 버전 (공개 2026-11-11, 기존 opening-scene/은 간편 버전으로 그대로. 릴스 주소 2026-11-11 넣음)
   "date": { path: "good-day-to-wed", reel: "" },  // 결혼 좋은 날 찾기 (예식일 달력 ㉗, 미공개 샘플. 공개하면 good-day-to-wed/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
-  "pack": { path: "pack-for-two", reel: "" }  // 신혼여행 짐 싸기 (㉞, 미공개. 공개하면 pack-for-two/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
+  "pack": { path: "pack-for-two", reel: "" },  // 신혼여행 짐 싸기 (㉞, 미공개. 공개하면 pack-for-two/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
+  "select": { path: "the-one", reel: "" }  // 웨딩사진 셀렉 도우미 (㊱, 미공개 · 노트북용. 공개하면 the-one/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
 };
 // =========================================================
 
