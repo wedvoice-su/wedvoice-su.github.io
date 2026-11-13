@@ -203,8 +203,8 @@ body.noscroll{overflow:hidden;overscroll-behavior:none}
 .ov.full .ovc{max-width:none;max-height:none;height:100%;border-radius:0;padding:0;background:#0C0C0C;display:flex;flex-direction:column}
 .bigh{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:calc(8px + env(safe-area-inset-top,0px)) 12px 8px 16px;color:#fff;font-size:14px;font-weight:700}
 .bigh span{flex:1}
-.bigs{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:0 0 24px}
-.bigs img{display:block;width:100%;max-width:760px;height:auto;margin:0 auto}
+.bigs{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;padding:0 0 24px}
+.bigs img{display:block;flex:0 0 auto;width:100%;max-width:760px;height:auto;margin:auto}
 #toast{position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom,0px));z-index:40;transform:translate(-50%,12px);display:flex;align-items:center;gap:12px;width:max-content;max-width:calc(100vw - 32px);padding:12px 16px;border-radius:14px;background:#1B1B1B;color:#fff;font-size:14.5px;font-weight:500;line-height:1.45;box-shadow:0 6px 24px rgba(0,0,0,.35);opacity:0;pointer-events:none;transition:opacity .18s,transform .18s}
 #toast.on{opacity:1;transform:translate(-50%,0);pointer-events:auto}
 #toast button{flex:0 0 auto;border:0;background:none;color:#F48FB1;font:inherit;font-weight:700;padding:4px 2px;text-decoration:underline;text-underline-offset:4px}
