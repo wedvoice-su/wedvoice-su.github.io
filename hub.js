@@ -12,6 +12,9 @@
 // 그래서 릴스를 올리고 SITES에 주소만 넣으면 여기 버튼도 같이 켜져요.
 // 새 사이트를 만들면 SITES에 한 줄 + 여기 알맞은 주제에 한 줄.
 const GROUPS = [
+  { name: "결혼 준비 전체", items: [
+    { key: "ready", label: "결혼 준비 체크리스트" }
+  ]},
   { name: "날짜 · 청첩장 모임", items: [
     { key: "date",  label: "결혼 날짜 후보 찾기" },
     { key: "table", label: "청첩장 모임 장소 찾기" }
