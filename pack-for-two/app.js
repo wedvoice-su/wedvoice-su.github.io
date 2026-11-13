@@ -131,20 +131,64 @@ function datesIn(str, m){
   return out;
 }
 function linkOut(l){ return l && l.url ? `<a class="out" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label || "공식 사이트")} ↗</a>` : ""; }
+// 화면 아래에 잠깐 뜨는 안내 (위쪽 버튼을 눌렀을 때 — 맨 아래 안내 문구는 안 보이니까)
+function toast(text){
+  let el = document.getElementById("toast");
+  if(!el){ el = document.createElement("div"); el.id = "toast"; el.className = "toast"; el.setAttribute("role", "status"); document.body.appendChild(el); }
+  el.textContent = text; el.classList.add("on");
+  clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove("on"), 2600);
+}
+
+// ===== 화면 이동 (휴대폰 뒤로 가기 = 이전 단계) =====
+// 화면마다 기록을 남겨서, 뒤로 가기 손짓·버튼을 눌러도 사이트를 나가지 않고 앞 화면으로 가요 (덕담 사이트와 같은 방식, 11/13)
+if("scrollRestoration" in history) history.scrollRestoration = "manual";
+const SCREENS = { home: () => home(), dest: () => stepDest(), area: () => stepArea(), when: () => stepWhen(), opts: () => stepOpts(), result: a => result(a) };
+function show(sc, arg){
+  closeSheet();
+  if(!SCREENS[sc]) sc = "home";
+  // 고르던 조건이 없으면(새로고침 뒤 등) 목록이나 첫 화면으로
+  if(["area", "when", "opts"].includes(sc) && !(draft && D(draft.d))) sc = S.trip && D(S.trip.d) ? "result" : "home";
+  if(sc === "area" && D(draft.d).areas.length < 2) sc = "when";
+  if(sc === "result" && !(S.trip && D(S.trip.d))) sc = "home";
+  SCREENS[sc](arg);
+}
+function go(sc, how, arg){
+  const st = { sc, back: how !== "replace" };
+  how === "replace" ? history.replaceState(st, "") : history.pushState(st, "");
+  show(sc, arg);
+}
+function goBack(prev){ if(history.state && history.state.back) history.back(); else go(prev, "replace"); }
+let skipPop = false;
+window.addEventListener("popstate", e => {
+  const st = e.state;
+  if(skipPop){ skipPop = false; return; }
+  if(document.getElementById("sheet")){ closeSheet(); return; }   // 창이 열려 있었으면 창만 닫아요
+  if(st && st.sheet){ skipPop = true; history.back(); return; }    // 앞으로 가기로 닫힌 창 기록에 오면 건너뛰어요
+  if(st && st.sc) show(st.sc);
+});
 
 // ===== 설명 창 (아래에서 올라오는 시트) =====
+// 창을 열면 기록을 하나 남겨서, 뒤로 가기 손짓이 화면 대신 창만 닫아요
 function openSheet(html, label){
+  const had = !!document.getElementById("sheet");
   closeSheet();
+  const tt = document.getElementById("toast"); if(tt) tt.classList.remove("on");   // 안내가 창의 닫기 버튼을 가리지 않게
+  if(!had) history.pushState(Object.assign({}, history.state, { sheet: true }), "");
   const bg = document.createElement("div"); bg.className = "sheet-bg"; bg.id = "sheetBg";
   const sh = document.createElement("div"); sh.className = "sheet"; sh.id = "sheet";
   sh.setAttribute("role", "dialog"); sh.setAttribute("aria-modal", "true"); sh.setAttribute("aria-label", label || "설명");
-  sh.innerHTML = html + `<button class="btn ghost" id="sheetX">닫기</button>`;
+  // 닫기는 창 아래에 붙어 있어요 (출처가 길어도 내리지 않고 닫게)
+  sh.innerHTML = html + `<div class="sheet-x"><button class="btn ghost" id="sheetX">닫기</button></div>`;
   document.body.appendChild(bg); document.body.appendChild(sh);
-  bg.onclick = closeSheet; document.getElementById("sheetX").onclick = closeSheet;
-  document.getElementById("sheetX").focus();
+  bg.onclick = dismissSheet; document.getElementById("sheetX").onclick = dismissSheet;
+  // 창은 늘 제목부터 보여요 (예전엔 닫기 버튼에 초점을 주면서 창이 맨 아래 출처 목록으로 내려가 있었음)
+  sh.scrollTop = 0;
+  document.getElementById("sheetX").focus({ preventScroll: true });
 }
 function closeSheet(){ ["sheet", "sheetBg"].forEach(id => { const e = document.getElementById(id); if(e) e.remove(); }); }
-document.addEventListener("keydown", e => { if(e.key === "Escape") closeSheet(); });
+// 닫기 · 바깥 누르기 · Esc: 창이 남긴 기록을 되돌려서 닫아요 (popstate가 창을 지움)
+function dismissSheet(){ if(history.state && history.state.sheet) history.back(); else closeSheet(); }
+document.addEventListener("keydown", e => { if(e.key === "Escape" && document.getElementById("sheet")) dismissSheet(); });
 function srcList(keys, dest){
   const list = (keys || []).map(k => srcOf(k, dest)).filter(Boolean);
   if(!list.length) return "";
@@ -178,8 +222,8 @@ function home(){
     <p class="note">※ 모든 정보는 참고용이에요. ${CHECKED_TEXT}에 공식 자료로 확인했지만 입국 규정과 현지 사정은 바뀔 수 있으니, 떠나기 전 공식 사이트에서 다시 확인하세요.</p>
     <p class="note">${PRIVACY}</p>
     ${foot()}`;
-  document.getElementById("start").onclick = () => { draft = null; stepDest(); };
-  const r = document.getElementById("resume"); if(r) r.onclick = () => result(true);
+  document.getElementById("start").onclick = () => { draft = null; go("dest"); };
+  const r = document.getElementById("resume"); if(r) r.onclick = () => go("result", "push", true);
 }
 
 // ===== 고르기 단계 =====
@@ -195,7 +239,7 @@ function stepDest(){
     <div class="dests">${PACK.order.map(id => { const d = D(id); return `<button class="dest${draft && draft.d === id ? " on" : ""}" data-d="${id}"><b>${nameHtml(d.name)}</b><span>${esc((d.tagline || "").split(" · ")[0])}</span></button>`; }).join("")}</div>
     <p class="note small">다른 여행지는 조사가 끝나는 대로 더할게요.</p>
     ${foot()}`;
-  document.getElementById("back").onclick = home;
+  document.getElementById("back").onclick = () => goBack("home");
   app.querySelectorAll("[data-d]").forEach(b => b.onclick = () => {
     const id = b.dataset.d, d = D(id);
     if(!draft || draft.d !== id){
@@ -208,7 +252,7 @@ function stepDest(){
       };
       if(!draft.areas.length) draft.areas = [d.areas[0].key];
     }
-    d.areas.length > 1 ? stepArea() : stepWhen();
+    go(d.areas.length > 1 ? "area" : "when");
   });
 }
 function nameHtml(n){ const m = String(n).match(/^(.*?)\s*(\(.+\))$/); return m ? `${esc(m[1])}<small>${esc(m[2])}</small>` : esc(n); }
@@ -222,7 +266,7 @@ function stepArea(){
       <div class="list">${d.areas.map(a => { const on = draft.areas.includes(a.key); return `<button class="row-btn${on ? " on" : ""}" data-a="${a.key}" role="checkbox" aria-checked="${on}">${chk(on)}<span class="rb-t"><b>${esc(a.label)}</b>${a.note ? `<span>${esc(a.note)}</span>` : ""}</span></button>`; }).join("")}</div>
       <p class="msg" id="msg"></p>
       <div class="btns sticky-go"><button class="btn main" id="next">다음</button></div>`;
-    document.getElementById("back").onclick = stepDest;
+    document.getElementById("back").onclick = () => goBack("dest");
     app.querySelectorAll("[data-a]").forEach(b => b.onclick = () => {
       const k = b.dataset.a, i = draft.areas.indexOf(k);
       i < 0 ? draft.areas.push(k) : draft.areas.splice(i, 1);
@@ -230,7 +274,7 @@ function stepArea(){
     });
     document.getElementById("next").onclick = () => {
       if(!draft.areas.length){ document.getElementById("msg").textContent = "한 곳 이상 골라 주세요."; return; }
-      stepWhen();
+      go("when");
     };
   };
   draw();
@@ -258,12 +302,12 @@ function stepWhen(){
       </div>
       <p class="note small">날씨는 그 달의 30년 평균(평년값)이라 참고용이에요. 비행기에서 자는 밤은 빼고 숙소에서 자는 밤만 세면 돼요.</p>
       <div class="btns sticky-go"><button class="btn main" id="next">다음</button></div>`;
-    document.getElementById("back").onclick = () => multi ? stepArea() : stepDest();
+    document.getElementById("back").onclick = () => goBack(multi ? "area" : "dest");
     app.querySelectorAll("[data-y]").forEach(b => b.onclick = () => { draft.y = +b.dataset.y; if(past(draft.y, draft.m)) draft.m = nextMonth().m; draw(); });
     app.querySelectorAll("[data-m]").forEach(b => b.onclick = () => { draft.m = +b.dataset.m; draw(); });
     document.getElementById("minus").onclick = () => { draft.n = Math.max(2, draft.n - 1); draw(); };
     document.getElementById("plus").onclick = () => { draft.n = Math.min(14, draft.n + 1); draw(); };
-    document.getElementById("next").onclick = stepOpts;
+    document.getElementById("next").onclick = () => go("opts");
   };
   draw();
 }
@@ -275,9 +319,9 @@ function stepOpts(){
     app.innerHTML = `${stepHead(tot, tot, "우리 여행에 해당하는 걸<br>모두 골라 주세요", "고른 것만 짐 목록에 넣어요. 나중에 바꿀 수 있어요.")}
       <div class="list">${OPTS.map(o => { const on = !!draft.o[o.k]; return `<button class="row-btn${on ? " on" : ""}" data-o="${o.k}" role="checkbox" aria-checked="${on}">${chk(on)}<span class="rb-t"><b>${esc(o.t)}</b><span>${esc(o.d)}</span></span></button>`; }).join("")}</div>
       <div class="btns sticky-go"><button class="btn main" id="make">짐 목록 만들기</button></div>`;
-    document.getElementById("back").onclick = stepWhen;
+    document.getElementById("back").onclick = () => goBack("when");
     app.querySelectorAll("[data-o]").forEach(b => b.onclick = () => { draft.o[b.dataset.o] = !draft.o[b.dataset.o]; draw(); });
-    document.getElementById("make").onclick = () => { S.trip = draft; saveS(); reveal("짐 목록\n완성!", () => result()); };
+    document.getElementById("make").onclick = () => { S.trip = draft; saveS(); history.pushState({ sc: "result", back: true }, ""); reveal("짐 목록\n완성!", () => result()); };
   };
   draw();
 }
@@ -402,21 +446,24 @@ function result(resume){
   app.innerHTML = `
     <div class="rhead">
       <div class="rh-t"><p class="rh-kind">${NAME}</p><h2>${esc(d.name)}</h2><p class="rh-sub">${t.y}년 ${t.m}월 · ${t.n}박${d.areas.length > 1 ? ` · ${esc(areaNames(t))}` : ""}</p></div>
-      <button class="chip-btn" id="edit">조건 바꾸기</button>
+      <div class="rh-act">
+        <button class="chip-btn" id="edit">조건 바꾸기</button>
+        <button class="chip-btn send" id="shareTop">링크 보내기</button>
+      </div>
     </div>
     <button class="notice" data-help="notice"><b>참고용</b><span>${CHECKED_TEXT} 공식 자료로 확인 · 출발 전 다시 확인하세요</span><span class="ar" aria-hidden="true">›</span></button>
     <div class="prog" id="prog"></div>
     <nav class="tabs" id="tabs" aria-label="목록 바로가기">
-      <a href="#s-wx" data-t="s-wx">날씨</a><a href="#s-todo" data-t="s-todo">할 일</a><a href="#s-pack" data-t="s-pack">짐</a><a href="#s-leave" data-t="s-leave">두고 갈 것</a>${local.length || d.power ? `<a href="#s-local" data-t="s-local">현지</a>` : ""}
+      <a href="#s-wx" data-t="s-wx">날씨</a><a href="#s-pack" data-t="s-pack">짐</a><a href="#s-todo" data-t="s-todo">할 일</a><a href="#s-leave" data-t="s-leave">두고 갈 것</a>${local.length || d.power ? `<a href="#s-local" data-t="s-local">현지</a>` : ""}
     </nav>
     ${wxHtml(t, d, w, issues)}
-    ${todoHtml(t, d, before, checks)}
     <section class="sec" id="s-pack">
       <div class="sec-h"><h3>짐 체크리스트</h3><button class="text-btn small" id="editList">${editing ? "다 고쳤어요" : "목록 고치기"}</button></div>
       <div class="filters" id="filters"></div>
       <div id="packList"></div>
       <p class="sec-foot">수량·옷차림은 흔히 쓰는 기준이에요 <button class="text-btn inline" data-help="qty">수량은 어떻게?</button></p>
     </section>
+    ${todoHtml(t, d, before, checks)}
     ${leaveHtml(t, d, leave)}
     ${localHtml(d, local)}
     <section class="sec end">
@@ -434,10 +481,11 @@ function result(resume){
       ${sign()}
     </section>
     ${foot()}`;
-  document.getElementById("edit").onclick = () => { draft = JSON.parse(JSON.stringify(t)); stepDest(); };
-  document.getElementById("restart").onclick = () => { draft = null; stepDest(); };
+  document.getElementById("edit").onclick = () => { draft = JSON.parse(JSON.stringify(t)); go("dest"); };
+  document.getElementById("restart").onclick = () => { draft = null; go("dest"); };
   document.getElementById("editList").onclick = () => { editing = !editing; document.getElementById("editList").textContent = editing ? "다 고쳤어요" : "목록 고치기"; drawPack(); };
-  document.getElementById("share").onclick = shareTrip;
+  document.getElementById("share").onclick = () => shareTrip(false);
+  document.getElementById("shareTop").onclick = () => shareTrip(true);
   document.getElementById("copy").onclick = copyList;
   document.getElementById("xlsx").onclick = saveXlsx;
   document.getElementById("allSrc").onclick = () => allSources(d);
@@ -666,12 +714,14 @@ function tripUrl(t){
   u.searchParams.set("a", t.areas.join(",")); u.searchParams.set("o", OPTS.filter(o => t.o[o.k]).map(o => o.k).join(","));
   return u.toString().replace("preview=&", "preview&");
 }
-async function shareTrip(){
+// top: 위쪽 "링크 보내기"에서 눌렀어요 → 안내는 화면 아래에 잠깐 띄워요
+async function shareTrip(top){
   const t = S.trip, url = tripUrl(t), msg = document.getElementById("msg");
   const text = `신혼여행 짐 목록이에요. ${tripText(t)}`;
   if(navigator.share){ try { await navigator.share({ title: NAME, text, url }); msg.textContent = ""; return; } catch (e) { if(e && e.name === "AbortError") return; } }
-  try { await navigator.clipboard.writeText(`${text}\n${url}`); msg.textContent = "링크를 복사했어요. 카톡에 붙여 넣어 보내세요."; }
-  catch (e) { msg.textContent = url; }
+  const done = "링크를 복사했어요. 카톡에 붙여 넣어 보내세요.";
+  try { await navigator.clipboard.writeText(`${text}\n${url}`); msg.textContent = done; if(top) toast(done); }
+  catch (e) { msg.textContent = url; if(top) msg.scrollIntoView({ block: "center" }); }
 }
 async function copyList(){
   const t = S.trip, d = D(t.d), { items } = buildItems(t), c = S.checks[t.d] || {}, msg = document.getElementById("msg");
@@ -775,7 +825,7 @@ function fromUrl(){
 function route(){
   const preview = (location.search + location.hash).toLowerCase().includes("preview");
   if(!OPEN && !preview){ soon(); return; }
-  if(fromUrl()){ result(); return; }
-  home();
+  if(fromUrl()){ go("result", "replace"); return; }
+  go("home", "replace");
 }
 route();
