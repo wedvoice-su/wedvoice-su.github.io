@@ -27,6 +27,8 @@ let VIEW = { z: 1, tx: 0, ty: 0 }, L = null;
 let OUT = { gen: 0, pages: [], pdf: null, busy: false, done: 0, total: 0 };
 let UNDO = [];
 let EXURL = "";
+let TRAP = false;           // 폰 뒤로 가기를 "이전 단계"로 쓰려고 넣어 둔 방문 기록이 있는지
+let COM_NEXT = false;       // 요청서를 만들다가 공통 요청으로 들어왔는지 (완료하면 바로 요청서로)
 let GHOST = 0;              // 이 시각까지는 사진 밖 버튼 클릭을 무시 (폰의 따라오는 클릭 막기)
 
 function blank(){
@@ -163,8 +165,9 @@ async function addFiles(list, opt = {}){
   if(!S.photos.length){ toast(T.loadNone, 4000); return; }
   if(opt.sample) S.sample = true;
   await saveNow();
-  if(first && S.photos.length === 1) openPhoto(S.photos[0].k); else go("list");
-  if(many) toast(f(T.loadMany, { n: MAXN }), 5000); else if(bad) toast(f(T.loadBad, { n: bad }), 5000);
+  // 처음 불러왔으면 목록을 거치지 않고 바로 첫 사진으로 (할 일이 바로 보이게). 더 넣은 것이면 목록으로.
+  if(first) openPhoto(S.photos[0].k); else go("list");
+  if(many) toast(f(T.loadMany, { n: MAXN }), 5000); else if(bad) toast(f(T.loadBad, { n: bad }), 5000); else if(first && S.photos.length > 1) toast(f(T.loaded, { n: S.photos.length }), 3000);
 }
 function busy(text, ratio){
   let b = $("#busy");
@@ -201,16 +204,26 @@ async function startSample(){
     list.push(new File([blob], `SAMPLE_${pad(i + 1)}.jpg`, { type: "image/jpeg" }));
   }
   await addFiles(list, { sample: true });
-  go("list");
 }
 
 // ===== 화면 바꾸기 =====
 function go(screen){
   if(purge()) save();
+  toast("");   // 앞 화면에서 뜬 알림이 다음 화면을 가리지 않게
   CUR = screen;
   if(screen !== "edit") ED = null;
-  if(screen !== "cover" && screen !== "soon"){ S.pos.screen = screen === "edit" ? "edit" : "list"; }
+  if(screen !== "common") COM_NEXT = false;
+  if(screen !== "cover" && screen !== "soon"){ S.pos.screen = screen === "edit" ? "edit" : "list"; trap(); }
   render(); scrollTo(0, 0);
+}
+// 폰의 뒤로 가기(버튼 · 옆으로 밀기)가 사이트를 나가지 않고 이전 단계로 가게: 방문 기록을 하나 넣어 두고, 뒤로 가면 한 단계 물러난 뒤 다시 넣어요.
+function trap(){ if(TRAP) return; try { history.pushState({ pp: 1 }, ""); TRAP = true; } catch (e) {} }
+function goHome(){ closeOverlays(); purge(); saveNow(); if(S.photos.length) SAVED = { st: S, imgs: null }; renderCover(); scrollTo(0, 0); }
+function backStep(){
+  if($(".ov")){ closeOverlays(); return; }
+  if(CUR === "edit"){ if(ED && ED.pin) closePin(); else go("list"); return; }
+  if(CUR === "common" || CUR === "out"){ go("list"); return; }
+  if(CUR === "list") goHome();
 }
 function render(){
   closeOverlays();
@@ -258,12 +271,13 @@ function renderCover(){
       <button class="btn insta" data-a="pick">${esc(SAVED ? T.newStart : T.pick)}</button>
       <button class="btn dark" data-a="sample">${esc(T.trySample)}</button>
     </div>
+    <p class="trust"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.6 7V5.2a3.4 3.4 0 016.8 0V7" fill="none" stroke="currentColor" stroke-width="1.7"/><rect x="3" y="7" width="10" height="7.2" rx="1.9" fill="currentColor"/></svg>${esc(T.trust)}</p>
     <p class="drop">${esc(T.dropHint)}</p>
     <section class="ex">
       <div class="exh"><b>${esc(T.exTitle)}</b><span>${esc(T.exTag)}</span></div>
       <div class="exi" id="exi">${EXURL ? `<img src="${EXURL}" alt="">` : ""}</div>
     </section>
-    <ul class="notes"><li>${esc(T.noteWhich)}</li><li>${esc(T.notePrivacy)}</li><li>${esc(T.noteBoth)}</li></ul>
+    <ul class="notes"><li>${esc(T.noteWhich)}</li><li>${esc(T.noteBoth)}</li></ul>
     ${foot()}`;
   if(!EXURL) makeExample();
 }
@@ -303,26 +317,30 @@ function thumbHTML(p){
 function renderList(){
   document.body.className = "pp-body";
   app.className = "pp list";
-  const t = totals(), cl = comLists(), cn = cl.doList.length + cl.dont.length;
+  const t = totals(), cl = comLists(), cn = cl.doList.length + cl.dont.length, any = t.r + t.k + t.c > 0;
   app.innerHTML = `
     ${topBar(`<b class="tb-name">${esc(T.name)}</b>`, `<button class="tbb" data-a="menu" aria-label="menu">⋯</button>`)}
     <div class="pg">
-      <h1 class="h">${esc(f(T.listTitle, { n: S.photos.length }))}${S.sample ? ` <span class="tag">${esc(T.sampleTag)}</span>` : ""}</h1>
-      <p class="sub">${esc(T.listSub)}</p>
-      <p class="stat">${esc(f(T.listStat, { a: t.a, k: t.k, t: t.t }))}</p>
-      ${!S.sample && !S.tips.name ? `<div class="tipbar"><span>${esc(T.nameTip)}</span><button data-a="tipx" data-id="name" aria-label="${esc(T.close)}">×</button></div>` : ""}
-      <button class="ccard${cn ? " on" : ""}" data-a="common"><span><b>${esc(T.commonCard)}</b><small>${esc(cn ? f(T.commonCardN, { n: cn }) : T.commonCardSub)}</small></span><i aria-hidden="true">›</i></button>
+      <h1 class="h">${nl(T.listTitle)}</h1>
+      <p class="sub">${esc(t.a + t.k ? f(T.listStat, { n: S.photos.length, a: t.a, k: t.k, t: t.t }) : f(T.listSub, { n: S.photos.length }))}${S.sample ? ` <span class="tag">${esc(T.sampleTag)}</span>` : ""}</p>
       <div class="grid">
         ${S.photos.map(p => { const n = reqN(p); return `<button class="ph" data-a="open" data-k="${p.k}">${thumbHTML(p)}<span class="nm">${esc(p.n)}</span><span class="st ${n ? "req" : p.ok ? "ok" : "todo"}">${esc(n ? f(T.cardReq, { n }) : p.ok ? T.cardOk : T.cardTodo)}</span></button>`; }).join("")}
         ${S.photos.length < MAXN ? `<button class="ph add" data-a="pick"><span class="im"><span class="plus">＋</span></span><span class="nm">${esc(T.addMore)}</span></button>` : ""}
       </div>
+      <button class="ccard${cn ? " on" : ""}" data-a="common"><span><b>${esc(T.commonCard)}</b><small>${esc(cn ? f(T.commonCardN, { n: cn }) : T.commonCardSub)}</small></span><i aria-hidden="true">›</i></button>
     </div>
-    <div class="dock"><div class="dock-in"><span class="meta">${esc(f(T.makeMeta, { p: t.a + t.k, r: t.r }))}</span><button class="btn insta" data-a="make">${esc(T.makeBtn)} →</button></div></div>`;
+    <div class="dock"><div class="dock-in"><span class="meta">${esc(any ? f(T.makeMeta, { p: t.a + t.k, r: t.r }) : T.makeHint)}</span><button class="btn insta${any ? "" : " wait"}" data-a="make">${esc(T.makeBtn)} →</button></div></div>`;
 }
 function make(){
   purge();
   const t = totals();
   if(!t.r && !t.k && !t.c){ toast(T.makeNone, 3200); return; }
+  // 처음 한 번: 공통 요청을 아직 안 봤으면 물어봐요 (공통 요청 칸이 사진들 아래에 있어서 놓치기 쉬워요)
+  if(!t.c && !S.tips.common){
+    S.tips.common = 1; save();
+    sheet({ title: T.askComTitle, body: T.askComBody, yes: T.askComYes, no: T.askComNo, onYes: () => { COM_NEXT = true; go("common"); }, onNo: () => go("out") });
+    return;
+  }
   go("out");
 }
 
@@ -331,7 +349,8 @@ function openPhoto(k){
   purge();
   ED = { k, pin: null, cat: S.cat || "face" };
   VIEW = { z: 1, tx: 0, ty: 0 };
-  S.pos = { screen: "edit", k }; CUR = "edit";
+  toast("");
+  S.pos = { screen: "edit", k }; CUR = "edit"; COM_NEXT = false; trap();
   render(); save();
 }
 function renderEdit(){
@@ -531,25 +550,33 @@ function pinEditorHTML(p, pin){
   const cat = cats.find(c => c.id === ED.cat) || cats[0];
   return `
     <div class="pe-head"><b>${esc(whole ? T.wholeTitle : f(T.pinTitle, { n: no }))}</b><button class="tl" data-a="pindel">${esc(T.pinDel)}</button><button class="btn-s" data-a="pindone">${esc(T.pinDone)}</button></div>
-    <div class="pe-fix">
-      <div class="pv"><small>${esc(T.previewLabel)}</small><div id="pv"></div></div>
-      <div class="ln" id="lndeg"><span class="lb">${esc(T.degLabel)}</span>${DEG.map(d => `<button class="chip sm${pin.deg === d.id ? " on" : ""}" data-a="deg" data-v="${d.id}">${esc(d.chip)}</button>`).join("")}</div>
-      ${whole ? "" : `<div class="ln" id="lnwho"><span class="lb">${esc(T.whoLabel)}</span>${[["b", T.whoB], ["g", T.whoG], ["p", T.whoP], ["", T.whoN]].map(([v, t]) => `<button class="chip sm${pin.who === v ? " on" : ""}" data-a="who" data-v="${v}">${esc(t)}</button>`).join("")}</div>`}
+    <div class="pe-top">
+      <div class="pv"><small id="pvl">${esc(T.previewLabel)}</small><div id="pv"></div>
+        <input type="text" id="note" value="${esc(pin.note || "")}" placeholder="${esc(T.previewEmpty)}" aria-label="${esc(T.noteLabel)}" autocomplete="off" enterkeyhint="done"></div>
     </div>
     <div class="pe-body">
       ${whole ? "" : `<div class="tabs" id="tabs">${cats.map(c => `<button class="tab${c.id === cat.id ? " on" : ""}" data-a="cat" data-id="${c.id}">${esc(c.label)}${pin.items.some(id => ITEM.has(id) && ITEM.get(id).cat === c.id) ? `<i></i>` : ""}</button>`).join("")}</div>`}
       <div class="chips" id="chips">${cat.items.map(it => `<button class="chip${pin.items.includes(it.id) ? " on" : ""}" data-a="chip" data-id="${it.id}">${esc(it.chip)}</button>`).join("")}</div>
-      <label class="nt"><small>${esc(T.noteLabel)}</small><input type="text" id="note" value="${esc(pin.note || "")}" placeholder="${esc(T.notePh)}" autocomplete="off" enterkeyhint="done"></label>
+    </div>
+    <div class="pe-foot" id="pefoot">
+      <div class="ln" id="lndeg"><span class="lb">${esc(T.degLabel)}</span>${DEG.map(d => `<button class="chip sm${pin.deg === d.id ? " on" : ""}" data-a="deg" data-v="${d.id}">${esc(d.chip)}</button>`).join("")}</div>
+      ${whole ? "" : `<div class="ln" id="lnwho"><span class="lb">${esc(T.whoLabel)}</span>${[["b", T.whoB], ["g", T.whoG], ["p", T.whoP], ["", T.whoN]].map(([v, t]) => `<button class="chip sm${pin.who === v ? " on" : ""}" data-a="who" data-v="${v}">${esc(t)}</button>`).join("")}</div>`}
     </div>`;
 }
 function updPreview(){
   const pin = curPin(), pv = $("#pv"); if(!pin || !pv) return;
-  const its = pinItems(pin), s = pinSents(pin);
-  pv.innerHTML = (s.length ? s.map(x => `<p>${esc(x)}</p>`).join("") : `<p class="e">${esc(T.previewEmpty)}</p>`) + [...new Set(its.filter(it => it.hard).map(it => it.hard === true ? T.hardNote : it.hard))].map(h => `<p class="hard">${esc(h)}</p>`).join("");
-  const w = $("#lnwho"), d = $("#lndeg");
-  // 고른 요청에 "누구 · 얼마나"가 들어갈 자리가 없으면 흐리게 (자리는 그대로 두어 화면이 밀리지 않게)
-  if(w) w.classList.toggle("off", its.length > 0 && !its.some(it => it.s.includes("{who}")));
-  if(d) d.classList.toggle("off", its.length > 0 && !its.some(it => it.s.includes("{deg}")));
+  const its = pinItems(pin), sents = its.map(it => sentence(it, pin));
+  // 맨 위 칸: 고른 요청의 문장 → 그 아래 직접 쓰는 칸. 아무것도 안 골랐으면 글 칸만 보이고, 흐린 글씨가 할 일을 알려 줘요.
+  pv.innerHTML = sents.map(x => `<p>${esc(x)}</p>`).join("") + [...new Set(its.filter(it => it.hard).map(it => it.hard === true ? T.hardNote : it.hard))].map(h => `<p class="hard">${esc(h)}</p>`).join("");
+  pv.hidden = !sents.length;
+  const lb = $("#pvl"); if(lb) lb.hidden = !sents.length;
+  const note = $("#note"); if(note){ note.placeholder = sents.length ? T.notePh : T.previewEmpty; note.classList.toggle("more", sents.length > 0); }
+  // 얼마나 · 누구: 고른 요청에 그 자리가 있을 때만 아래에 나타나요 (처음엔 고를 것만 보이게)
+  const w = $("#lnwho"), d = $("#lndeg"), ft = $("#pefoot");
+  const hasW = its.some(it => it.s.includes("{who}")), hasD = its.some(it => it.s.includes("{deg}"));
+  if(w) w.hidden = !hasW;
+  if(d) d.hidden = !hasD;
+  if(ft) ft.hidden = !(hasD || (w && hasW));
   $$("#tabs .tab").forEach(t => { const has = pin.items.some(id => ITEM.has(id) && ITEM.get(id).cat === t.dataset.id); const i = t.querySelector("i"); if(has && !i) t.insertAdjacentHTML("beforeend", "<i></i>"); else if(!has && i) i.remove(); });
 }
 function navPhoto(d){
@@ -592,7 +619,7 @@ function renderCommon(){
       <div class="cks">${ck(DONT, S.common.dont, "dont")}</div>
       <label class="nt big"><small>${esc(T.comNote)}</small><textarea id="cnote" rows="3" placeholder="${esc(T.comNotePh)}">${esc(S.common.note || "")}</textarea></label>
     </div>
-    <div class="dock"><div class="dock-in"><button class="btn insta" data-a="list">${esc(T.comDone)}</button></div></div>`;
+    <div class="dock"><div class="dock-in"><button class="btn insta" data-a="comdone">${esc(COM_NEXT ? T.comDoneGo : T.comDone)}${COM_NEXT ? " →" : ""}</button></div></div>`;
 }
 
 // ===== 요청서 그림 =====
@@ -800,6 +827,8 @@ function renderOut(){
       <h1 class="h">${esc(T.outTitle)}</h1>
       <p class="sub">${esc(f(T.outSub, { p: list.length, r: t.r }))}</p>
       ${t.t ? `<p class="skip">${esc(f(T.outSkip, { n: t.t }))} <button class="tl" data-a="list">${esc(T.outSkipBtn)}</button></p>` : ""}
+      <div class="kind"><span class="lb2">${esc(T.infoRound)}</span>
+        <div class="ln" id="rounds">${[0, 1, 2].map(r => `<button class="chip sm${(T["kind" + S.info.round] ? S.info.round : 0) === r ? " on" : ""}" data-a="round" data-v="${r}">${esc(T["round" + r])}</button>`).join("")}</div></div>
       <div class="strip" id="strip"><p class="busy" id="obusy"></p></div>
       <p class="mini">${esc(T.tapBig)}</p>
       <div class="btns">
@@ -808,18 +837,17 @@ function renderOut(){
         <button class="btn ghost" data-a="copy">${esc(T.txtBtn)}</button>
       </div>
       <p class="msg" id="msg"></p>
+      <section class="bx open"><h2>${esc(T.checkTitle)}</h2><div class="cks plain">${CHECKS.map(c => `<label class="ck"><input type="checkbox"><i>${CHECK}</i><span>${esc(c)}</span></label>`).join("")}</div></section>
       <details class="bx"><summary>${esc(T.txtTitle)}</summary>
         <div class="ln" id="fmts"><span class="lb">${esc(T.fmtLabel)}</span>${[["num", T.fmtNum], ["line", T.fmtLine]].map(([v, t]) => `<button class="chip sm${S.fmt === v ? " on" : ""}" data-a="fmt" data-v="${v}">${esc(t)}</button>`).join("")}</div>
         <textarea id="msgtxt" readonly rows="10">${esc(outText())}</textarea>
         <p class="vend">${esc(T.outVendor)}</p>
       </details>
-      <details class="bx"${S.info.g || S.info.b || S.info.round ? " open" : ""}><summary>${esc(T.infoTitle)}</summary>
+      <details class="bx"${S.info.g || S.info.b ? " open" : ""}><summary>${esc(T.infoTitle)}</summary>
         <div class="two"><label class="nt"><small>${esc(T.infoGroom)}</small><input type="text" id="ig" value="${esc(S.info.g)}" maxlength="20" autocomplete="off"></label>
         <label class="nt"><small>${esc(T.infoBride)}</small><input type="text" id="ib" value="${esc(S.info.b)}" maxlength="20" autocomplete="off"></label></div>
-        <p class="lb2">${esc(T.infoRound)}</p>
-        <div class="ln" id="rounds">${[0, 1, 2].map(r => `<button class="chip sm${(T["kind" + S.info.round] ? S.info.round : 0) === r ? " on" : ""}" data-a="round" data-v="${r}">${esc(T["round" + r])}</button>`).join("")}</div>
+        ${S.sample ? "" : `<p class="vend">${esc(T.nameTip)}</p>`}
       </details>
-      <section class="bx open"><h2>${esc(T.checkTitle)}</h2><div class="cks plain">${CHECKS.map(c => `<label class="ck"><input type="checkbox"><i>${CHECK}</i><span>${esc(c)}</span></label>`).join("")}</div></section>
       <section class="bx open"><h2>${esc(T.tipsTitle)}</h2><ol class="tips">${TIPS.map(c => `<li>${esc(c)}</li>`).join("")}</ol></section>
       <p class="again">${esc(T.again)}</p>
       ${sign()}
@@ -903,10 +931,10 @@ function overlay(id, html, cls = ""){
   return o;
 }
 function closeOverlays(){ for(const id of ["sheet", "menu", "big"]){ const o = $("#" + id); if(o) o.remove(); } }
-function sheet({ title, body, yes, no, onYes }){
+function sheet({ title, body, yes, no, onYes, onNo }){
   const o = overlay("sheet", `<h2>${esc(title)}</h2><p>${esc(body)}</p><div class="orow"><button class="btn insta" id="sy">${esc(yes)}</button><button class="btn ghost" id="sn">${esc(no)}</button></div>`);
   o._yes = () => { closeOverlays(); onYes && onYes(); };
-  $("#sy").onclick = o._yes; $("#sn").onclick = closeOverlays;
+  $("#sy").onclick = o._yes; $("#sn").onclick = () => { closeOverlays(); onNo && onNo(); };
 }
 function openMenu(items){
   overlay("menu", `<div class="mlist">${items.map(([a, t]) => `<button data-a="${a}">${esc(t)}</button>`).join("")}<button data-a="close" class="c">${esc(T.cancel)}</button></div>`, "bottom");
@@ -919,12 +947,12 @@ const ACT = {
   resume,
   menu(){ openMenu([["home", T.menuHome], ["new", T.menuNew]]); },
   pmenu(){ openMenu([["rename", T.rename], ["rmphoto", T.removePhoto]]); },
-  async home(){ closeOverlays(); purge(); await saveNow(); if(S.photos.length) SAVED = { st: S, imgs: null }; renderCover(); scrollTo(0, 0); },
+  home(){ goHome(); },
   new(){ closeOverlays(); sheet({ title: T.newTitle, body: T.newBody, yes: T.newYes, no: T.cancel, onYes: async () => { await wipe(); renderCover(); scrollTo(0, 0); } }); },
   close(){ closeOverlays(); },
-  tipx(b){ S.tips[b.dataset.id] = 1; save(); const t = b.closest(".tipbar"); if(t) t.remove(); },
   open(b){ openPhoto(b.dataset.k); },
-  common(){ go("common"); },
+  common(){ S.tips.common = 1; go("common"); },
+  comdone(){ const next = COM_NEXT; go(next ? "out" : "list"); },
   make,
   list(){ go("list"); },
   prev(){ navPhoto(-1); },
@@ -990,6 +1018,7 @@ function inputs(){
     await addFiles(list);
   });
   addEventListener("resize", () => { if(CUR === "edit") layout(); });
+  addEventListener("popstate", () => { TRAP = false; if(CUR === "cover" || CUR === "soon") return; backStep(); if(CUR !== "cover") trap(); });
   addEventListener("pagehide", () => { purge(); saveNow(); });
   document.addEventListener("visibilitychange", () => { if(document.hidden) saveNow(); });
 }
@@ -1008,5 +1037,5 @@ async function boot(){
   } catch (e) { STORE_OK = false; }
   renderCover();
 }
-window.__pp = { get S(){ return S; }, get OUT(){ return OUT; }, get ED(){ return ED; }, get VIEW(){ return VIEW; }, get L(){ return L; }, outText, makePdf, makeZip, totals, go, openPhoto, tapAt, addFiles };
+window.__pp = { get CUR(){ return CUR; }, get S(){ return S; }, get OUT(){ return OUT; }, get ED(){ return ED; }, get VIEW(){ return VIEW; }, get L(){ return L; }, outText, makePdf, makeZip, totals, go, openPhoto, tapAt, addFiles };
 boot();
