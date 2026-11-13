@@ -1,4 +1,4 @@
-// 웨딩사진 보정 요청서 ㊲: 사진 불러오기 → 고칠 곳을 누르면 번호 → 자주 하는 요청 고르기 → 요청서(이미지 · PDF) + 카톡에 붙일 글
+// 웨딩사진 수정 요청서 ㊲ (11/13 사회자님: 이름 "보정 요청서" → "수정 요청서"): 사진 불러오기 → 고칠 곳을 누르면 번호 → 자주 하는 요청 고르기 → 요청서(이미지 · PDF) + 카톡에 붙일 글
 // 기획 docs/보정-요청서/기획.md · 문구와 요청 목록 text.js · 샘플 그림 samples.js · 공통 shared/common.js
 // 사진은 이 기기(브라우저) 밖으로 보내지 않아요. 줄인 사진과 적은 요청만 이 브라우저 저장소(IndexedDB)에 남겨요.
 // 사회자 한마디 상자는 넣지 않아요 — 사진 보정은 사회자 영역이 아니라서 (사회자님 기준, 2026-11-03)
@@ -276,7 +276,7 @@ async function makeExample(){
       { id: 2, x: 0.725, y: 0.63, who: "b", items: ["b.arm"], deg: 1, note: "" },
       { id: 3, x: 0.365, y: 0.515, who: "g", items: ["f.jaw"], deg: 2, note: "" },
       { id: 4, x: null, y: null, who: "", items: ["a.warm"], deg: 1, note: "" }] };
-    await fontsFor(p.pins.map(pinLine).join(" ") + T.shHead + p.n);
+    await fontsFor(p.pins.map(pinLine).join(" ") + p.n);
     const pg = await sheetPhoto(p, 2, 9, { src: c, info: { g: "", b: "", round: 0 } });
     EXURL = URL.createObjectURL(pg.blob);
     const box = $("#exi"); if(box) box.innerHTML = `<img src="${EXURL}" alt="">`;
@@ -617,28 +617,25 @@ function wrap(x, text, maxW){
 function fitText(x, text, maxW){ if(x.measureText(text).width <= maxW) return text; let t = text; while(t.length > 1 && x.measureText(t + "…").width > maxW) t = t.slice(0, -1); return t + "…"; }
 async function fontsFor(text){
   if(!document.fonts || !document.fonts.load) return;
-  const all = text + T.shHead + T.shFoot + "0123456789 /·";
+  const all = text + T.kind0 + T.kind1 + T.kind2 + "서0123456789 /·";
   const job = Promise.all([500, 700, 900].map(w => document.fonts.load(`${w} 32px 'Noto Sans KR'`, all).catch(() => null)));
   await Promise.race([job, new Promise(r => setTimeout(r, 2500))]);
 }
+// 요청서 · 글 맨 위 이름: "어떤 요청인가요?"에서 고른 것에 따라 수정 요청 / 보정 요청 / 재수정 요청
+function kindOf(info){ return T["kind" + (info.round || 0)] || T.kind0; }
 function subLine(info){
   const a = [];
   if(info.g && info.b) a.push(f(T.shNames, { g: info.g, b: info.b })); else if(info.g) a.push(T.whoG + " " + info.g); else if(info.b) a.push(T.whoB + " " + info.b);
-  if(info.round) a.push(T["round" + info.round]);
   a.push(todayStr());
   return a.join("  ·  ");
 }
 function sheetHead(x, W, M, title, page, info){
   x.textBaseline = "alphabetic"; x.textAlign = "left";
-  x.fillStyle = PINK; x.font = `700 28px ${FONT}`; x.fillText(T.shHead, M, 92);
+  x.fillStyle = PINK; x.font = `700 28px ${FONT}`; x.fillText(f(T.shHead, { kind: kindOf(info) }), M, 92);
   x.fillStyle = "#8A8A8A"; x.font = `500 26px ${FONT}`; x.textAlign = "right"; x.fillText(page, W - M, 92); x.textAlign = "left";
   x.fillStyle = "#161616"; x.font = `900 50px ${FONT}`; x.fillText(fitText(x, title, W - M * 2), M, 156);
   x.fillStyle = "#6A6A6A"; x.font = `500 26px ${FONT}`; x.fillText(fitText(x, subLine(info), W - M * 2), M, 200);
   return 236;
-}
-function sheetFoot(x, W, M, y){
-  x.fillStyle = "#E2E2E2"; x.fillRect(M, y, W - M * 2, 2);
-  x.fillStyle = "#9A9A9A"; x.font = `500 22px ${FONT}`; x.textAlign = "left"; x.fillText(T.shFoot, M, y + 44);
 }
 function noBadge(x, cx, cy, r, label, whole){
   x.fillStyle = PINK;
@@ -671,7 +668,7 @@ async function sheetPhoto(p, i, n, opt = {}){
   const LH = 50; m.font = `500 34px ${FONT}`;
   for(const r of rows){ r.tx = M + (r.ok ? 0 : r.whole ? 116 : 76); r.lines = wrap(m, r.text, W - M - r.tx); r.h = Math.max(r.lines.length * LH, 56) + 18; }
   const s = Math.min(cw / p.w, 1180 / p.h), iw = Math.round(p.w * s), ih = Math.round(p.h * s);
-  const top = 236, rowsH = rows.reduce((a, r) => a + r.h, 0), H = top + ih + 46 + rowsH + 26 + 84;
+  const top = 236, rowsH = rows.reduce((a, r) => a + r.h, 0), H = top + ih + 46 + rowsH + 38;   // 맨 아래 서명 줄은 없어요 (사회자님 11/13: 작가님께 가는 문서라서 뺌)
   const c = document.createElement("canvas"); c.width = W; c.height = H;
   const x = c.getContext("2d");
   x.fillStyle = "#fff"; x.fillRect(0, 0, W, H);
@@ -690,7 +687,6 @@ async function sheetPhoto(p, i, n, opt = {}){
     r.lines.forEach((ln, k) => x.fillText(ln, r.tx, y + 38 + k * LH));
     y += r.h;
   }
-  sheetFoot(x, W, M, y + 26);
   return pageOut(c, f(T.fileImg, { i: pad(i), name: baseName(p.n) }));
 }
 function baseName(n){ return String(n).replace(/\.[A-Za-z0-9]{2,5}$/, "").replace(/[\\/:*?"<>|]+/g, "-").slice(0, 60) || "photo"; }
@@ -706,7 +702,7 @@ async function sheetCover(list, n){
   list.forEach((p, i) => { const r = reqN(p); blocks.push({ k: "ph", no: i + 2, name: p.n, st: r ? f(T.cardReq, { n: r }) : T.cardOk }); });
   blocks.push({ k: "gap", h: 18 }); m.font = `500 26px ${FONT}`; blocks.push({ k: "sm", lines: wrap(m, T.shSide, W - M * 2) });
   const hOf = b => b.k === "h" ? 62 : b.k === "li" || b.k === "p" ? b.lines.length * LH + 10 : b.k === "ph" ? 52 : b.k === "sm" ? b.lines.length * 38 + 6 : b.h;
-  const t = totals(), top = 236 + 64, H = top + blocks.reduce((a, b) => a + hOf(b), 0) + 30 + 84;
+  const t = totals(), top = 236 + 64, H = top + blocks.reduce((a, b) => a + hOf(b), 0) + 44;
   const c = document.createElement("canvas"); c.width = W; c.height = H;
   const x = c.getContext("2d");
   x.fillStyle = "#fff"; x.fillRect(0, 0, W, H);
@@ -727,13 +723,12 @@ async function sheetCover(list, n){
     }
     y += hOf(b);
   }
-  sheetFoot(x, W, M, y + 30);
   return pageOut(c, f(T.fileImg, { i: pad(1), name: T.shCover.replace(/\s+/g, "") }));
 }
 function outText(){
   const cl = comLists(), list = outPhotos(), a = [], info = S.info, who = [];
   if(info.g) who.push(T.whoG + " " + info.g); if(info.b) who.push(T.whoB + " " + info.b);
-  a.push(T.txHead + (who.length ? " " + who.join(" · ") : "") + (info.round ? ` (${T["round" + info.round]})` : ""));
+  a.push(f(T.txHead, { kind: kindOf(info) }) + (who.length ? " " + who.join(" · ") : ""));
   a.push(T.txHello);
   if(cl.doList.length){ a.push("", T.txCommon); cl.doList.forEach(s => a.push("- " + s)); }
   if(cl.dont.length){ a.push("", T.txDont); cl.dont.forEach(s => a.push("- " + s)); }
@@ -822,7 +817,7 @@ function renderOut(){
         <div class="two"><label class="nt"><small>${esc(T.infoGroom)}</small><input type="text" id="ig" value="${esc(S.info.g)}" maxlength="20" autocomplete="off"></label>
         <label class="nt"><small>${esc(T.infoBride)}</small><input type="text" id="ib" value="${esc(S.info.b)}" maxlength="20" autocomplete="off"></label></div>
         <p class="lb2">${esc(T.infoRound)}</p>
-        <div class="ln" id="rounds">${[0, 1, 2, 3].map(r => `<button class="chip sm${S.info.round === r ? " on" : ""}" data-a="round" data-v="${r}">${esc(T["round" + r])}</button>`).join("")}</div>
+        <div class="ln" id="rounds">${[0, 1, 2].map(r => `<button class="chip sm${(T["kind" + S.info.round] ? S.info.round : 0) === r ? " on" : ""}" data-a="round" data-v="${r}">${esc(T["round" + r])}</button>`).join("")}</div>
       </details>
       <section class="bx open"><h2>${esc(T.checkTitle)}</h2><div class="cks plain">${CHECKS.map(c => `<label class="ck"><input type="checkbox"><i>${CHECK}</i><span>${esc(c)}</span></label>`).join("")}</div></section>
       <section class="bx open"><h2>${esc(T.tipsTitle)}</h2><ol class="tips">${TIPS.map(c => `<li>${esc(c)}</li>`).join("")}</ol></section>
@@ -949,7 +944,7 @@ const ACT = {
   com(b){ tog(S.common.items, b); },
   dont(b){ tog(S.common.dont, b); },
   fmt(b){ S.fmt = b.dataset.v; $$("#fmts .chip").forEach(c => c.classList.toggle("on", c === b)); const ta = $("#msgtxt"); if(ta) ta.value = outText(); save(); },
-  round(b){ S.info.round = +b.dataset.v; $$("#rounds .chip").forEach(c => c.classList.toggle("on", c === b)); save(); rebuildSoon(); },
+  round(b){ S.info.round = +b.dataset.v; $$("#rounds .chip").forEach(c => c.classList.toggle("on", c === b)); const ta = $("#msgtxt"); if(ta) ta.value = outText(); save(); rebuildSoon(); },
   pdf(){ if(OUT.pdf) shareOrSave([OUT.pdf]); },
   imgs(){ if(OUT.pages.length) shareOrSave(OUT.pages.map(pageFile), f(T.fileZip, { d: todayStr() })); },
   copy(){ copyOut(); },

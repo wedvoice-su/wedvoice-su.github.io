@@ -28,7 +28,7 @@ const GROUPS = [
     { key: "film", label: "식전영상 만들기" },
     { key: "filmPlus", label: "식전영상 만들기 (업그레이드)" },
     { key: "select", label: "웨딩사진 셀렉 도우미" },
-    { key: "retouch", label: "웨딩사진 보정 요청서" }
+    { key: "retouch", label: "웨딩사진 수정 요청서" }
   ]},
   { name: "식에서 읽는 글", items: [
     { key: "vows",     label: "혼인서약서 만들기" },
