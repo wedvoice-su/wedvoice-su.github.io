@@ -645,11 +645,13 @@ function rowHtml(it, sub){
     else when = it.when || "";
   }
   const late = !sub && x && !on && diff(t, x.d) > 0;
-  return `<li class="it${on ? " on" : ""}" data-n="${it.n}">
+  // 사회자 섭외(1-12)처럼 카톡 버튼이 있는 카드는 목록에서도 바로 보이게 (체크하면 숨김 — 사회자님 11/16)
+  const kakao = it.kakao ? `<span class="it-br"></span><a class="it-kakao" href="${esc(KAKAO)}" target="_blank" rel="noopener">예식 문의 (카톡)</a>` : "";
+  return `<li class="it${on ? " on" : ""}${it.kakao ? " has-kakao" : ""}" data-n="${it.n}">
     <button class="it-main" role="checkbox" aria-checked="${on}">${chk(on)}
       <span class="it-t"><b>${esc(it.name)}</b><span class="it-w${late ? " late" : ""}">${esc(when)}</span>${status(it) === "und" ? `<span class="tag und">미정</span>` : ""}${tagHtml(it)}</span>
     </button>
-    <button class="it-i" data-info="${it.n}" aria-label="${esc(it.name)} 자세히">i</button>
+    <button class="it-i" data-info="${it.n}" aria-label="${esc(it.name)} 자세히">i</button>${kakao}
   </li>`;
 }
 function periodHtml(p, cur){
