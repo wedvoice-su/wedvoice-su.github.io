@@ -207,6 +207,9 @@
 .band{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--warn-bg);color:var(--warn);border-radius:14px;padding:10px 12px;font-size:13.5px;font-weight:700;line-height:1.45;margin:0 0 10px}
 .band button{flex:0 0 auto;border:0;background:var(--warn);color:#fff;border-radius:999px;padding:7px 12px;font-size:13px;font-weight:700;min-height:36px}
 .band.demo{background:var(--box);color:var(--box-ink)}
+.band.net{background:var(--g-bg);color:var(--g);margin:0;box-shadow:0 2px 10px rgba(0,0,0,.12)}
+/* 인터넷 끊김 띠는 화면을 내려도 맨 위에 붙어 있어요 (적는 동안에도 보이게) */
+#netBox:not(:empty){position:sticky;top:6px;z-index:6;margin-bottom:10px}
 .band.demo button{background:var(--cover-accent)}
 .ways{display:flex;flex-direction:column;gap:8px}
 .way{display:flex;flex-direction:column;gap:2px;text-align:left;border:2px solid var(--line);background:var(--paper);border-radius:16px;padding:13px 16px;min-height:62px}

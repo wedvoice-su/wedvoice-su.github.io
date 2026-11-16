@@ -202,7 +202,7 @@ function home(){
           : `<button class="main-go" data-a="start"><span>${esc(T.start)}</span><span class="q">${esc(T.startQ)}</span></button>`}
       <button data-a="demo"><span>${esc(T.demo)}</span><span class="q">${esc(T.demoQ)}</span></button>
     </div>
-    <div class="lock">${LOCK}<div><b>${esc(T.lockTitle)}</b><span>${esc(T.lockBody)}</span></div></div>
+    <div class="lock">${LOCK}<div><b>${esc(T.lockTitle)}</b><span>${esc(T.lockBody)} ${esc(T.lockOffline)}</span></div></div>
     ${exampleHtml()}
     ${!n ? `<button class="text-btn cover-link" data-a="other">${esc(T.otherAsk)}</button>` : ""}
     <p class="note">${esc(T.noteWho)}</p>
@@ -225,9 +225,17 @@ function frame(tab, inner){
   app.innerHTML = `
     <div class="bk-top"><button class="home" data-a="home">‹ ${esc(T.toHome)}</button><b>${esc(T.name)}</b><button class="gear" data-a="opts">${esc(T.optsBtn)}</button></div>
     <nav class="tabs" aria-label="${esc(T.name)}"><div class="tabs-in">${TABS.map(t => `<button class="tab${t === tab ? " on" : ""}" data-a="tab" data-t="${t}"${t === tab ? ' aria-current="page"' : ""}>${esc(names[t])}${t === "sum" && ck ? `<span class="dot" id="ckDot">${ck}</span>` : ""}</button>`).join("")}</div></nav>
+    <div id="netBox">${netHtml()}</div>
     ${bandsHtml(tab)}
     ${inner}`;
 }
+// 인터넷이 끊기면 맨 위에 한 줄: 그래도 계속 적을 수 있다고 알려요 (적는 일은 인터넷을 쓰지 않아요)
+function netHtml(){ return navigator.onLine === false ? `<div class="band net" role="status">${esc(T.offBand)}</div>` : ""; }
+function netUpdate(){ const el = $("#netBox"); if(el) el.innerHTML = netHtml(); if(document.body.classList.contains("typing")) alignForm(); }
+window.addEventListener("offline", netUpdate);
+window.addEventListener("online", netUpdate);
+// 인터넷이 끊긴 채로 화면을 다시 열어도 열리게: 사이트 파일을 이 기기에 저장해 두는 일꾼(sw.js)을 켜요. 안 되는 브라우저에서는 그냥 넘어가요.
+function keepOffline(){ if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {}); }
 function sidesHtml(){
   const st = DN.stats(S.rows);
   return SIDES.map(s => `<button class="side ${s}${S.side === s ? " on" : ""}" data-a="side" data-s="${s}" aria-pressed="${S.side === s}"><b>${esc(sideName(s))}</b><span>${esc(fm(T.sideMeta, { n: st[s].n, amt: won(st[s].amt) }))}</span></button>`).join("");
@@ -306,13 +314,19 @@ function book(){
     e.preventDefault(); nameEnter();
   });
   amtEl.addEventListener("keydown", e => { if(e.key === "Enter" && !e.isComposing){ e.preventDefault(); commit(); } });
-  nameEl.addEventListener("focus", () => { if(!matchMedia("(pointer:coarse)").matches) return; setTimeout(() => { const f = $("#form"); if(!f) return; const top = f.getBoundingClientRect().top; if(top > 12 || top < -4) window.scrollTo({ top: window.scrollY + top - 8 }); }, 60); });
+  nameEl.addEventListener("focus", () => { if(matchMedia("(pointer:coarse)").matches) setTimeout(alignForm, 60); });
   nameEl.addEventListener("input", () => fMsg(""));
   amtEl.addEventListener("input", () => fMsg(""));
   memoEl.addEventListener("input", () => { F.memo = memoEl.value; });
   refreshForm(); refreshBook();
   window.scrollTo(0, 0);
   if(matchMedia("(min-width:900px)").matches) nameEl.focus();
+}
+// 폰에서 적는 동안: 적는 칸을 화면 맨 위로 (인터넷 끊김 띠가 떠 있으면 그 바로 아래로)
+function alignForm(){
+  const f = $("#form"); if(!f) return;
+  const nb = $("#netBox"), want = 8 + (nb && nb.offsetHeight ? nb.offsetHeight + 6 : 0), top = f.getBoundingClientRect().top;
+  if(Math.abs(top - want) > 4) window.scrollTo({ top: window.scrollY + top - want });
 }
 function nameEnter(){
   const nameEl = $("#fName"); if(!nameEl) return;
@@ -930,7 +944,7 @@ function loadSheet(d){
 
 // ===== 한꺼번에 붙여넣기 =====
 const P = { side: "g", how: "a", text: "", res: null, nameCol: -1, amtCol: -1 };
-function subTop(title, back){ return `<div class="bk-top"><button class="home" data-a="back">‹ ${esc(back)}</button><b>${esc(title)}</b><span style="width:64px"></span></div>`; }
+function subTop(title, back){ return `<div class="bk-top"><button class="home" data-a="back">‹ ${esc(back)}</button><b>${esc(title)}</b><span style="width:64px"></span></div><div id="netBox">${netHtml()}</div>`; }
 function paste(){
   document.body.classList.remove("is-cover");
   app.className = "bk";
@@ -1131,6 +1145,7 @@ function soon(){
 function route(){
   const preview = (location.search + location.hash).toLowerCase().includes("preview");
   if(!OPEN && !preview){ soon(); return; }
+  keepOffline();
   go("home", "replace");
 }
 route();
