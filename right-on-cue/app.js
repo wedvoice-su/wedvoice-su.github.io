@@ -211,6 +211,21 @@ function editBox(){
 }
 // ※ accept는 확장자로 적어요. 아이폰 사파리는 accept="audio/*"를 영상처럼 취급해서 mp3·m4a가 회색으로 막혀요 (WebKit 버그 242110, 34442)
 const ACCEPT = ".mp3,.m4a,.wav,.aac,.flac,.ogg,.aiff,.aif";
+// 갤럭시(안드로이드)에서 인스타그램 안 브라우저로 열면 "파일 열기"가 사진 갤러리만 띄워서 음원을 고를 수 없어요 (2026-11-16 사용자 문의).
+// 그때만, 파일을 열기 전까지 "크롬에서 열기" 안내를 보여 줘요. 크롬·삼성 인터넷·아이폰에서는 안 보여요.
+// 버튼은 안드로이드의 intent 주소로 지금 주소를 크롬에서 다시 열어요. 인스타그램이 막을 수도 있어서 ⋮ 메뉴 안내를 같이 적어요.
+function igAndroid(){ const u=navigator.userAgent; return /Android/i.test(u) && /Instagram/i.test(u); }
+function chromeUrl(){ return "intent://" + location.host + location.pathname + location.search + "#Intent;scheme=" + location.protocol.replace(":","") + ";package=com.android.chrome;end"; }
+function inAppBox(){
+  if(S.file || !igAndroid()) return "";
+  return `
+    <div class="inapp">
+      <b>“파일 열기”를 눌러도 사진만 뜨나요?</b>
+      <p>인스타그램 안에서 열어서 그래요. 크롬에서 열면 음원 파일을 고를 수 있어요.</p>
+      <a class="btn" id="chrome" href="${esc(chromeUrl())}">크롬에서 열기</a>
+      <p class="sm">버튼이 안 되면, 화면 오른쪽 위 점 세 개(⋮)를 누르고 크롬(외부 브라우저)으로 여는 메뉴를 골라 주세요.</p>
+    </div>`;
+}
 function fileStep(){
   stopAudio(); plain();
   if(typeof edFree==="function") edFree();   // 편집 화면에서 돌아오면 풀어 둔 소리를 비워요
@@ -219,6 +234,7 @@ function fileStep(){
     ${topBar(1)}
     <h2 class="title">웨딩홀에 보낼<br>바로 그 파일을 열어 주세요</h2>
     <p class="lead2">시간은 이 파일을 기준으로 찍혀요. 편집본을 쓸 거면 편집본을, 원곡 그대로면 원곡을 여세요.</p>
+    ${inAppBox()}
     <label class="drop${S.file?" has":""}" id="drop">
       <input type="file" id="file" class="vh" accept="${ACCEPT}">
       ${S.file
