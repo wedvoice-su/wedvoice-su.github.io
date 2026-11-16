@@ -68,7 +68,6 @@ function periodOfDays(n){ return n >= 181 ? 1 : n >= 31 ? 2 : n >= 8 ? 3 : n >= 
 function curPeriod(){ return periodOfDays(diff(W(), today())); }
 const PNAME = Object.fromEntries(CL.periods.map(p => [p[0], p[1]]));
 const PDESC = Object.fromEntries(CL.periods.map(p => [p[0], p[2]]));
-const PSTART = { 1: -365, 2: -180, 3: -30, 4: -7, 5: -1, 6: 0, 7: 1 };   // 시기가 시작되는 날 (달력 알림)
 
 // ===== 카드 =====
 const ITEMS = CL.items;
@@ -593,13 +592,13 @@ function result(focusP){
       <div class="btns">
         <button class="btn main" id="share">내 체크리스트 링크 복사</button>
         <div class="btn-row">
-          <button class="btn ghost" id="ics">휴대폰 달력에 알림 넣기</button>
+          <button class="btn ghost" id="xlsx">체크리스트 엑셀로 저장</button>
           <button class="btn ghost" id="img">이번 시기 이미지로 저장</button>
         </div>
         <button class="btn ghost" id="copy">목록 글로 복사</button>
       </div>
       <p class="msg" id="msg"></p>
-      <p class="note small">링크를 보낸 뒤에 고친 건 상대 폰에 보이지 않아요. 바꿨으면 다시 보내 주세요. 달력 알림은 시기가 시작되는 날마다 하나씩 들어가요(최대 6개).</p>
+      <p class="note small">링크를 보낸 뒤에 고친 건 상대 폰에 보이지 않아요. 바꿨으면 다시 보내 주세요. 엑셀에는 아직 오지 않은 시기까지 전체 할 일이 들어가요.</p>
       <div class="end-links">
         <button class="text-btn" id="editSit">상황 바꾸기</button>
         <button class="text-btn" id="editDate">예식일 바꾸기</button>
@@ -682,7 +681,7 @@ function bindResult(){
   document.getElementById("shareTop").onclick = () => shareLink(true);
   document.getElementById("share").onclick = () => shareLink(false);
   document.getElementById("copy").onclick = copyList;
-  document.getElementById("ics").onclick = saveIcs;
+  document.getElementById("xlsx").onclick = saveXlsx;
   document.getElementById("img").onclick = saveImage;
   document.getElementById("editSit").onclick = () => go("sit");
   document.getElementById("editDate").onclick = () => go("date");
@@ -782,38 +781,51 @@ function copyList(){
   navigator.clipboard.writeText(lines.join("\n")).then(() => { msg.textContent = "목록을 복사했어요. 메모장이나 카톡에 붙여 넣으세요."; }, () => { msg.textContent = "복사하지 못했어요. 화면을 캡처해 주세요."; });
 }
 
-// ===== 휴대폰 달력 알림 (시기마다 하나, 최대 6개) =====
-function saveIcs(){
-  const w = W(), t = today(), msg = document.getElementById("msg"), url = linkUrl().split("#")[0];
-  const evs = [];
+// ===== 체크리스트 엑셀로 저장 (xlsx.js) — 사회자님 11/16: 달력 알림 대신 =====
+// 시트 2개: 할 일(시기별 · 마감 순, 지금까지 한 일은 ✔) · 아직 안 고른 일(있을 때만). 아직 열지 않은 시기도 다 넣어요.
+function ymdDow(d){ return `${ymd(d)} (${DOW[d.getDay()]})`; }
+function xlsxSheets(){
+  const w = W(), t = today();
+  const title = `${NAME} — 예식 ${full(w)} · ${dday(diff(w, t))}`;
+  const ref = `※ ${CHECKED_TEXT} 기준 참고용이에요. 제도·요금은 바뀔 수 있으니 '확인할 곳'의 공식 사이트에서 다시 확인하세요.`;
+  const order = it => ITEMS.indexOf(it);
+  const byDue = (a, b) => { const x = dates(a), y = dates(b); return (x ? x.d.getTime() : Infinity) - (y ? y.d.getTime() : Infinity) || order(a) - order(b); };
+  const when = it => { const x = dates(it); return x ? [x.s < x.d ? ymdDow(x.s) : "", ymdDow(x.d)] : ["", it.when || ""]; };
+  const tips = it => [...(it.tips || []), ...(it.check || []).map(c => "· " + c)].join("\n");
+  const links = it => (it.links || []).map(l => `${l.label} — ${l.url}`).join("\n");
+  const todo = [], later = [];
   for(const p of [1, 2, 3, 4, 5, 6, 7]){
-    const day = add(w, PSTART[p]);
-    if(diff(day, t) <= 0) continue;
-    evs.push({ p, day });
+    for(const it of itemsIn(p).slice().sort(byDue)){
+      const st = status(it), x = dates(it);
+      if(st === "in" || st === "und"){
+        const note = [st === "und" ? "미정" : "", st === "in" && !S.done[it.n] && isLate(it) ? "기한 지남" : "", x && BASE_TAG[x.b] ? BASE_TAG[x.b] + (x.guess ? " (가정)" : "") : ""].filter(Boolean).join(" · ");
+        todo.push([S.done[it.n] ? "✔" : "", PNAME[p], it.name, ...when(it), note, it.desc || "", tips(it), links(it)]);
+      } else if(st === "q") later.push([PNAME[p], it.name, ...when(it), it.desc || "", it.yes || "", it.no || ""]);
+    }
   }
-  const list = evs.slice(0, 6);
-  if(!list.length){ msg.textContent = "앞으로 남은 시기가 없어서 알림을 넣을 게 없어요."; return; }
-  const dt = d => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
-  const now = new Date(), st = `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}T${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}00Z`;
-  const fold = s => s.replace(/[\\;,]/g, m => "\\" + m).replace(/\n/g, "\\n");
-  const body = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//wedvoice-su//ready-to-wed//KO", "CALSCALE:GREGORIAN", "METHOD:PUBLISH"];
-  for(const { p, day } of list){
-    body.push("BEGIN:VEVENT", `UID:ready-to-wed-${S.w}-${p}@wedvoice-su.github.io`, `DTSTAMP:${st}`,
-      `DTSTART:${dt(day)}T090000`, `DTEND:${dt(day)}T093000`,
-      `SUMMARY:${fold(`[결혼 준비] ${PNAME[p]} 할 일 볼 날`)}`,
-      `DESCRIPTION:${fold(`이번 시기 할 일을 확인하세요.\n${url}`)}`, `URL:${url}`,
-      "BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${fold(`${PNAME[p]} 할 일 볼 날`)}`, "TRIGGER:PT0M", "END:VALARM", "END:VEVENT");
+  const sheets = [{ name: "할 일", title, note: `${ref} 한 일은 '완료' 칸에서 ✔를 고르면 회색 줄로 바뀌어요. 머리줄의 ▼로 시기별로 거를 수 있어요.`, check: true,
+    head: ["완료", "시기", "할 일", "시작", "마감", "참고", "설명", "팁", "확인할 곳"], widths: [7, 9, 28, 17, 17, 16, 44, 56, 52], styles: [5, 5, 4, 4, 4, 4, 4, 4, 4], rows: todo }];
+  if(later.length) sheets.push({ name: "아직 안 고른 일", title, note: `할지 안 할지 아직 고르지 않은 일이에요. 사이트에서 '할래요'를 고르면 '할 일'에 들어가요. ${ref}`,
+    head: ["시기", "할 일", "시작", "마감", "설명", "하면", "안 하면"], widths: [9, 28, 17, 17, 44, 42, 42], styles: [5, 4, 4, 4, 4, 4, 4], rows: later });
+  return sheets;
+}
+function xlsxName(){ return `결혼준비체크리스트_예식${ymd(W())}.xlsx`; }
+async function saveXlsx(){
+  const msg = document.getElementById("msg");
+  if(typeof window.xlsxBook !== "function"){ msg.textContent = "엑셀 파일을 만들지 못했어요. ‘목록 글로 복사’를 써 주세요."; return; }
+  let file;
+  try { const blob = window.xlsxBook(xlsxSheets()); file = new File([blob], xlsxName(), { type: blob.type }); }
+  catch (e) { msg.textContent = "엑셀 파일을 만들지 못했어요. ‘목록 글로 복사’를 써 주세요."; return; }
+  // 휴대폰: 공유 창(파일에 저장 · 카톡 · 엑셀 앱)으로
+  if(navigator.canShare && navigator.canShare({ files: [file] })){
+    try { await navigator.share({ files: [file], title: NAME }); msg.textContent = ""; return; }
+    catch (e) { if(e && e.name === "AbortError"){ msg.textContent = ""; return; } }
   }
-  body.push("END:VCALENDAR");
-  const blob = new Blob([body.join("\r\n") + "\r\n"], { type: "text/calendar;charset=utf-8" });
-  const file = new File([blob], "결혼준비-알림.ics", { type: "text/calendar" });
-  const href = URL.createObjectURL(blob);
-  if(IOS){ location.href = "data:text/calendar;charset=utf-8," + encodeURIComponent(body.join("\r\n") + "\r\n"); msg.textContent = `달력 알림 ${list.length}개를 열었어요. '모두 추가'를 눌러 주세요.`; }
-  else {
-    const a = document.createElement("a"); a.href = href; a.download = file.name; document.body.appendChild(a); a.click(); a.remove();
-    msg.textContent = `달력 파일(알림 ${list.length}개)을 저장했어요. 파일을 열면 달력에 들어가요.`;
-  }
-  setTimeout(() => URL.revokeObjectURL(href), 60000);
+  // 컴퓨터 등: 파일로 내려받기
+  const url = URL.createObjectURL(file), a = document.createElement("a");
+  a.href = url; a.download = file.name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  msg.textContent = "엑셀 파일을 저장했어요. ‘다운로드’ 폴더(아이폰은 파일 앱)에서 열 수 있어요.";
 }
 
 // ===== 이번 시기 이미지 (9:16) =====
