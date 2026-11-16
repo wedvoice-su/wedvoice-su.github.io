@@ -240,7 +240,7 @@ function home(){
       <button id="start"><span>${saved ? "처음부터 새로 만들기" : "내 체크리스트 만들기"}</span><span class="q">3분</span></button>
     </div>
     ${!saved ? `<button class="text-btn cover-link" id="other">다른 폰·브라우저에서 만들었나요?</button>` : ""}
-    <p class="note">결혼식·신혼여행·신혼집·행정까지 140가지 넘는 일을 시기별로 정리했어요. ${CHECKED_TEXT} 조사.</p>
+    <p class="note">결혼식·신혼여행·신혼집·행정까지 130가지 넘는 일을 시기별로 정리했어요. ${CHECKED_TEXT} 조사.</p>
     ${!canStore ? `<p class="note warn-note">여기서는 창을 닫으면 사라져요. 결과 화면의 "내 체크리스트 링크"로 보관하세요.</p>` : ""}
     ${foot()}`;
   document.getElementById("start").onclick = () => {
