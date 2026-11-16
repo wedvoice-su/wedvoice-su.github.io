@@ -17,6 +17,7 @@ const GROUPS = [
   ]},
   { name: "날짜 · 청첩장 모임", items: [
     { key: "date",  label: "결혼 날짜 후보 찾기" },
+    { key: "tour",  label: "웨딩홀 투어 기록표" },
     { key: "table", label: "청첩장 모임 장소 찾기" }
   ]},
   { name: "결혼식 음악", items: [
