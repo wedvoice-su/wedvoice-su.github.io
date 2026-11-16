@@ -31,7 +31,8 @@ const SITES = {
   "retouch": { path: "picture-perfect", reel: "" },  // 웨딩사진 수정 요청서 (㊲, 미공개. 11/13 "보정 요청서"에서 이름 바꿈. 공개하면 picture-perfect/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
   "ready": { path: "ready-to-wed", reel: "" },  // 결혼 준비 체크리스트 (미공개. 공개하면 ready-to-wed/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
   "ledger": { path: "duly-noted", reel: "" },  // 축의금 장부 (㊳, 미공개. 공개하면 duly-noted/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
-  "tour": { path: "where-we-wed", reel: "" }  // 웨딩홀 투어 기록표 (㊺, 미공개. 공개하면 where-we-wed/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
+  "tour": { path: "where-we-wed", reel: "" },  // 웨딩홀 투어 기록표 (㊺, 미공개. 공개하면 where-we-wed/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
+  "kin": { path: "kith-and-kin", reel: "" }  // 결혼 호칭 정리표 (㉖, 미공개. 공개하면 kith-and-kin/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
 };
 // =========================================================
 
