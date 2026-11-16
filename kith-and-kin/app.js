@@ -194,7 +194,8 @@ function shown(){
 }
 let CELLS = [];   // 칸 번호 → 칸 정보 (자세히 보기용)
 // 요즘 많이 쓰는 말: alt 또는 (now면) call의 두 번째 말
-function altOf(r, c){ return r.alt ? r.alt.replace("{name}", c.name || "○○") : r.now ? r.call.split(" · ")[1] : ""; }
+// "지민 씨"가 줄 끝에서 갈라지지 않게 이름과 "씨" 사이는 붙는 띄어쓰기
+function altOf(r, c){ return r.alt ? r.alt.replace("{name}", c.name || "○○").replace(/ 씨$/, "\u00a0씨") : r.now ? r.call.split(" · ")[1] : ""; }
 function callOf(r, c){ return (c.wed && r.wed) || r.call; }
 function cell(c){
   const r = KIN[S.side][c.key], x = CELLS.push(c) - 1;
@@ -211,15 +212,16 @@ function cell(c){
     </div>`;
 }
 function pair(cs){ return `<div class="pair${cs.length > 1 ? " two" : ""}">${cs.map(cell).join("")}</div>`; }
-function anyAlt(sh){
-  const all = [...sh.gp, ...sh.par, ...sh.kids.filter(k => k !== "couple").flat(), ...sh.eld.flat()];
-  return all.some(c => KIN[S.side][c.key].alt || KIN[S.side][c.key].now);
-}
+function allCells(sh){ return [...sh.gp, ...sh.par, ...sh.kids.filter(k => k !== "couple").flat(), ...sh.eld.flat()]; }
+function anyAlt(sh){ return allCells(sh).some(c => KIN[S.side][c.key].alt || KIN[S.side][c.key].now); }
+// 근거 링크 한 줄
+function refLink(k, label){ return `<li><a href="${esc(REF[k].url)}" target="_blank" rel="noopener">${esc(label || REF[k].label)}<span class="ext" aria-hidden="true"> ↗</span></a></li>`; }
 function res(){
   document.body.classList.remove("is-cover");
   app.className = "wrap res";
   CELLS = [];
   const sh = shown(), f = F(), hasAlt = anyAlt(sh), showAlt = S.alt && hasAlt;
+  const src2020 = showAlt && allCells(sh).some(c => KIN[S.side][c.key].alt);
   const kids = sh.kids.map(k => k === "couple"
     ? `<div class="kid"><div class="couple">${esc(fm(T.couple)).replace("♥", '<span class="heart">♥</span>')}</div></div>`
     : `<div class="kid">${pair(k)}</div>`).join("");
@@ -237,8 +239,8 @@ function res(){
       <h2 class="kin-title">${br(fm(T.resTitle))}</h2>
       <div class="legend">
         <span>${esc(T.legendCall)}</span>
-        ${showAlt ? `<span><i class="tg t-alt">${esc(T.tagAlt)}</i>${esc(T.legendAlt)}</span>` : ""}
-        ${S.me ? `<span><i class="tg t-me">${esc(T.tagMe)}</i>${esc(T.legendMe)}</span>` : ""}
+        ${showAlt ? `<span><i class="tg t-alt">${esc(T.tagAlt)}</i> ${esc(T.legendAlt)}</span>` : ""}
+        ${S.me ? `<span><i class="tg t-me">${esc(T.tagMe)}</i> ${esc(T.legendMe)}</span>` : ""}
       </div>
       <div class="tree">
         ${sh.gp.length ? pair(sh.gp) + (sh.par.length ? '<div class="stem"></div>' : "") : ""}
@@ -248,6 +250,7 @@ function res(){
       ${sh.eld.length ? `<div class="eld"><p class="sec-t">${esc(T.rowEld)}</p>${sh.eld.map(pair).join("")}</div>` : ""}
       ${sadon ? `<div class="sadon"><b>${esc(T.sadonTitle)}</b><p>${quoteB(fm(sadon))}</p><p class="s2">${quoteB(T.sadonSub)}</p></div>` : ""}
       <p class="cfoot">${esc(fm(T.cardFoot))}</p>
+      <p class="csrc">${esc(T.cardSrc)}${src2020 ? esc(T.cardSrc2020) : ""}</p>
       ${sign()}
     </article>
     <div class="after">
@@ -259,6 +262,11 @@ function res(){
         <button class="text-btn btn-link" id="restart">${esc(T.restart)}</button>
       </div>
     </div>
+    <section class="refs" aria-labelledby="refs-t">
+      <h3 id="refs-t">${esc(T.refsTitle)}</h3>
+      <p>${esc(T.refsLead)}</p>
+      <ul>${["std", "qna", "khan", "hk"].map(k => refLink(k)).join("")}</ul>
+    </section>
     ${foot()}`;
 
   $("#save").onclick = saveCard;
@@ -295,7 +303,8 @@ function openSheet(x, from){
         ${row(T.sMe, r.me)}
       </dl>
       ${r.note ? `<p class="sh-note">${quoteB(r.note)}</p>` : ""}
-      <p class="sh-src">${esc(T.sSrc)}: ${esc(T.srcStd)}${r.src ? " " + esc(r.src) : ""}</p>
+      <p class="sh-src">${esc(T.sSrc)}</p>
+      <ul class="sh-links">${refLink("std", T.srcStd + (r.src ? " " + r.src : ""))}${(r.refs || []).map(k => refLink(k)).join("")}</ul>
       <button class="btn main" id="shClose">${esc(T.close)}</button>
     </div>`;
   document.body.appendChild(sheetEl);
@@ -305,7 +314,10 @@ function openSheet(x, from){
   $("#shClose", sheetEl).onclick = () => history.back();
   sheetEl.addEventListener("keydown", e => {
     if(e.key === "Escape") history.back();
-    if(e.key === "Tab"){ e.preventDefault(); $("#shClose", sheetEl).focus(); }
+    if(e.key === "Tab"){
+      const f = [...sheetEl.querySelectorAll("a, button")], i = f.indexOf(document.activeElement);
+      e.preventDefault(); f[(i + (e.shiftKey ? -1 : 1) + f.length) % f.length].focus();
+    }
   });
   $("#sh-t", sheetEl).focus();
 }
