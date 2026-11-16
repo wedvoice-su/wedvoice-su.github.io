@@ -400,7 +400,7 @@ function starsHtml(h){
 function sumBarInner(h){
   const c = calcOf(h);
   return c.ok
-    ? `<span><small>${esc(T.rowTotal)} · ${esc(headsText(c))}</small><b>${esc(totalText(c))}</b></span><i>${esc(T.detail)} ›</i>`
+    ? `<span><small>${esc(T.rowTotal)} · ${esc(headsText(c))}</small><b>${esc(totalText(c))}</b></span><i>${c.unknown.length ? `<em class="unk">${esc(fm(T.unkN, { n: c.unknown.length }))}</em>` : ""}${esc(T.detail)} ›</i>`
     : `<span><small>${esc(T.rowTotal)}</small><b class="none">${esc(T.totalNeed)}</b></span><i>${esc(T.detail)} ›</i>`;
 }
 function chkHtml(h){
@@ -551,7 +551,7 @@ function detailHtml(h){
       <tr class="sumrow"><th>${esc(T.rowTotal)}</th><td>${esc(WW.wonFull(c.total))}</td></tr>
       <tr><th>${esc(T.rowPer)}</th><td>${esc(WW.wonFull(c.perHead))}</td></tr></table>
     ${c.under ? `<p class="d-warn">${esc(fm(T.underNote, { g: WW.comma(c.guests), n: WW.comma(c.guar) }))}</p>` : ""}
-    ${c.unknown.map(k => `<p class="d-warn">${esc(T["unk_" + k] || k)}</p>`).join("")}
+    ${c.unknown.length ? `<div class="d-warn d-list"><b>${esc(fm(T.unkTitle, { n: c.unknown.length }))}</b><ul>${c.unknown.map(k => `<li>${esc(T["unk_" + k] || k)}</li>`).join("")}</ul></div>` : ""}
     ${c.split ? `<p class="d-warn">${esc(T.splitNote)}</p>` : ""}
     <p class="note small">${esc(T.calcNote)}</p>`;
 }

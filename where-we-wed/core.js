@@ -79,7 +79,12 @@
       lines.push({ k: "meal", won: mealWon, heads, base, extraHeads, unit: meal, overUnit });
       sub += mealWon;
     }
+    // 안 적은 것: 0으로 셈했거나(돈 줄) 더 크게 셈한 것(봉사료 · 부가세). "자세히"와 예상 총액 막대에 알려요.
     const unknown = [];
+    if(n("rent") == null) unknown.push("rent");
+    if(!a.flowerType) unknown.push("flowerType");
+    if(n("must") == null) unknown.push("must");
+    if(!a.drinkInc) unknown.push("drinkInc");
     let total = sub, svcWon = 0;
     if(!a.svc) unknown.push("svc");
     if(a.svc === "add"){
