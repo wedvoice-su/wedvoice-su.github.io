@@ -128,15 +128,18 @@ function dueChip(w){
 let screen = "";
 function go(sc, extra){ history.pushState({ sc, ...(extra || {}) }, ""); render(sc); }
 function render(sc){
+  closeSheet(false);
   screen = sc;
-  ({ home, when, pick, res })[sc]();
+  ({ home, when, pick, res, map })[sc]();
   window.scrollTo(0, 0);
 }
 window.addEventListener("popstate", e => {
   const st = e.state || { sc: "home" };
+  if(sheetEl){ closeSheet(true); if(st.sc === screen && !st.sheet) return; }
+  if(st.sheet){ history.back(); return; }
   if(st.sc === "res" && st.ex) VIEW = exampleState();
   else if(st.sc !== "res" || !st.ex) VIEW = S;
-  if(st.sc === "res" && !VIEW.worries.length){ VIEW = S; render(S.worries.length ? "res" : "pick"); return; }
+  if(st.sc === "res" && !VIEW.worries.length && !VIEW.picked.length){ VIEW = S; render("pick"); return; }
   render(st.sc);
 });
 
@@ -145,7 +148,7 @@ function home(){
   VIEW = S;
   document.body.classList.add("is-cover");
   app.className = "wrap cover";
-  const started = S.worries.length > 0;
+  const started = S.worries.length > 0 || S.picked.length > 0;
   app.innerHTML = `
     ${brandLogo()}
     <p class="for">${esc(T.kicker)}</p>
@@ -154,8 +157,9 @@ function home(){
     <p class="lead">${esc(T.lead)}</p>
     <div class="pick">
       ${started
-        ? `<button id="resume"><span>${esc(T.resume)}</span><span class="q">${esc(fm(T.resumeQ, { n: S.worries.length }))}</span></button>`
+        ? `<button id="resume"><span>${esc(T.resume)}</span><span class="q">${esc(S.worries.length ? fm(T.resumeQ, { n: S.worries.length }) : fm(T.resLeadPicked, { n: S.picked.length }))}</span></button>`
         : `<button id="start"><span>${esc(T.start)}</span><span class="q">${esc(T.startQ)}</span></button>`}
+      <button id="map"><span>${esc(T.mapBtn)}</span><span class="q">${esc(T.mapBtnQ)}</span></button>
       <button id="ex"><span>${esc(T.example)}</span><span class="q">${esc(T.exampleQ)}</span></button>
     </div>
     <p class="ref-cover"><b>참고용</b>${esc(T.ref)}</p>
@@ -168,6 +172,7 @@ function home(){
   if(st) st.onclick = () => go("when");
   if(rs) rs.onclick = () => go("res");
   $("#ex").onclick = () => { VIEW = exampleState(); go("res", { ex: 1 }); };
+  $("#map").onclick = () => go("map");
   if(started){
     $("#reset").onclick = () => { $("#resetAsk").hidden = false; $("#reset").hidden = true; $("#resetYes").focus(); };
     $("#resetNo").onclick = () => { $("#resetAsk").hidden = true; $("#reset").hidden = false; };
@@ -176,6 +181,7 @@ function home(){
 }
 
 // ===== 2. 예식일 =====
+let afterWhen = "";              // 지도에서 날짜를 넣으러 왔으면 다시 지도로
 function when(){
   VIEW = S;
   document.body.classList.remove("is-cover");
@@ -220,7 +226,7 @@ function when(){
     save(); check();
   };
   $("#toHome").onclick = () => go("home");
-  $("#next").onclick = () => { if(check()) go("pick"); };
+  $("#next").onclick = () => { if(!check()) return; const to = afterWhen; afterWhen = ""; go(to || "pick"); };
   check();
 }
 
@@ -283,7 +289,7 @@ function res(){
     <div class="top"><button class="top-btn" id="back">${esc(isEx() ? "‹ " + T.name : T.backPick)}</button><span></span></div>
     ${isEx() ? `<div class="ex-bar"><span>${esc("예시예요 · 예식 120일 전 · 웨딩촬영 50일 뒤")}</span><button class="btn accent sm" id="exStart">${esc("내 것으로 시작")}</button></div>` : ""}
     <h2 class="question">${esc(dl != null ? fm(T.resTitleDate, { d: dl }) : T.resTitleNoDate)}</h2>
-    <p class="lead2">${esc(fm(T.resLead, { w: V.worries.length, m: list.length }))}${V.wed ? " · " + esc("본식 " + mdw(wedD())) : ""}</p>
+    <p class="lead2">${esc(V.worries.length ? fm(T.resLead, { w: V.worries.length, m: list.length }) : fm(T.resLeadPicked, { n: V.picked.length }))}${V.wed ? " · " + esc("본식 " + mdw(wedD())) : ""}</p>
     <p class="ref-bar" role="note">${esc(T.refBar)}</p>
     <div class="tabs" role="tablist">
       <button role="tab" id="tWays" aria-selected="${tab === "ways"}">${esc(T.tabWays)}</button>
@@ -292,7 +298,7 @@ function res(){
     <div id="pane">${tab === "ways" ? waysPane(V, list) : calPane(V, list)}</div>
     ${bottomBoxes()}
     ${foot()}`;
-  $("#back").onclick = () => isEx() ? go("home") : go("pick");
+  $("#back").onclick = () => isEx() ? go("home") : history.back();
   const ex = $("#exStart"); if(ex) ex.onclick = () => { VIEW = S; go(S.wed || S.noDate ? "pick" : "when"); };
   $("#tWays").onclick = () => switchTab("ways");
   $("#tCal").onclick = () => switchTab("cal");
@@ -310,6 +316,7 @@ function bindPane(t){
   if(t === "ways"){
     $$(".way-h").forEach(b => { b.onclick = () => toggleCard(b.closest(".way")); });
     $$("[data-pick]").forEach(b => { b.onclick = () => togglePick(b.dataset.pick); });
+    $$("[data-go]").forEach(b => { b.onclick = () => go(b.dataset.go); });
   } else {
     $("#save").onclick = saveCard;
     $("#copy").onclick = copyCal;
@@ -329,10 +336,49 @@ function togglePick(id){
   save();
   $$(`[data-pick="${id}"]`).forEach(b => { b.classList.toggle("on", i < 0); b.setAttribute("aria-pressed", String(i < 0)); $(".pk-t", b).textContent = i < 0 ? T.picked : T.pick; });
   $$(`.way[data-id="${id}"] .pk-mark`).forEach(m => { m.hidden = i >= 0; });
+  if(screen === "map") mapDock();
+}
+
+// ===== 시술 종류 지도 (피부과가 처음이라면) =====
+function map(){
+  VIEW = S;
+  document.body.classList.remove("is-cover");
+  app.className = "wrap mapw";
+  const cats = CATS.filter(c => WAYS.some(w => w.cat === c.id));
+  app.innerHTML = `
+    <div class="top"><button class="top-btn" id="toHome">‹ ${esc(T.name)}</button><span></span></div>
+    <h2 class="question">${br(T.mapTitle)}</h2>
+    <p class="lead2">${esc(T.mapLead)}</p>
+    <p class="ref-bar" role="note">${esc(T.refBar)}</p>
+    ${S.wed ? "" : `<div class="nudge"><span>${esc(T.mapNoDate)}</span><button class="btn line sm" id="toWhen">${esc(T.mapNoDateBtn)}</button></div>`}
+    <details class="help begin"><summary>${esc(T.beginTitle)}</summary><ul>${BEGIN.map(x => `<li>${esc(x.v)}${iBtn(x.s)}</li>`).join("")}</ul></details>
+    <nav class="cat-nav" aria-label="${esc(T.mapNav)}">${cats.map((c, i) => `<button data-cat="${i}">${esc(c.id)}<span>${WAYS.filter(w => w.cat === c.id).length}</span></button>`).join("")}</nav>
+    ${cats.map((c, i) => `
+      <section class="cgrp" id="cat-${i}">
+        <h3>${esc(c.id)}</h3>
+        ${c.d ? `<p class="cdesc">${esc(c.d)}${iBtn(c.s)}</p>` : ""}
+        ${WAYS.filter(w => w.cat === c.id).map(w => wayCard(w, S)).join("")}
+      </section>`).join("")}
+    ${bottomBoxes()}
+    <div class="dock"><p class="dock-line" id="mapLine" aria-live="polite"></p><button class="btn main" id="toCal">${esc(T.mapToCal)}</button></div>
+    ${foot()}`;
+  $("#toHome").onclick = () => go("home");
+  const tw = $("#toWhen"); if(tw) tw.onclick = () => { afterWhen = "map"; go("when"); };
+  $$("[data-cat]").forEach(b => { b.onclick = () => { const el = $("#cat-" + b.dataset.cat); if(el) el.scrollIntoView({ block: "start", behavior: reduce ? "auto" : "smooth" }); }; });
+  $$(".way-h").forEach(b => { b.onclick = () => toggleCard(b.closest(".way")); });
+  $$("[data-pick]").forEach(b => { b.onclick = () => togglePick(b.dataset.pick); });
+  $("#toCal").onclick = () => { S.tab = "cal"; save(); go("res"); };
+  mapDock();
+}
+function mapDock(){
+  const n = S.picked.length;
+  $("#mapLine").innerHTML = `<span>${esc(n ? fm(T.mapPicked, { n }) : T.mapPickHint)}</span>`;
+  $("#toCal").disabled = !n;
 }
 
 // --- 방법 보기 ---
 function waysPane(V, list){
+  if(!V.worries.length) return `<p class="hint2">${esc(T.noWorries)}</p><div class="btns"><button class="btn line" data-go="pick">${esc(T.noWorriesPick)}</button><button class="btn line" data-go="map">${esc(T.noWorriesMap)}</button></div>`;
   const by = {}; list.forEach(w => w.worries.forEach(id => { (by[id] = by[id] || []).push(w); }));
   return `
     <p class="hint2">${esc(T.waysHint)}</p>
@@ -345,59 +391,66 @@ function waysPane(V, list){
       </section>`;
     }).join("")}`;
 }
+// 작은 분류 꼬리표: "관리실 · 샵" · "집에서"처럼 장소 꼬리표와 같은 말이면 안 붙여요 (지도 화면은 분류 제목이 이미 있어서 안 붙여요)
+const CAT_SAME = { "관리실 · 샵": 1, "집에서": 1 };
+// (i) 근거 버튼: 누르면 아래에서 근거 창이 올라와요 (제목 · 링크는 창 안에만)
+function iBtn(arr, one){
+  const ids = (arr || []).filter(s => SRC[s]);
+  if(!ids.length) return "";
+  return `<button class="i-btn" data-src="${ids.join(",")}"${one ? ' data-one="1"' : ""} aria-label="${esc(T.srcOpen)}"><span aria-hidden="true">i</span></button>`;
+}
+// 시기 한 줄 (짧게)
+function dueText(r){
+  if(!r) return "";
+  const parts = [];
+  if(r.hasStart) parts.push(r.sa ? (+r.sa === +r.sb ? md(r.sa) : mdRange(r.sa, r.sb)) + "쯤 시작" : fm(T.startRel, { r: r.srel }));
+  if(r.hasEnd) parts.push(r.a ? (+r.a === +r.b ? md(r.a) : mdRange(r.a, r.b)) + "까지 끝내기" : fm(T.dueRel, { r: r.rel }));
+  return parts.join(" · ");
+}
 function wayCard(w, V){
   const open = openCards.has(w.id), picked = V.picked.includes(w.id);
-  // 근거 번호: 카드 안에서 나온 순서대로 1, 2, 3…
-  const ids = [];
-  const use = arr => (arr || []).map(s => { if(!SRC[s]) return 0; let i = ids.indexOf(s); if(i < 0){ ids.push(s); i = ids.length - 1; } return i + 1; }).filter(Boolean);
-  const refs = arr => { const n = use(arr); return n.length ? ` <span class="refs">${n.map(x => `<span class="ref">${x}</span>`).join("")}</span>` : ""; };
   const r = dueOf(w);
-  const one = x => x.one ? ` <span class="one">${esc(T.srcOne)}</span>` : "";
-  const says = (w.says || []).map(x => `<li${x.nf ? ' class="nf"' : ""}>${x.k ? `<b>${esc(x.k)}</b> ` : ""}${esc(x.v)}${refs(x.s)}${one(x)}</li>`).join("");
-  let due = "";
-  if(w.due){
-    const lines = [];
-    (w.due.says || []).forEach(x => lines.push(`<li${x.nf ? ' class="nf"' : ""}>${esc(x.v)}${refs(x.s)}${one(x)}</li>`));
-    if(w.due.v) lines.push(`<li>${esc(w.due.v)}${refs(w.due.s)}</li>`);
-    if(r && (r.a || r.sa)){
-      const parts = [];
-      if(r.sa) parts.push((+r.sa === +r.sb ? md(r.sa) : mdRange(r.sa, r.sb)) + "쯤 시작");
-      if(r.a) parts.push(+r.a === +r.b ? md(r.a) + "까지 끝내기" : mdRange(r.a, r.b) + " 사이에 끝내기");
-      lines.push(`<li class="mine"><b>${esc(T.mine)}</b> ${esc(parts.join(" · "))}</li>`);
-      if(r.ha) lines.push(`<li class="mine"><b>${esc(T.mineShoot)}</b> ${esc(+r.ha === +r.hb ? md(r.ha) + "까지 끝내기" : mdRange(r.ha, r.hb) + " 사이에 끝내기")}</li>`);
-      if(r.state === "past" || (!r.hasEnd && r.sstate === "past")) lines.push(`<li class="warn-li">${esc(r.hasEnd ? T.pastNote : T.pastStartNote)}</li>`);
-    } else if(r){
-      const parts = [];
-      if(r.srel) parts.push(fm(T.startRel, { r: r.srel }));
-      if(r.rel) parts.push(fm(T.dueRel, { r: r.rel }));
-      lines.push(`<li class="mine"><b>${esc(T.mineNoDate)}</b> ${esc(parts.join(" · "))}</li>`);
-    }
-    if(!w.due.v && w.due.s) refs(w.due.s);
-    due = lines.length ? `<h4>${esc(T.dueTitle)}</h4><ul>${lines.join("")}</ul>` : "";
-  }
-  const price = !w.price ? "" : w.price.none
-    ? `<h4>${esc(T.price)}</h4><p class="price-none">${esc(w.price.v)}</p>`
-    : `<h4>${esc(T.price)} <span class="tag-ref">${esc("참고용")}</span></h4>${(w.price.lines || [{ v: w.price.v, s: w.price.s }]).map(x => `<p class="price">${esc(x.v)}${refs(x.s)}${one(x)}</p>`).join("")}<p class="price-ref">${esc(T.priceRef)}</p>`;
-  const heard = (w.heard || []).length ? `<h4>${esc(T.heard)}</h4><ul>${w.heard.map(x => `<li>${esc(x.v)}${refs(x.s)}</li>`).join("")}</ul>` : "";
-  const ask = (w.ask || []).length ? `<h4>${esc(T.ask)}</h4><ul class="ask">${w.ask.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : "";
-  const find = (w.q || []).length ? `<h4>${esc(T.find)}</h4>
-    <div class="finds">${w.q.map(q => `<div class="find"><span class="fq">${esc(q)}</span><span class="fbtn"><a href="${naverUrl(q)}" target="_blank" rel="noopener">${esc(T.findNaver)}</a><a href="${ytUrl(q)}" target="_blank" rel="noopener">${esc(T.findYoutube)}</a></span></div>`).join("")}</div>
-    <p class="hint2 small">${esc(T.findHint)}</p>` : "";
-  const what = w.what ? `<h4>${esc(T.what)}</h4><p>${esc(w.what)}${refs(w.whatS)}</p>` : "";
-  const saysH = says ? `<h4>${esc(T.says)}</h4><ul>${says}</ul>` : "";
-  const body = what + saysH + due + price + heard + ask + find;
-  const srcs = ids.length ? `<details class="srcs"><summary>${esc(fm(T.srcTitle, { n: ids.length }))}</summary><ol>${ids.map(s => srcLi(SRC[s])).join("")}</ol></details>` : "";
+  const g = w.glance || {};
+  const dueS = w.due ? [...(w.due.says || []).flatMap(x => x.s || []), ...(w.due.s || [])] : [];
+  const dueOne = w.due && (w.due.says || []).length === 1 && (w.due.says[0].one);
+  // 한눈에: 시기 · 촬영 기준 · 회복 · 가격
+  const row = (k, v, src, one, cls) => `<div class="g-row${cls ? " " + cls : ""}"><dt>${esc(k)}</dt><dd><span>${esc(v)}</span>${iBtn(src, one)}</dd></div>`;
+  const rows = [];
+  if(g.effect) rows.push(row(T.gEffect, g.effect.v, g.effect.s, g.effect.one));
+  if(g.down) rows.push(row(T.gDown, g.down.v, g.down.s, g.down.one));
+  rows.push(r ? row(T.gDue, dueText(r), dueS, dueOne, r.state === "past" || (!r.hasEnd && r.sstate === "past") ? "past" : "")
+              : row(T.gDue, T.gNone, (w.due && w.due.says || []).some(x => x.nf) ? [] : dueS, false, "none"));
+  if(r && r.ha) rows.push(row(T.gShoot, (+r.ha === +r.hb ? md(r.ha) : mdRange(r.ha, r.hb)) + "까지 끝내기", dueS, dueOne));
+  if(g.price) rows.push(row(T.gPrice, g.price.v, g.price.s, g.price.one, "price"));
+  else if(w.price && w.price.none) rows.push(row(T.gPrice, T.gPriceNone, [], false, "none"));
+  const pastWarn = r && (r.state === "past" || (!r.hasEnd && r.sstate === "past")) ? `<p class="g-warn">${esc(r.hasEnd ? T.pastNote : T.pastStartNote)}</p>` : "";
+  const glance = `<dl class="glance">${rows.join("")}</dl>${pastWarn}`;
+  // 자세히 (접힘): 설명 · 후기 · 시기 · 가격 줄마다 (i)
+  const li = x => `<li${x.nf ? ' class="nf"' : ""}>${x.k ? `<b>${esc(x.k)}</b> ` : ""}${esc(x.v)}${iBtn(x.s, x.one)}</li>`;
+  const parts = [];
+  if((w.says || []).length) parts.push(`<ul>${w.says.map(li).join("")}</ul>`);
+  if(w.due && (w.due.says || []).length) parts.push(`<h4>${esc(T.dueTitle)}</h4><ul>${w.due.says.map(li).join("")}</ul>`);
+  if(w.price && !w.price.none) parts.push(`<h4>${esc(T.price)}</h4><ul>${(w.price.lines || [{ v: w.price.v, s: w.price.s }]).map(li).join("")}</ul>`);
+  else if(w.price && w.price.none) parts.push(`<h4>${esc(T.price)}</h4><ul><li class="nf">${esc(w.price.v)}</li></ul>`);
+  if((w.heard || []).length) parts.push(`<h4>${esc(T.heard)}</h4><ul>${w.heard.map(li).join("")}</ul>`);
+  const more = parts.length ? `<details class="more"><summary>${esc(T.more)}</summary><div class="more-b">${parts.join("")}</div></details>` : "";
+  const ask = (w.ask || []).length ? `<details class="more"><summary>${esc(fm(T.askMore, { n: w.ask.length }))}</summary><div class="more-b"><ul class="ask">${w.ask.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div></details>` : "";
+  const find = (w.q || []).length ? `<div class="finds"><p class="f-h">${esc(T.find)}</p>${w.q.slice(0, 2).map(q => `<div class="find"><span class="fq">${esc(q)}</span><span class="fbtn"><a href="${naverUrl(q)}" target="_blank" rel="noopener">${esc(T.findNaver)}</a><a href="${ytUrl(q)}" target="_blank" rel="noopener">${esc(T.findYoutube)}</a></span></div>`).join("")}</div>` : "";
+  const what = w.what ? `<p class="what">${esc(w.what)}${iBtn(w.whatS)}</p>` : "";
+  const alias = (w.alias || []).length ? `<p class="alias">${esc(T.alias)} ${esc(w.alias.join(" · "))}</p>` : "";
   return `
     <article class="way${open ? " open" : ""}" data-id="${w.id}">
       <button class="way-h" aria-expanded="${open}">
-        <span class="wh-top"><span class="where w-${w.where}">${esc(T.where[w.where])}</span><span class="pk-mark"${picked ? "" : " hidden"}>${esc("담음")}</span></span>
+        <span class="wh-top"><span class="where w-${w.where}">${esc(T.where[w.where])}</span>${w.cat && !CAT_SAME[w.cat] && screen !== "map" ? `<span class="cat">${esc(w.cat)}</span>` : ""}<span class="pk-mark"${picked ? "" : " hidden"}>${esc("담음")}</span></span>
         <span class="wh-name">${esc(w.name)}</span>
         <span class="wh-due">${dueChip(w)}</span>
       </button>
       <div class="way-b"${open ? "" : " hidden"}>
+        ${what}${alias}
+        ${glance}
         <button class="pick-btn${picked ? " on" : ""}" data-pick="${w.id}" aria-pressed="${picked}"><span class="box">${CHECK}</span><span class="pk-t">${esc(picked ? T.picked : T.pick)}</span></button>
-        ${body}
-        ${srcs}
+        ${find}
+        ${more}${ask}
       </div>
     </article>`;
 }
@@ -408,13 +461,13 @@ function srcLi(s){
 // 여러 출처에 공통으로 나온 말 (고민과 상관없이)
 function commonBox(){
   if(!COMMON.length) return "";
-  return `<details class="help common"><summary>${esc(fm(T.commonTitle, { n: COMMON.length }))}</summary><ul>${COMMON.map(x => `<li>${esc(x.v)}${(x.s || []).filter(s => SRC[s]).map(s => ` <a class="mini" href="${esc(SRC[s].u)}" target="_blank" rel="noopener">${esc(T.srcKind[SRC[s].k] || "")} · ${esc(SRC[s].t)}</a>`).join("")}</li>`).join("")}</ul></details>`;
+  return `<details class="help common"><summary>${esc(fm(T.commonTitle, { n: COMMON.length }))}</summary><ul>${COMMON.map(x => `<li>${esc(x.v)}${iBtn(x.s)}</li>`).join("")}</ul></details>`;
 }
 
 // --- 내 달력 ---
 function calRows(V, list){
-  const picked = V.picked.filter(id => list.some(w => w.id === id));
-  const use = picked.length ? list.filter(w => picked.includes(w.id)) : list;
+  const picked = V.picked.filter(id => WAY[id]);
+  const use = picked.length ? picked.map(id => WAY[id]) : list;
   const rows = [], none = [];
   use.forEach(w => {
     const r = dueOf(w);
@@ -478,11 +531,47 @@ async function copyCal(){
 
 // --- 아래 상자: 후기 읽는 법 · 공식 자료 · 만든 방법 ---
 function bottomBoxes(){
-  const how = HOWTO.length ? `<details class="help"><summary>${esc(T.howTitle)}</summary><ul>${HOWTO.map(x => `<li>${esc(x.v)}${(x.s || []).filter(s => SRC[s]).map(s => ` <a class="mini" href="${esc(SRC[s].u)}" target="_blank" rel="noopener">${esc(SRC[s].t)}</a>`).join("")}</li>`).join("")}</ul></details>` : "";
+  const how = HOWTO.length ? `<details class="help"><summary>${esc(T.howTitle)}</summary><ul>${HOWTO.map(x => `<li>${esc(x.v)}${iBtn(x.s)}</li>`).join("")}</ul></details>` : "";
   const safe = SAFE.length ? `<details class="help"><summary>${esc(T.safeTitle)}</summary><ol class="srcl">${SAFE.filter(s => SRC[s]).map(s => srcLi(SRC[s])).join("")}</ol></details>` : "";
   const about = `<details class="help"><summary>${esc(T.aboutTitle)}</summary><ul>${ABOUT.map(x => `<li>${esc(x)}</li>`).join("")}</ul></details>`;
   return `<div class="boxes">${how}${safe}${about}</div>`;
 }
+
+// ===== 근거 창 (아래에서 올라옴, 폰 뒤로 가기 = 닫기) =====
+let sheetEl = null, sheetFrom = null;
+function openSrc(ids, one){
+  closeSheet(false);
+  sheetFrom = document.activeElement;
+  sheetEl = document.createElement("div");
+  sheetEl.className = "sheet-bg";
+  sheetEl.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sh-t">
+      <h3 id="sh-t" tabindex="-1">${esc(T.srcSheet)}</h3>
+      ${one ? `<p class="sh-one">${esc(T.srcOneNote)}</p>` : ""}
+      <ol class="srcl">${ids.map(s => srcLi(SRC[s])).join("")}</ol>
+      <p class="sh-note">${esc(T.srcSheetNote)}</p>
+      <button class="btn ghost" id="shClose">${esc(T.close)}</button>
+    </div>`;
+  document.body.appendChild(sheetEl);
+  document.body.classList.add("sheet-open");
+  history.pushState({ sc: screen, ex: isEx() ? 1 : 0, sheet: 1 }, "");
+  sheetEl.addEventListener("click", e => { if(e.target === sheetEl) history.back(); });
+  $("#shClose", sheetEl).onclick = () => history.back();
+  $("#sh-t", sheetEl).focus();
+}
+function closeSheet(restore){
+  if(!sheetEl) return;
+  sheetEl.remove(); sheetEl = null;
+  document.body.classList.remove("sheet-open");
+  if(restore && sheetFrom && document.contains(sheetFrom)) sheetFrom.focus();
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest(".i-btn");
+  if(!b) return;
+  e.preventDefault(); e.stopPropagation();
+  openSrc(b.dataset.src.split(",").filter(s => SRC[s]), !!b.dataset.one);
+});
+document.addEventListener("keydown", e => { if(e.key === "Escape" && sheetEl) history.back(); });
 
 // ===== 아직 공개 전 =====
 function soon(){

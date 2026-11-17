@@ -162,3 +162,59 @@ details.help ul,details.help ol{margin:0;padding:0 0 6px 18px}
 .cr .cw .d1,.cr .cw .d2{display:block;white-space:nowrap}
 .cr .cw .d2{font-weight:500;color:var(--sub)}
 .due.start.now{background:var(--warn-bg);color:var(--warn-ink)}
+
+/* ===== 카드 2판 (11/17 사회자님 "글자가 너무 많아") ===== */
+.cat{font-size:12px;font-weight:700;border-radius:6px;padding:2px 7px;background:var(--soft);color:var(--sub)}
+.way-b .what{margin:0 0 4px;font-size:15px;line-height:1.55}
+.way-b .alias{margin:0 0 10px;font-size:13px;color:var(--sub)}
+.glance{margin:10px 0 0;padding:4px 12px;background:var(--soft);border-radius:14px}
+.g-row{display:flex;align-items:center;gap:10px;min-height:42px;border-top:1px solid var(--line)}
+.g-row:first-child{border-top:0}
+.g-row dt{flex:0 0 56px;font-size:13.5px;font-weight:700;color:var(--sub)}
+.g-row dd{flex:1;margin:0;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:15px;font-weight:700;line-height:1.35}
+.g-row.none dd,.g-row.past dd{color:var(--sub);font-weight:500}
+.g-row.past dd span{text-decoration:line-through}
+.g-row.price dd>span:first-child::after{content:" · 참고용";font-size:12px;font-weight:700;color:var(--ref-ink)}
+.g-ref{margin:6px 2px 0;font-size:12.5px;color:var(--ref-ink)}
+.g-warn{margin:8px 0 0;padding:8px 10px;border-radius:10px;background:var(--warn-bg);color:var(--warn-ink);font-size:13.5px}
+.way-b .pick-btn{margin:12px 0 0}
+.i-btn{position:relative;flex:0 0 auto;display:inline-grid;place-items:center;width:26px;height:26px;margin-left:4px;padding:0;border-radius:50%;border:1.5px solid var(--edge);background:var(--card);color:var(--sub);font:italic 700 13px/1 Georgia,"Times New Roman",serif;vertical-align:-6px}
+.i-btn::before{content:"";position:absolute;inset:-9px}
+.i-btn:active{background:var(--soft)}
+.finds{margin-top:12px}
+.f-h{margin:0 0 6px !important;font-size:13.5px !important;font-weight:900;color:var(--accent)}
+details.more{margin-top:8px;border-top:1px solid var(--line)}
+details.more summary{min-height:46px;display:flex;align-items:center;font-size:14.5px;font-weight:700;cursor:pointer;list-style:none}
+details.more summary::-webkit-details-marker{display:none}
+details.more summary::after{content:"＋";margin-left:auto;color:var(--sub);font-weight:500}
+details.more[open] summary::after{content:"－"}
+.more-b{padding:0 0 6px}
+.more-b>*{box-sizing:border-box}
+.more-b h4{margin:12px 0 6px !important}
+.more-b ul{margin:0;padding:0 0 0 18px}
+.more-b li{font-size:14.5px;margin:0 0 8px;line-height:1.55}
+.help.common li .i-btn,.help li .i-btn{vertical-align:-7px}
+/* 근거 창 */
+.sheet-bg{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
+.sheet{width:100%;max-width:440px;background:var(--paper);border-radius:24px 24px 0 0;padding:22px 20px calc(18px + env(safe-area-inset-bottom,0px));max-height:85vh;overflow:auto}
+.sheet h3{margin:0 0 10px;font-size:19px;font-weight:900;outline:none}
+.sheet .srcl{margin:0 0 12px;padding:0 0 0 20px}
+.sheet .srcl li{margin:0 0 12px;font-size:14.5px;color:var(--sub);line-height:1.5}
+.sheet .srcl a{color:var(--ink);font-weight:700;word-break:keep-all;overflow-wrap:anywhere}
+.sh-one{margin:0 0 10px;font-size:13.5px;font-weight:700;color:var(--warn-ink);background:var(--warn-bg);border-radius:10px;padding:6px 10px}
+.sh-note{margin:0 0 12px;font-size:13px;color:var(--sub)}
+body.sheet-open{overflow:hidden}
+
+/* 시술 종류 지도 */
+.nudge{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--card);border-radius:14px;padding:8px 8px 8px 14px;margin:0 0 10px;font-size:14px;font-weight:700}
+.nudge .btn.sm{flex:0 0 auto;padding:8px 12px}
+.btn.line{background:transparent;color:var(--ink);border:1.5px solid var(--edge)}
+.help.begin{border:1.5px solid var(--line);margin-bottom:10px}
+.help.begin li{color:var(--ink)}
+.cat-nav{display:flex;gap:6px;overflow-x:auto;margin:0 -20px 14px;padding:4px 20px 6px;scrollbar-width:none;position:sticky;top:0;z-index:4;background:var(--paper)}
+.cat-nav::-webkit-scrollbar{display:none}
+.cat-nav button{flex:0 0 auto;min-height:40px;border:1.5px solid var(--line);border-radius:20px;background:var(--card);color:var(--ink);font-size:14px;font-weight:700;padding:6px 12px;white-space:nowrap}
+.cat-nav button span{margin-left:5px;color:var(--sub);font-weight:500}
+.cgrp{margin:0 0 20px;scroll-margin-top:60px}
+.cgrp>h3{margin:0 0 4px;font-size:18px;font-weight:900;letter-spacing:-.01em}
+.cdesc{margin:0 0 10px;font-size:14.5px;color:var(--sub);line-height:1.55}
