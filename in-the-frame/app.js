@@ -17,7 +17,10 @@ const MAXPPL = 30;          // 꼭 찍을 사람 수 (넘치면 안 받아요)
 const SHEET_W = 1240;       // 요청서 그림 너비(px)
 const FONT = "'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',sans-serif";
 const PINK = "#C2185B";
-const SECS = ["info", "range", "people", "flow", "wp", "shots"];
+// 칸 순서: 요청서의 중심인 "꼭 찍을 장면"이 맨 앞 (사회자님 11/17 "신랑신부의 어떤 샷을 꼭 찍어달라고 요청하는 거")
+const SECS = ["shots", "info", "range", "flow", "wp", "people"];
+const COUPLE_IDS = COUPLE.flatMap(g => g.items.map(x => x.id));
+const MAXOWN = 20;
 
 // ===== 상태 =====
 let S = blank();
@@ -36,13 +39,15 @@ const FLMEMO = new WeakSet(); // 식순에서 "메모"를 눌러 칸을 연 순�
 function blank(){
   return { v: 1, at: 0, seq: 1,
     info: { date: "", time: "", hall: "", g: "", gp: "", b: "", bp: "", cn: "", cr: "", cp: "" },
-    range: { start: "", shop: "", shopAt: "", arrive: "", ends: [], party: [], partyNote: "", others: [], othersNote: "", wonpan: "", pre: "" },
+    range: { start: "", shop: "", shopAt: "", arrive: "", ends: [], party: [], partyNote: "", others: [], othersNote: "", wonpan: "" },
     people: [],
     flow: { items: FLOW.filter(x => x.base).map(x => ({ k: x.k, who: "", star: false })), touched: 0 },
-    wp: { preset: "", groups: [], reps: { g: { n: "", p: "" }, b: { n: "", p: "" } } },
-    shots: { room: [], detail: [], special: [], spread: [], avoid: [], avoidNote: "", note: "" },
+    wp: { pre: "", groups: defaultGroups(""), touched: 0, bq: "", bqTo: "", ev: [], evNote: "", reps: { g: { n: "", p: "" }, b: { n: "", p: "" } } },
+    shots: { couple: [], own: [], special: [], detail: [], room: [], spread: [], avoid: [], avoidNote: "", note: "" },
     refs: [] };
 }
+// 원판 기본 묶음: 가족 → 친척 → 친구 · 지인 (사회자님 11/17). 선원판을 하면 가족 묶음은 식 전(at: "pre")
+function defaultGroups(pre){ return WP_DEFAULT.map((k, i) => ({ id: 1000 + i, k, title: "", names: "", at: pre === "yes" && FAMILY.includes(k) ? "pre" : "post" })); }
 // 저장돼 있던 것을 지금 모양에 맞춰요 (칸이 늘어도 안 깨지게)
 function clean(o){
   const b = blank();
@@ -51,7 +56,7 @@ function clean(o){
   const arr = (v, ok) => Array.isArray(v) ? v.filter(x => typeof x === "string" && (!ok || ok.some(y => y.id === x))) : [];
   for(const k of Object.keys(b.info)) b.info[k] = str(o.info && o.info[k]);
   const r = o.range || {};
-  for(const k of ["start", "shop", "shopAt", "arrive", "partyNote", "othersNote", "wonpan", "pre"]) b.range[k] = str(r[k]);
+  for(const k of ["start", "shop", "shopAt", "arrive", "partyNote", "othersNote", "wonpan"]) b.range[k] = str(r[k]);
   b.range.ends = arr(r.ends, ENDS); b.range.party = arr(r.party, PARTY); b.range.others = arr(r.others, OTHERS);
   b.seq = Math.max(1, +o.seq || 1);
   b.people = (Array.isArray(o.people) ? o.people : []).filter(p => p && typeof p === "object").slice(0, MAXPPL).map(p => ({
@@ -63,11 +68,15 @@ function clean(o){
     b.flow.touched = o.flow.touched ? 1 : 0;
   }
   const w = o.wp || {};
-  b.wp.preset = w.preset === "fam" || w.preset === "kin" ? w.preset : "";
-  b.wp.groups = (Array.isArray(w.groups) ? w.groups : []).filter(g => g && (WP[g.k] || g.k === "x")).map(g => ({ id: +g.id || b.seq++, k: g.k, title: str(g.title), names: str(g.names) }));
+  b.wp.pre = w.pre === "yes" || w.pre === "no" ? w.pre : "";
+  if(Array.isArray(w.groups)) b.wp.groups = w.groups.filter(g => g && (WP[g.k] || g.k === "x")).map(g => ({ id: +g.id || b.seq++, k: g.k, title: str(g.title), names: str(g.names), at: g.at === "pre" && b.wp.pre === "yes" ? "pre" : "post" }));
+  b.wp.touched = w.touched ? 1 : 0;
+  b.wp.bq = BQ.some(x => x.id === w.bq) ? w.bq : "";
+  b.wp.bqTo = str(w.bqTo); b.wp.ev = arr(w.ev, EV); b.wp.evNote = str(w.evNote);
   for(const s of ["g", "b"]){ const rp = (w.reps && w.reps[s]) || {}; b.wp.reps[s] = { n: str(rp.n), p: str(rp.p) }; }
   const h = o.shots || {};
-  b.shots = { room: arr(h.room, ROOM), detail: arr(h.detail, DETAIL), special: arr(h.special, SPECIAL), spread: arr(h.spread, SPREAD), avoid: arr(h.avoid, AVOID), avoidNote: str(h.avoidNote), note: str(h.note) };
+  b.shots = { couple: (Array.isArray(h.couple) ? h.couple : []).filter(x => COUPLE_IDS.includes(x)), own: (Array.isArray(h.own) ? h.own : []).map(str).filter(Boolean).slice(0, MAXOWN),
+    special: arr(h.special, SPECIAL), detail: arr(h.detail, DETAIL), room: arr(h.room, ROOM), spread: arr(h.spread, SPREAD), avoid: arr(h.avoid, AVOID), avoidNote: str(h.avoidNote), note: str(h.note) };
   b.refs = (Array.isArray(o.refs) ? o.refs : []).filter(x => x && str(x.k)).slice(0, MAXREF).map(x => ({ id: +x.id || b.seq++, k: x.k, note: str(x.note) }));
   const ids = [...b.people, ...b.wp.groups, ...b.refs].map(x => x.id);
   b.seq = Math.max(b.seq, ...ids, 0) + 1;
@@ -101,13 +110,23 @@ const trimv = s => String(s || "").trim();
 function filled(id, st = S){
   const i = st.info, r = st.range, h = st.shots;
   if(id === "info") return !!(i.date || i.time || trimv(i.hall) || trimv(i.g) || trimv(i.b) || trimv(i.cn) || trimv(i.cp));
-  if(id === "range") return !!(r.start || r.arrive || r.ends.length || r.others.length || trimv(r.othersNote) || r.wonpan || r.pre);
-  if(id === "people") return st.people.some(pOk);
+  if(id === "range") return !!(r.start || r.arrive || r.ends.length || r.others.length || trimv(r.othersNote) || r.wonpan);
+  if(id === "people") return st.people.some(pOk) || guestFilled(st);
   if(id === "flow") return !!(st.flow.touched && st.flow.items.length);
-  if(id === "wp") return st.wp.groups.length > 0;
-  if(id === "shots") return !!(h.room.length || h.detail.length || h.special.length || h.spread.length || h.avoid.length || trimv(h.avoidNote) || trimv(h.note) || st.refs.length);
+  if(id === "wp") return wpFilled(st);
+  if(id === "shots") return !!(h.couple.length || h.own.length || h.special.length || h.detail.length || st.refs.length);
   return false;
 }
+function guestFilled(st){ const h = st.shots; return !!(h.room.length || h.spread.length || h.avoid.length || trimv(h.avoidNote) || trimv(h.note)); }
+function wpFilled(st){ const w = st.wp; return !!(w.touched && (w.groups.length || (w.bq && w.bq !== "none") || w.ev.length || trimv(w.evNote))); }
+function wpEvRows(st){
+  const w = st.wp, a = [];
+  if(w.bq && w.bq !== "none") a.push([T.kBq, lab(BQ, w.bq) + (trimv(w.bqTo) ? " — " + f(T.vBqTo, { n: trimv(w.bqTo) }) : "")]);
+  const ev = [...labs(EV, w.ev), trimv(w.evNote)].filter(Boolean);
+  if(ev.length) a.push([T.kEv, ev.join(" · ")]);
+  return a;
+}
+function nCouple(st = S){ return st.shots.couple.length + st.shots.own.length; }
 function pOk(p){ return !!(trimv(p.name) || trimv(p.rel) || p.face); }
 function nFilled(st = S){ return SECS.filter(id => filled(id, st)).length; }
 function line(id){
@@ -115,10 +134,10 @@ function line(id){
   const i = S.info, r = S.range, h = S.shots;
   if(id === "info") return [korDate(i.date), korTime(i.time), trimv(i.hall)].filter(Boolean).join(" · ") || [trimv(i.g), trimv(i.b)].filter(Boolean).join(" · ") || T.sec.info.name;
   if(id === "range"){ const a = []; if(r.start) a.push(lab(START, r.start)); a.push(T.vEndBase + (r.ends.length ? " + " + labs(ENDS, r.ends).join(" · ") : "")); if(r.others.length) a.push(labs(OTHERS, r.others).join(" · ")); return a.join(" · "); }
-  if(id === "people"){ const ps = S.people.filter(pOk), fc = ps.filter(p => p.face).length; return `${ps.length}명` + (fc ? " · " + f(T.pplFaceN, { n: fc }) : ""); }
+  if(id === "people"){ const ps = S.people.filter(pOk), fc = ps.filter(p => p.face).length, a = []; if(ps.length) a.push(`하객 ${ps.length}명` + (fc ? " · " + f(T.pplFaceN, { n: fc }) : "")); if(guestFilled(S)) a.push("대기실 · 피할 것 적음"); return a.join(" · "); }
   if(id === "flow"){ const s = S.flow.items.filter(x => x.star).length; return `식순 ${S.flow.items.length}개` + (s ? ` · ★ ${s}개` : ""); }
-  if(id === "wp"){ const g = S.wp.groups, n = g.filter(x => trimv(x.names)).length; return `${g.length}묶음 · 이름 적은 묶음 ${n}개`; }
-  if(id === "shots"){ const n = h.room.length + h.detail.length + h.special.length + h.spread.length + h.avoid.length; const a = []; if(n) a.push(`고른 장면 ${n}개`); if(S.refs.length) a.push(`샘플 ${S.refs.length}장`); if(!a.length) a.push("부탁 적음"); return a.join(" · "); }
+  if(id === "wp"){ const g = S.wp.groups, a = []; if(S.wp.pre === "yes") a.push("선원판"); if(g.length) a.push(`${g.length}묶음`); if(S.wp.bq && S.wp.bq !== "none") a.push(lab(BQ, S.wp.bq)); a.push(...labs(EV, S.wp.ev)); return a.join(" · "); }
+  if(id === "shots"){ const n = nCouple(), a = []; if(n) a.push(`장면 ${n}개`); const m = h.special.length + h.detail.length; if(m) a.push(`연출 · 소품 ${m}개`); if(S.refs.length) a.push(`샘플 ${S.refs.length}장`); return a.join(" · "); }
   return "";
 }
 
@@ -264,8 +283,8 @@ function renderCover(){
 async function makeCoverExample(){
   try {
     await exampleImages();
-    const st = exampleState();
-    const pg = await renderPage(pagePeople(st), { head: T.shHead, page: f(T.shPage, { i: 2, n: 5 }), st, name: "ex" });
+    const st = exampleState(), list = pagesOf(st);
+    const pg = await renderPage(list[0], { head: T.shHead, page: f(T.shPage, { i: 1, n: list.length }), st, name: "ex" });
     EXURL = URL.createObjectURL(pg.blob);
     const box = $("#exi"); if(box) box.innerHTML = `<img src="${EXURL}" alt="">`;
   } catch (e) {}
@@ -315,9 +334,9 @@ function exampleState(){
   st.range = JSON.parse(JSON.stringify(E.range));
   st.people = E.people.map((p, i) => ({ id: i + 1, name: p.name, rel: p.rel, side: p.side, when: p.when.slice(), look: p.look, note: p.note, face: "ex-f" + p.face }));
   st.flow = { items: E.flow.map(a => a[0] === "x" ? { k: "x", title: a[1], who: a[2] || "", star: !!a[3] } : { k: a[0], who: a[1] || "", star: !!a[2] }), touched: 1 };
-  st.wp.preset = E.wp.preset;
-  st.wp.groups = PRESET[E.wp.preset].map((k, i) => ({ id: 100 + i, k, title: "", names: E.wp.names[k] || "" }));
-  st.wp.reps = JSON.parse(JSON.stringify(E.wp.reps));
+  st.wp.pre = E.wp.pre;
+  st.wp.groups = defaultGroups(E.wp.pre).map(g => Object.assign(g, { names: E.wp.names[g.k] || "" }));
+  Object.assign(st.wp, { touched: 1, bq: E.wp.bq, bqTo: E.wp.bqTo, ev: E.wp.ev.slice(), evNote: E.wp.evNote, reps: JSON.parse(JSON.stringify(E.wp.reps)) });
   st.shots = JSON.parse(JSON.stringify(E.shots));
   st.refs = E.refs.map((r, i) => ({ id: 200 + i, k: "ex-r" + i, note: r.note }));
   st.seq = 300;
@@ -343,9 +362,9 @@ function renderBoard(){
       <p class="sub">${esc(T.boardLead)}</p>
       <div class="cards">
         ${SECS.map((id, i) => { const ok = filled(id); return `
-        <button class="scard${ok ? " on" : ""}" data-a="sec" data-id="${id}">
+        <button class="scard${ok ? " on" : ""}${i ? "" : " main"}" data-a="sec" data-id="${id}">
           <span class="no">${ok ? CHECK : i + 1}</span>
-          <span class="tx"><b>${esc(T.sec[id].name)}</b><small>${esc(T.sec[id].sub)}</small><em>${esc(ok ? line(id) : T.empty)}</em></span>
+          <span class="tx"><b>${esc(T.sec[id].name)}${i ? "" : ` <span class="tag">${esc(T.mainTag)}</span>`}</b><small>${esc(T.sec[id].sub)}</small><em>${esc(ok ? line(id) : T.empty)}</em></span>
           <i aria-hidden="true">›</i>
         </button>`; }).join("")}
       </div>
@@ -417,10 +436,9 @@ function secRange(){
     ${lbl(T.rgEnd)}${chips("range.ends", ENDS, "tog", true)}${hint(T.rgEndHint)}
     ${r.ends.includes("party") ? `<div class="sub2"><p class="lb4">${esc(T.rgParty)}</p>${chips("range.party", PARTY)}${inp("range.partyNote", { ph: T.rgPartyPh, max: 80 })}</div>` : ""}
     ${lbl(T.rgOthers)}${chips("range.others", OTHERS)}${inp("range.othersNote", { ph: T.rgOthersPh, max: 120 })}${hint(T.rgOthersHint)}
-    ${lbl(T.rgWonpan)}${chips("range.wonpan", WONPAN, "one")}${hint(T.rgWonpanHint)}
-    ${lbl(T.rgPre)}${chips("range.pre", PRE, "one")}${hint(T.rgPreHint)}`;
+    ${lbl(T.rgWonpan)}${chips("range.wonpan", WONPAN, "one")}${hint(T.rgWonpanHint)}`;
 }
-// ③ 꼭 찍을 사람
+// ⑥ 꼭 찍을 하객 · 피할 것
 function faceHTML(p, cls = ""){
   const u = p.face && imgUrl(p.face);
   const ini = trimv(p.name).slice(-2) || "?";
@@ -439,7 +457,11 @@ function secPeople(){
       </button>`).join("") : `<p class="empty2">${esc(T.pplEmpty)}</p>`}
     </div>
     ${list.length < MAXPPL ? `<button class="btn line add" data-a="padd">${esc(T.pplAdd)}</button>` : ""}
-    ${list.length >= 4 ? hint(T.pplFew, "warn2") : ""}`;
+    ${list.length >= 4 ? hint(T.pplFew, "warn2") : ""}
+    ${lbl(T.shRoom)}${chips("shots.room", ROOM)}${hint(T.shRoomHint)}
+    ${lbl(T.shSpread)}${chips("shots.spread", SPREAD)}${hint(T.shSpreadHint)}
+    ${lbl(T.shAvoid)}${chips("shots.avoid", AVOID)}${inp("shots.avoidNote", { area: true, ph: T.shAvoidPh, rows: 2 })}${hint(T.shAvoidHint)}
+    ${lbl(T.shNote)}${inp("shots.note", { area: true, ph: T.shNotePh, rows: 3 })}`;
 }
 function personForm(p, i){
   const base = `people.${i}`;
@@ -507,46 +529,60 @@ function secFlow(){
       </select></label><button class="btn insta sm" data-a="fcadd">${esc(T.flCustomAdd)}</button></div>
     </section>`;
 }
-// ⑤ 원판 순서
+// ⑤ 원판 · 부케 — 기본 가족 → 친척 → 친구 · 지인, 선원판을 하면 가족 묶음은 "식 전" 목록으로 (사회자님 11/17)
+function wpListHTML(at){
+  const g = S.wp.groups, idx = g.map((x, i) => i).filter(i => !at || g[i].at === at);
+  if(!idx.length) return `<p class="empty2">${esc(T.wpNone)}</p>`;
+  return `<ol class="wpl">${idx.map((i, n) => { const x = g[i]; return `
+    <li class="wpg">
+      <div class="wh"><span class="n">${n + 1}</span>${x.k === "x"
+        ? `<input class="wt" data-k="wp.groups.${i}.title" value="${esc(x.title)}" placeholder="${esc(T.wpCustomPh)}" maxlength="30" autocomplete="off" aria-label="${esc(T.wpTitle)}">`
+        : `<span class="t">${esc(WP[x.k])}</span>`}
+        <span class="mv"><button data-a="wup" data-i="${i}" aria-label="${esc(T.wpUp)}"${n ? "" : " disabled"}>↑</button><button data-a="wdown" data-i="${i}" aria-label="${esc(T.wpDown)}"${n < idx.length - 1 ? "" : " disabled"}>↓</button><button data-a="wdel" data-i="${i}" aria-label="${esc(T.wpDel)}">✕</button></span></div>
+      <textarea class="wn" data-k="wp.groups.${i}.names" rows="2" maxlength="300" placeholder="${esc(WP_PH[x.k] || T.wpNamesPh)}" aria-label="${esc(T.wpNames)}">${esc(x.names)}</textarea>
+    </li>`; }).join("")}</ol>`;
+}
 function secWp(){
-  const w = S.wp, g = w.groups;
+  const w = S.wp, pre = w.pre === "yes";
   return `
     <p class="sub">${esc(T.wpLead)}</p>
-    ${lbl(T.wpPreset)}
-    <div class="presets">${["fam", "kin"].map(k => `<button class="pre${w.preset === k ? " on" : ""}" data-a="preset" data-v="${k}" aria-pressed="${w.preset === k}"><b>${esc(T.presets[k].t)}</b><small>${esc(T.presets[k].d)}</small></button>`).join("")}</div>
-    ${hint(T.wpPresetHint)}
-    ${g.length ? `
-      ${hint(T.wpNamesHint, "strong")}
-      <ol class="wpl">${g.map((x, i) => `
-        <li class="wpg">
-          <div class="wh"><span class="n">${i + 1}</span>${x.k === "x"
-            ? `<input class="wt" data-k="wp.groups.${i}.title" value="${esc(x.title)}" placeholder="${esc(T.wpCustomPh)}" maxlength="30" autocomplete="off" aria-label="${esc(T.wpTitle)}">`
-            : `<span class="t">${esc(WP[x.k])}</span>`}
-            <span class="mv"><button data-a="wup" data-i="${i}" aria-label="${esc(T.wpUp)}"${i ? "" : " disabled"}>↑</button><button data-a="wdown" data-i="${i}" aria-label="${esc(T.wpDown)}"${i < g.length - 1 ? "" : " disabled"}>↓</button><button data-a="wdel" data-i="${i}" aria-label="${esc(T.wpDel)}">✕</button></span></div>
-          <textarea class="wn" data-k="wp.groups.${i}.names" rows="2" maxlength="300" placeholder="${esc(WP_PH[x.k] || T.wpNamesPh)}" aria-label="${esc(T.wpNames)}">${esc(x.names)}</textarea>
-        </li>`).join("")}</ol>
-      <button class="btn line add" data-a="wadd">${esc(T.wpAdd)}</button>
-      ${hint(T.wpElder)}
-      <section class="sec2">
-        ${lbl(T.wpReps)}
-        ${hint(T.wpRepsHint)}
-        ${["g", "b"].map(s => `<div class="two np">${inp(`wp.reps.${s}.n`, { label: f(T.wpRepName, { side: T.side[s] }), max: 20 })}${inp(`wp.reps.${s}.p`, { label: T.wpRepPhone, type: "tel", max: 20 })}</div>`).join("")}
-      </section>` : `<p class="empty2">${esc(T.wpNone)}</p>`}`;
+    ${lbl(T.wpPre)}
+    <div class="chips">${WPPRE.map(x => `<button class="chip${w.pre === x.id ? " on" : ""}" data-a="wppre" data-v="${x.id}" aria-pressed="${w.pre === x.id}">${esc(x.t)}</button>`).join("")}</div>
+    ${hint(T.wpPreHint)}
+    ${hint(T.wpNamesHint, "strong")}
+    ${pre ? `<h4 class="wpl-h first">${esc(T.wpPreList)}</h4>${wpListHTML("pre")}<h4 class="wpl-h">${esc(T.wpPostList)}</h4>${wpListHTML("post")}` : wpListHTML("")}
+    <button class="btn line add" data-a="wadd">${esc(T.wpAdd)}</button>
+    <section class="sec2">
+      ${lbl(T.wpEvTitle)}
+      ${hint(T.wpEvHint)}
+      <p class="lb4">${esc(T.wpBq)}</p>${chips("wp.bq", BQ, "one", true)}
+      ${w.bq === "throw" || w.bq === "give" ? inp("wp.bqTo", { label: T.wpBqTo, ph: T.wpBqToPh, max: 30 }) : ""}
+      <p class="lb4">${esc(T.wpEv)}</p>${chips("wp.ev", EV)}
+      ${inp("wp.evNote", { ph: T.wpEvPh, max: 80 })}
+    </section>
+    <section class="sec2">
+      ${lbl(T.wpReps)}
+      ${hint(T.wpRepsHint)}
+      ${["g", "b"].map(s => `<div class="two np">${inp(`wp.reps.${s}.n`, { label: f(T.wpRepName, { side: T.side[s] }), max: 20 })}${inp(`wp.reps.${s}.p`, { label: T.wpRepPhone, type: "tel", max: 20 })}</div>`).join("")}
+    </section>`;
 }
-// ⑥ 장면 · 샘플 · 피할 것
+// ① 꼭 찍을 장면 — 신랑 · 신부 (요청서의 중심)
 function secShots(){
-  const refs = S.refs;
+  const refs = S.refs, own = S.shots.own;
   return `
-    ${lbl(T.shRoom)}${chips("shots.room", ROOM)}${hint(T.shRoomHint)}
-    ${lbl(T.shDetail)}${chips("shots.detail", DETAIL)}${hint(T.shDetailHint)}
+    <p class="sub">${esc(T.shLead)}</p>
+    ${hint(T.shCoupleHint)}
+    ${COUPLE.map(g => `<p class="lb4 grp">${esc(g.g)}</p>${chips("shots.couple", g.items, "tog", true)}`).join("")}
+    ${lbl(T.shOwn)}
+    ${own.length ? `<ul class="own">${own.map((s, i) => `<li><span>${esc(s)}</span><button class="tl" data-a="owndel" data-i="${i}">${esc(T.shOwnDel)}</button></li>`).join("")}</ul>` : ""}
+    ${own.length < MAXOWN ? `<div class="frow"><label class="nt"><input id="owt" placeholder="${esc(T.shOwnPh)}" maxlength="60" autocomplete="off"></label><button class="btn insta sm" data-a="ownadd">${esc(T.shOwnAdd)}</button></div>` : ""}
+    ${nCouple() > 8 ? hint(T.shMany, "warn2") : ""}
     ${lbl(T.shSpecial)}${chips("shots.special", SPECIAL)}${hint(T.shSpecialHint)}
-    ${lbl(T.shSpread)}${chips("shots.spread", SPREAD)}${hint(T.shSpreadHint)}
-    ${lbl(T.shAvoid)}${chips("shots.avoid", AVOID)}${inp("shots.avoidNote", { area: true, ph: T.shAvoidPh, rows: 2 })}${hint(T.shAvoidHint)}
+    ${lbl(T.shDetail)}${chips("shots.detail", DETAIL)}${hint(T.shDetailHint)}
     ${lbl(T.shRefs)}${hint(T.shRefsHint)}<p class="lock3">${LOCK}${esc(T.photoLock)}</p>
     <div class="refs">${refs.map((r, i) => `
       <div class="ref"><img src="${imgUrl(r.k)}" alt=""><input data-k="refs.${i}.note" value="${esc(r.note)}" placeholder="${esc(T.shRefNotePh)}" maxlength="60" autocomplete="off"><button class="tl" data-a="refdel" data-i="${i}">${esc(T.shRefDel)}</button></div>`).join("")}</div>
-    ${refs.length < MAXREF ? `<button class="btn line add" data-a="refadd">${esc(T.shRefsAdd)}</button>` : hint(f(T.shRefsMax, { n: MAXREF }))}
-    ${lbl(T.shNote)}${inp("shots.note", { area: true, ph: T.shNotePh, rows: 3 })}`;
+    ${refs.length < MAXREF ? `<button class="btn line add" data-a="refadd">${esc(T.shRefsAdd)}</button>` : hint(f(T.shRefsMax, { n: MAXREF }))}`;
 }
 
 // ===== 얼굴 자르기 =====
@@ -634,6 +670,7 @@ function measure(b){
   const x = mctx();
   if(b.t === "h") return b.H = 92;
   if(b.t === "gap") return b.H = b.h;
+  if(b.t === "sub") return b.H = 54;
   if(b.t === "kv"){ x.font = `500 32px ${FONT}`; b.lines = wrap(x, b.v, CW - KW); return b.H = b.lines.length * 46 + 18; }
   if(b.t === "li"){ x.font = `${b.bold ? 700 : 500} 32px ${FONT}`; b.lines = wrap(x, b.text, CW - 64); x.font = `500 28px ${FONT}`; b.subs = b.sub ? wrap(x, b.sub, CW - 64) : []; return b.H = b.lines.length * 46 + b.subs.length * 40 + 20; }
   if(b.t === "p"){ x.font = `500 ${b.sz || 30}px ${FONT}`; b.lines = wrap(x, b.text, CW); return b.H = b.lines.length * Math.round((b.sz || 30) * 1.45) + 12; }
@@ -666,6 +703,8 @@ function drawBlock(x, b, y){
     x.fillStyle = PINK; x.fillRect(M, y + 34, 8, 36);
     x.fillStyle = "#161616"; x.font = `900 36px ${FONT}`; x.fillText(b.text, M + 24, y + 64);
     x.fillStyle = "#E4E4E4"; x.fillRect(M, y + 86, CW, 2);
+  } else if(b.t === "sub"){
+    x.fillStyle = PINK; x.font = `700 26px ${FONT}`; x.fillText(b.text, M, y + 40);
   } else if(b.t === "kv"){
     x.fillStyle = "#7A7A7A"; x.font = `700 28px ${FONT}`; x.fillText(b.k, M, y + 38);
     x.fillStyle = b.dim ? "#9A9A9A" : "#161616"; x.font = `500 32px ${FONT}`;
@@ -722,7 +761,7 @@ async function renderPage(pg, o){
     if(b.t === "photos") for(const it of b.items){ const v = IMG.get(it.k); it.img = v ? await decode(v.blob) : null; }
     if(b.t === "photos") b.items = b.items.filter(it => it.img);
   }
-  await fontsFor(JSON.stringify(pg) + subLine(st) + o.head + pg.title + T.wpNoNames + T.pplNoName);
+  await fontsFor(JSON.stringify(pg) + subLine(st) + o.head + pg.title + T.pplNoName);
   const sub = subLine(st), top = sub ? 236 : 196;
   const H = top + 10 + pg.blocks.reduce((a, b) => a + measure(b), 0) + 50;
   const c = document.createElement("canvas"); c.width = SHEET_W; c.height = Math.ceil(H);
@@ -760,14 +799,24 @@ function rangeRows(st){
   if(r.ends.includes("party") && (r.party.length || trimv(r.partyNote))) a.push([T.kParty, [...labs(PARTY, r.party), trimv(r.partyNote)].filter(Boolean).join(" · ")]);
   if(r.others.length || trimv(r.othersNote)) a.push([T.kOthers, [labs(OTHERS, r.others).join(" · "), trimv(r.othersNote)].filter(Boolean).join(" — ")]);
   if(r.wonpan) a.push([T.kWonpan, lab(WONPAN, r.wonpan)]);
-  if(r.pre) a.push([T.kPre, lab(PRE, r.pre)]);
   return a;
 }
-function shotRows(st){
+// 꼭 찍을 장면 (신랑 · 신부): [[장면 묶음 이름, [장면, …]], …] — 고른 것만, 직접 적은 장면은 맨 끝
+function coupleList(st){
+  const h = st.shots, out = [];
+  for(const g of COUPLE){ const its = g.items.filter(x => h.couple.includes(x.id)).map(x => x.t); if(its.length) out.push([g.g, its]); }
+  if(h.own.length) out.push([T.hOwn, h.own.slice()]);
+  return out;
+}
+function moreRows(st){
+  const h = st.shots, a = [];
+  if(h.special.length) a.push([T.kSpecial, labs(SPECIAL, h.special).join(" · ")]);
+  if(h.detail.length) a.push([T.kDetail, labs(DETAIL, h.detail).join(" · ")]);
+  return a;
+}
+function guestRows(st){
   const h = st.shots, a = [];
   if(h.room.length) a.push([T.kRoom, labs(ROOM, h.room).join(" · ")]);
-  if(h.detail.length) a.push([T.kDetail, labs(DETAIL, h.detail).join(" · ")]);
-  if(h.special.length) a.push([T.kSpecial, labs(SPECIAL, h.special).join(" · ")]);
   if(h.spread.length) a.push([T.kSpread, labs(SPREAD, h.spread).join(" · ")]);
   return a;
 }
@@ -783,55 +832,72 @@ function personLines(p){
 }
 function hasFlow(st){ return filled("flow", st); }
 function pagePeople(st){
-  return { key: "people", title: T.pgPeople, blocks: okPeople(st).map((p, i) => ({ t: "person", n: i + 1, face: p.face, name: trimv(p.name), rel: [trimv(p.rel), p.side ? T.side[p.side] : ""].filter(Boolean).join(" · "), lines: personLines(p) })) };
+  const blocks = okPeople(st).map((p, i) => ({ t: "person", n: i + 1, face: p.face, name: trimv(p.name), rel: [trimv(p.rel), p.side ? T.side[p.side] : ""].filter(Boolean).join(" · "), lines: personLines(p) }));
+  const gr = guestRows(st);
+  if(gr.length){ blocks.push({ t: "h", text: T.hTogether }); gr.forEach(([k, v]) => blocks.push({ t: "kv", k, v })); }
+  return { key: "people", title: T.pgPeople, blocks };
 }
-function pageFlow(st){
-  const blocks = [{ t: "p", text: T.flStarLegend, grey: true, sz: 26 }, { t: "gap", h: 8 }];
-  st.flow.items.forEach((it, i) => blocks.push({ t: "li", mark: String(i + 1), star: it.star, text: flowTitle(it) + (it.star ? "  ★" : ""), sub: trimv(it.who) }));
-  return { key: "flow", title: T.pgFlow, blocks };
+function pageRangeFlow(st){
+  const rr = rangeRows(st), fl = hasFlow(st), blocks = [];
+  if(rr.length){ blocks.push({ t: "h", text: T.hRange }); rr.forEach(([k, v]) => blocks.push({ t: "kv", k, v, dim: v === T.vCheck })); }
+  if(fl){
+    if(rr.length) blocks.push({ t: "h", text: T.hFlow });
+    blocks.push({ t: "p", text: T.flStarLegend, grey: true, sz: 26 }, { t: "gap", h: 8 });
+    st.flow.items.forEach((it, i) => blocks.push({ t: "li", mark: String(i + 1), star: it.star, text: flowTitle(it) + (it.star ? "  ★" : ""), sub: trimv(it.who) }));
+  }
+  return { key: "rangeflow", title: rr.length && fl ? T.pgRangeFlow : rr.length ? T.pgRange : T.pgFlow, blocks };
 }
+// 원판: 선원판을 하면 "식 전 · 선원판"과 "식 끝나고 · 원판"으로 나눠 번호를 따로 매겨요
+function wpGroupsOf(st, at){ return st.wp.groups.filter(g => !at || g.at === at); }
 function wpBlocks(st){
-  const w = st.wp, blocks = [];
-  w.groups.forEach((g, i) => blocks.push({ t: "wpg", n: i + 1, title: wpTitle(g), names: trimv(g.names).replace(/\n+/g, " ") }));
+  const w = st.wp, blocks = [], pre = w.pre === "yes";
+  const list = at => wpGroupsOf(st, at).forEach((g, i) => blocks.push({ t: "wpg", n: i + 1, title: wpTitle(g), names: trimv(g.names).replace(/\n+/g, " ") }));
+  if(pre){ blocks.push({ t: "h", text: T.wpPreList }); list("pre"); blocks.push({ t: "h", text: T.wpPostList }); list("post"); }
+  else list("");
+  const ev = wpEvRows(st);
+  if(ev.length){ blocks.push({ t: "h", text: T.hWpEv }); ev.forEach(([k, v]) => blocks.push({ t: "kv", k, v })); }
   const reps = ["g", "b"].filter(s => trimv(w.reps[s].n) || trimv(w.reps[s].p));
   if(reps.length){ blocks.push({ t: "h", text: T.wpRepsLine }); reps.forEach(s => blocks.push({ t: "kv", k: T.side[s], v: [trimv(w.reps[s].n), trimv(w.reps[s].p)].filter(Boolean).join("  ") })); }
-  const r = st.range;
-  if(r.wonpan || r.pre){ blocks.push({ t: "gap", h: 10 }); if(r.wonpan) blocks.push({ t: "kv", k: T.kWonpan, v: lab(WONPAN, r.wonpan) }); if(r.pre) blocks.push({ t: "kv", k: T.kPre, v: lab(PRE, r.pre) }); }
+  if(st.range.wonpan){ blocks.push({ t: "gap", h: 10 }, { t: "kv", k: T.kWonpan, v: lab(WONPAN, st.range.wonpan) }); }
   blocks.push({ t: "gap", h: 16 }, { t: "p", text: T.wpSendTo, grey: true, sz: 26 });
   return blocks;
 }
 function pageWp(st){ return { key: "wp", title: T.pgWp, blocks: wpBlocks(st) }; }
 function pageRefs(st){ return { key: "refs", title: T.pgRefs, blocks: [{ t: "photos", items: st.refs.map((r, i) => ({ k: r.k, note: trimv(r.note), n: i + 1 })) }] }; }
-// 요청서 쪽 목록 (적은 칸만)
+// 요청서 쪽 목록 (적은 칸만). 1쪽 = 꼭 찍어 주세요 (예식 · 꼭 찍을 장면 · 연출 · 소품 · 피할 것 · 그 밖에)
 function pagesOf(st){
-  const list = [], later = [];
-  if(okPeople(st).length) later.push(pagePeople(st));
-  if(hasFlow(st)) later.push(pageFlow(st));
-  if(st.wp.groups.length) later.push(pageWp(st));
+  const later = [];
+  if(rangeRows(st).length || hasFlow(st)) later.push(pageRangeFlow(st));
+  if(wpFilled(st)) later.push(pageWp(st));
+  if(okPeople(st).length || guestRows(st).length) later.push(pagePeople(st));
   if(st.refs.length) later.push(pageRefs(st));
   const b = [];
-  const ir = infoRows(st), rr = rangeRows(st), sr = shotRows(st), av = avoidList(st), note = trimv(st.shots.note);
+  const ir = infoRows(st), cl = coupleList(st), mr = moreRows(st), av = avoidList(st), note = trimv(st.shots.note);
   if(ir.length){ b.push({ t: "h", text: T.hWhen }); ir.forEach(([k, v]) => b.push({ t: "kv", k, v })); }
-  if(rr.length){ b.push({ t: "h", text: T.hRange }); rr.forEach(([k, v]) => b.push({ t: "kv", k, v, dim: v === T.vCheck })); }
-  if(sr.length){ b.push({ t: "h", text: T.hShots }); sr.forEach(([k, v]) => b.push({ t: "kv", k, v })); }
+  if(cl.length){
+    b.push({ t: "h", text: T.hCouple });
+    let n = 0;
+    cl.forEach(([g, its]) => { b.push({ t: "sub", text: g }); its.forEach(s => b.push({ t: "li", mark: String(++n), text: s, bold: true })); });
+  }
+  if(mr.length){ b.push({ t: "h", text: T.hMore }); mr.forEach(([k, v]) => b.push({ t: "kv", k, v })); }
   if(av.length){ b.push({ t: "h", text: T.hAvoid }); av.forEach(s => b.push({ t: "li", mark: "•", text: s })); }
   if(note){ b.push({ t: "h", text: T.hNote }); b.push({ t: "p", text: note }); }
+  if(!b.length) return later;
   if(later.length){
     b.push({ t: "h", text: T.hInside });
     later.forEach((pg, i) => {
-      const n = i + 2;
-      const what = pg.key === "people" ? f(T.vInsidePeople, { n: okPeople(st).length })
-        : pg.key === "flow" ? f(T.vInsideFlow, { n: st.flow.items.length, s: st.flow.items.filter(x => x.star).length })
-        : pg.key === "wp" ? f(T.vInsideWp, { n: st.wp.groups.length }) : f(T.vInsideRefs, { n: st.refs.length });
-      b.push({ t: "li", mark: String(n), text: what });
+      const what = pg.key === "rangeflow" ? [rangeRows(st).length ? T.vInsideRange : "", hasFlow(st) ? f(T.vInsideFlow, { n: st.flow.items.length, s: st.flow.items.filter(x => x.star).length }) : ""].filter(Boolean).join(" · ")
+        : pg.key === "wp" ? [st.wp.groups.length ? f(T.vInsideWp, { n: st.wp.groups.length }) : "", ...wpEvRows(st).map(r => r[1].split(" — ")[0])].filter(Boolean).join(" · ")
+        : pg.key === "people" ? (okPeople(st).length ? f(T.vInsidePeople, { n: okPeople(st).length }) : T.hTogether)
+        : f(T.vInsideRefs, { n: st.refs.length });
+      b.push({ t: "li", mark: String(i + 2), text: what });
     });
   }
-  if(b.length) list.push({ key: "info", title: T.pgInfo, blocks: b });
-  return list.concat(later);
+  return [{ key: "main", title: T.pgMain, blocks: b }].concat(later);
 }
-const PGFILE = { info: "예식정보", people: "꼭찍을사람", flow: "식순", wp: "원판순서", refs: "샘플" };
+const PGFILE = { main: "꼭찍을장면", rangeflow: "촬영범위식순", wp: "원판순서", people: "꼭찍을하객", refs: "샘플" };
 
-// 카톡에 붙일 글
+// 카톡에 붙일 글 (그림과 같은 순서)
 function outText(st = S){
   const a = [], i = st.info;
   const who = [trimv(i.g) && "신랑 " + trimv(i.g), trimv(i.b) && "신부 " + trimv(i.b)].filter(Boolean).join(" · ");
@@ -839,25 +905,31 @@ function outText(st = S){
   a.push(T.txHello);
   const sec = (title, rows) => { if(!rows.length) return; a.push("", "■ " + title); rows.forEach(r => a.push(r)); };
   sec(T.hWhen, infoRows(st).map(([k, v]) => `- ${k}: ${v}`));
-  sec(T.hRange, rangeRows(st).map(([k, v]) => `- ${k}: ${v}`));
-  const ps = okPeople(st);
-  sec(`${T.pgPeople} (${ps.length}명)`, ps.map((p, n) => {
-    const head = `${n + 1}. ${trimv(p.name) || T.pplNoName}` + ([trimv(p.rel), p.side ? T.side[p.side] : ""].filter(Boolean).length ? ` (${[trimv(p.rel), p.side ? T.side[p.side] : ""].filter(Boolean).join(" · ")})` : "");
-    const rest = personLines(p).map(([k, v]) => `   ${k}: ${v}`);
-    return [head + (p.face ? " [얼굴 사진 있음]" : ""), ...rest].join("\n");
-  }));
-  if(hasFlow(st)) sec(`${T.pgFlow} (${T.flStarLegend})`, st.flow.items.map((it, n) => `${n + 1}. ${flowTitle(it)}${it.star ? " ★" : ""}${trimv(it.who) ? " — " + trimv(it.who) : ""}`));
-  if(st.wp.groups.length) sec(T.pgWp, wpLines(st));
-  sec(T.hShots, shotRows(st).map(([k, v]) => `- ${k}: ${v}`));
+  let n = 0;
+  sec(T.hCouple, coupleList(st).flatMap(([g, its]) => its.map(s => `${++n}. [${g}] ${s}`)));
+  sec(T.hMore, moreRows(st).map(([k, v]) => `- ${k}: ${v}`));
   sec(T.hAvoid, avoidList(st).map(s => "- " + s));
   if(trimv(st.shots.note)) sec(T.hNote, [trimv(st.shots.note)]);
-  if(st.refs.length) sec(`${T.pgRefs} ${st.refs.length}장`, st.refs.map((r, n) => `${n + 1}. ${trimv(r.note) || "사진 " + (n + 1)}`));
+  sec(T.hRange, rangeRows(st).map(([k, v]) => `- ${k}: ${v}`));
+  if(hasFlow(st)) sec(`${T.hFlow} (${T.flStarLegend})`, st.flow.items.map((it, k) => `${k + 1}. ${flowTitle(it)}${it.star ? " ★" : ""}${trimv(it.who) ? " — " + trimv(it.who) : ""}`));
+  if(wpFilled(st)) sec(T.pgWp, wpLines(st));
+  const ps = okPeople(st);
+  sec(T.pgPeople, [...ps.map((p, k) => {
+    const rel = [trimv(p.rel), p.side ? T.side[p.side] : ""].filter(Boolean);
+    const head = `${k + 1}. ${trimv(p.name) || T.pplNoName}` + (rel.length ? ` (${rel.join(" · ")})` : "");
+    return [head + (p.face ? " [얼굴 사진 있음]" : ""), ...personLines(p).map(([kk, v]) => `   ${kk}: ${v}`)].join("\n");
+  }), ...guestRows(st).map(([k, v]) => `- ${k}: ${v}`)]);
+  if(st.refs.length) sec(`${T.pgRefs} ${st.refs.length}장`, st.refs.map((r, k) => `${k + 1}. ${trimv(r.note) || "사진 " + (k + 1)}`));
   const img = ps.some(p => p.face) || st.refs.length;
   a.push("", img ? T.txTail : T.txTailNoImg);
   return a.join("\n");
 }
 function wpLines(st){
-  const w = st.wp, a = w.groups.map((g, n) => `${n + 1}. ${wpTitle(g)}${trimv(g.names) ? " — " + trimv(g.names).replace(/\n+/g, " ") : ""}`);
+  const w = st.wp, a = [];
+  const lines = at => wpGroupsOf(st, at).map((g, k) => `${k + 1}. ${wpTitle(g)}${trimv(g.names) ? " — " + trimv(g.names).replace(/\n+/g, " ") : ""}`);
+  if(w.pre === "yes") a.push(`[${T.wpPreList}]`, ...lines("pre"), `[${T.wpPostList}]`, ...lines("post"));
+  else a.push(...lines(""));
+  wpEvRows(st).forEach(([k, v]) => a.push(`- ${k}: ${v}`));
   const reps = ["g", "b"].filter(s => trimv(w.reps[s].n) || trimv(w.reps[s].p));
   if(reps.length) a.push(`${T.wpRepsLine}: ` + reps.map(s => `${T.side[s]} ${[trimv(w.reps[s].n), trimv(w.reps[s].p)].filter(Boolean).join(" ")}`).join(" · "));
   return a;
@@ -914,14 +986,16 @@ function makeZip(files){
 // ===== 요청서 (결과) =====
 function missing(){
   const i = S.info, a = [];
+  if(!nCouple()) a.push(["shots", T.miss.shots]);
   if(!i.date || !i.time) a.push(["info", T.miss.date]);
   if(!trimv(i.hall)) a.push(["info", T.miss.hall]);
   if(!trimv(i.cn) || !trimv(i.cp)) a.push(["info", T.miss.contact]);
   if(!S.range.arrive) a.push(["range", T.miss.arrive]);
-  if(!okPeople(S).length) a.push(["people", T.miss.people]);
-  const g = S.wp.groups, nn = g.filter(x => ["parents", "gfam", "bfam"].includes(x.k) && !trimv(x.names)).length;
-  if(nn) a.push(["wp", f(T.miss.wpNames, { n: nn })]);
-  if(g.length && !["g", "b"].some(s => trimv(S.wp.reps[s].n))) a.push(["wp", T.miss.reps]);
+  if(wpFilled(S)){
+    const g = S.wp.groups, nn = g.filter(x => FAMILY.includes(x.k) && !trimv(x.names)).length;
+    if(nn) a.push(["wp", f(T.miss.wpNames, { n: nn })]);
+    if(g.length && !["g", "b"].some(s => trimv(S.wp.reps[s].n))) a.push(["wp", T.miss.reps]);
+  }
   return a;
 }
 function renderOut(){
@@ -933,7 +1007,7 @@ function renderOut(){
       <div class="pg"><h1 class="h">${esc(T.outEmptyTitle)}</h1><p class="sub">${esc(T.outEmptyLead)}</p><div class="btns" style="margin-top:20px"><button class="btn insta" data-a="board">${esc(T.outEmptyBtn)}</button></div></div>`;
     return;
   }
-  const miss = EXM ? [] : missing(), hasWp = S.wp.groups.length > 0;
+  const miss = EXM ? [] : missing(), hasWp = wpFilled(S);
   app.innerHTML = `
     ${topBar(EXM ? `<button class="tbb txt" data-a="home">‹ 첫 화면</button>` : `<button class="tbb txt" data-a="board">‹ ${esc(T.back)}</button>`)}
     <div class="pg">
@@ -953,10 +1027,10 @@ function renderOut(){
         <textarea id="msgtxt" readonly rows="12">${esc(outText())}</textarea>
         <p class="vend">${esc(T.txtNote)}</p>
       </details>
-      <section class="bx open mc"><h2>${esc(T.mcTitle)}</h2>
-        ${hasWp ? `<p class="vend">${esc(T.mcLead)}</p>
-        <div class="btns"><button class="btn line" data-a="mcimg" id="bwp" disabled>${esc(T.mcImg)}</button><button class="btn line" data-a="mctxt">${esc(T.mcTxt)}</button></div>
-        <p class="msg" id="msg2"></p>` : `<p class="vend">${esc(T.mcNone)}</p>`}
+      <section class="bx open mc"><h2>${esc(T.famTitle)}</h2>
+        ${hasWp ? `<p class="vend">${esc(T.famLead)}</p>
+        <div class="btns"><button class="btn line" data-a="famimg" id="bwp" disabled>${esc(T.famImg)}</button><button class="btn line" data-a="famtxt">${esc(T.famTxt)}</button></div>
+        <p class="msg" id="msg2"></p>` : `<p class="vend">${esc(T.famNone)}</p>`}
       </section>
       <section class="bx open"><h2>${esc(T.checkTitle)}</h2><div class="cks plain">${T.checks.map(c => `<label class="ck"><input type="checkbox"><i>${CHECK}</i><span>${esc(c)}</span></label>`).join("")}</div></section>
       ${EXM ? "" : `<button class="btn ghost more" data-a="board">${esc(T.editMore)}</button>`}
@@ -981,7 +1055,7 @@ async function buildOut(){
       await new Promise(r => setTimeout(r, 0));
     }
     if(gen !== OUT.gen) return;
-    if(st.wp.groups.length) OUT.wp = await renderPage(pageWp(st), { head: T.shWpHead, page: "", st, name: T.fileWp });
+    if(wpFilled(st)) OUT.wp = await renderPage(pageWp(st), { head: T.shWpHead, page: "", st, name: T.fileWp });
     if(gen !== OUT.gen) return;
     for(const pg of pages) pg.url = URL.createObjectURL(pg.blob);
     OUT.pages = pages;
@@ -1091,20 +1165,20 @@ function flowImport(){
   for(const o of old) if(o.k === "x" && !items.some(x => x.k === "x" && x.title === o.title)) items.push(o);
   S.flow.items = items; touchFlow(); save(); rerender(); toast(T.flImported);
 }
-function presetApply(k){
-  const old = S.wp.groups, by = {};
-  for(const g of old) if(g.k !== "x") by[g.k] = trimv(g.names);
-  const join = (...ks) => ks.map(x => by[x]).filter(Boolean).join(" / ");
-  const names = Object.assign({}, by);
-  if(!names.allkin) names.allkin = join("gkin", "bkin");
-  if(!names.friends) names.friends = join("gfr", "bfr");
-  if(!names.gkin && !names.bkin && by.allkin) names.gkin = by.allkin;
-  if(!names.gfr && !names.bfr && by.friends) names.gfr = by.friends;
-  const groups = PRESET[k].map(key => ({ id: S.seq++, k: key, title: "", names: names[key] || "" }));
-  const customs = old.filter(g => g.k === "x");
-  const bq = groups.findIndex(g => g.k === "bouquet");
-  groups.splice(bq < 0 ? groups.length : bq, 0, ...customs);
-  S.wp.preset = k; S.wp.groups = groups; save(); rerender();
+// 선원판을 켜면 가족 묶음(부모님 · 신랑 측 · 신부 측 가족)이 "식 전" 목록으로, 끄면 다시 원판 맨 앞으로
+function wpSetPre(v){
+  const w = S.wp; w.pre = v; w.touched = 1;
+  for(const g of w.groups) g.at = v === "yes" && FAMILY.includes(g.k) ? "pre" : "post";
+  w.groups = [...w.groups.filter(g => g.at === "pre"), ...w.groups.filter(g => g.at !== "pre")];
+  const fam = w.groups.filter(g => FAMILY.includes(g.k)), rest = w.groups.filter(g => !FAMILY.includes(g.k));
+  if(v !== "yes") w.groups = [...fam, ...rest];
+  save(); rerender();
+}
+// 같은 목록(식 전 / 식 끝나고) 안에서 한 칸 옮기기
+function wpMove(i, d){
+  const g = S.wp.groups, at = g[i] && g[i].at, same = g.map((x, k) => k).filter(k => g[k].at === at), p = same.indexOf(i), j = same[p + d];
+  if(j == null) return;
+  [g[i], g[j]] = [g[j], g[i]]; S.wp.touched = 1; save(); rerender();
 }
 
 // ===== 누르기 =====
@@ -1123,11 +1197,13 @@ const ACT = {
     const arr = getPath(b.dataset.k), v = b.dataset.v, i = arr.indexOf(v);
     if(i >= 0) arr.splice(i, 1); else arr.push(v);
     b.classList.toggle("on", i < 0); b.setAttribute("aria-pressed", String(i < 0));
+    if(b.dataset.k.startsWith("wp.")) S.wp.touched = 1;
     save(); if(b.dataset.re) rerender();
   },
   one(b){
     const k = b.dataset.k, v = b.dataset.v, now = getPath(k) === v ? "" : v;
     setPath(k, now);
+    if(k.startsWith("wp.")) S.wp.touched = 1;
     $$(`[data-a="one"][data-k="${k}"]`).forEach(c => { const on = c.dataset.v === now; c.classList.toggle("on", on); c.setAttribute("aria-pressed", String(on)); });
     save(); if(b.dataset.re) rerender();
   },
@@ -1167,17 +1243,19 @@ const ACT = {
     S.flow.items.splice(isNaN(after) ? S.flow.items.length : after + 1, 0, { k: "x", title: t, who: "", star: true });
     touchFlow(); save(); rerender();
   },
-  fimp(){ if(S.flow.touched) sheet({ title: T.flImport, body: T.flImportAsk, yes: T.flImportYes, no: T.cancel, onYes: flowImport }); else flowImport(); },
-  preset(b){
-    const k = b.dataset.v; if(S.wp.preset === k) return;
-    if(S.wp.groups.some(g => trimv(g.names))) sheet({ title: T.presets[k].t, body: T.wpPresetAsk, yes: T.wpPresetYes, no: T.cancel, onYes: () => presetApply(k) });
-    else presetApply(k);
+  ownadd(){
+    const el = $("#owt"), t = el ? trimv(el.value) : ""; if(!t){ if(el) el.focus(); return; }
+    if(S.shots.own.length >= MAXOWN) return;
+    S.shots.own.push(t); save(); rerender(); const n = $("#owt"); if(n && !isTouch()) n.focus();
   },
-  wup(b){ const i = +b.dataset.i, g = S.wp.groups; if(i < 1) return; [g[i - 1], g[i]] = [g[i], g[i - 1]]; save(); rerender(); },
-  wdown(b){ const i = +b.dataset.i, g = S.wp.groups; if(i >= g.length - 1) return; [g[i + 1], g[i]] = [g[i], g[i + 1]]; save(); rerender(); },
+  owndel(b){ S.shots.own.splice(+b.dataset.i, 1); save(); rerender(); },
+  fimp(){ if(S.flow.touched) sheet({ title: T.flImport, body: T.flImportAsk, yes: T.flImportYes, no: T.cancel, onYes: flowImport }); else flowImport(); },
+  wppre(b){ const v = b.dataset.v; wpSetPre(S.wp.pre === v ? "" : v); },
+  wup(b){ wpMove(+b.dataset.i, -1); },
+  wdown(b){ wpMove(+b.dataset.i, 1); },
   wdel(b){
     const i = +b.dataset.i, g = S.wp.groups[i]; if(!g) return;
-    const go2 = () => { S.wp.groups.splice(i, 1); save(); rerender(); };
+    const go2 = () => { S.wp.groups.splice(i, 1); S.wp.touched = 1; save(); rerender(); };
     if(trimv(g.names)) sheet({ title: wpTitle(g), body: T.wpDel + "?", yes: T.wpDel, no: T.cancel, onYes: go2 }); else go2();
   },
   wadd(){
@@ -1185,10 +1263,9 @@ const ACT = {
     openMenu([...Object.keys(WP).filter(k => !used.has(k)).map(k => ["wnew", WP[k], ` data-k="${k}"`]), ["wnew", T.wpAddCustom, ' data-k="x"']]);
   },
   wnew(b){
-    const k = b.dataset.k, g = S.wp.groups, item = { id: S.seq++, k, title: "", names: "" };
-    const bq = g.findIndex(x => x.k === "bouquet");
-    if(k !== "bouquet" && bq >= 0) g.splice(bq, 0, item); else g.push(item);
-    if(!S.wp.preset) S.wp.preset = "fam";
+    const k = b.dataset.k, g = S.wp.groups, at = S.wp.pre === "yes" && FAMILY.includes(k) ? "pre" : "post", item = { id: S.seq++, k, title: "", names: "", at };
+    if(at === "pre"){ const last = g.map(x => x.at).lastIndexOf("pre"); g.splice(last + 1, 0, item); } else g.push(item);
+    S.wp.touched = 1;
     save(); closeOv().then(() => { rerender(); const el = $(`[data-k="wp.groups.${g.indexOf(item)}.${k === "x" ? "title" : "names"}"]`); if(el){ el.scrollIntoView({ block: "center" }); if(!isTouch()) el.focus(); } });
   },
   refadd(){
@@ -1208,8 +1285,8 @@ const ACT = {
   pdf(){ if(OUT.pdf) shareOrSave([OUT.pdf]); },
   imgs(){ if(OUT.pages.length) shareOrSave(OUT.pages.map(pageFile), f(T.fileZip, { d: S.info.date || todayStr() })); },
   copy(){ copyText(outText(), "msg"); },
-  mcimg(){ if(OUT.wp) shareOrSave([pageFile(OUT.wp)], null, "msg2"); },
-  mctxt(){ copyText(wpText(), "msg2"); },
+  famimg(){ if(OUT.wp) shareOrSave([pageFile(OUT.wp)], null, "msg2"); },
+  famtxt(){ copyText(wpText(), "msg2"); },
   big(b){ openBig(+b.dataset.i); },
   pg1(b){ const pg = OUT.pages[+b.dataset.i]; if(pg) shareOrSave([pageFile(pg)]); },
   exmine(){ exitExample(); go("board"); }
@@ -1225,6 +1302,7 @@ function inputs(){
     if(EXM) return;
     setPath(k, t.value);
     if(k.startsWith("flow.")) touchFlow();
+    if(k.startsWith("wp.")) S.wp.touched = 1;
     save();
     if(k.startsWith("people.") && /\.(name|rel)$/.test(k)){ const i = +k.split(".")[1], p = S.people[i], fc = p && $(`#pc${p.id} .face:not(.has) span`); if(fc) fc.textContent = trimv(p.name).slice(-2) || "?"; }
   });
@@ -1232,6 +1310,7 @@ function inputs(){
   document.addEventListener("keydown", e => {
     if(e.key === "Escape" && $(".ov")){ closeOv(); return; }
     if(e.key === "Enter" && !e.isComposing && e.target.id === "fct"){ e.preventDefault(); ACT.fcadd(); }
+    if(e.key === "Enter" && !e.isComposing && e.target.id === "owt"){ e.preventDefault(); ACT.ownadd(); }
   });
   addEventListener("popstate", e => {
     const st = e.state || { sc: "cover" }, wantEx = !!st.ex, same = st.sc === CUR && (st.sec || "") === SEC && wantEx === EXM;

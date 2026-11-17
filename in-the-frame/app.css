@@ -146,12 +146,6 @@ body.noscroll{overflow:hidden;overscroll-behavior:none}
 .nt.sel select{background-image:linear-gradient(45deg,transparent 50%,var(--sub) 50%),linear-gradient(135deg,var(--sub) 50%,transparent 50%);background-position:calc(100% - 18px) 20px,calc(100% - 12px) 20px;background-size:6px 6px;background-repeat:no-repeat;padding-right:32px}
 
 /* 원판 */
-.presets{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.pre{display:flex;flex-direction:column;gap:4px;padding:14px;border:1.5px solid var(--line);border-radius:16px;background:var(--card);text-align:left;cursor:pointer}
-.pre b{font-size:16px;font-weight:900}
-.pre small{font-size:12.5px;color:var(--sub);line-height:1.45}
-.pre.on{border-color:var(--pink);box-shadow:inset 0 0 0 1px var(--pink)}
-.pre.on b{color:var(--pink)}
 .wpl{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
 .wpg{padding:10px 8px 12px 12px;border-radius:16px;background:var(--card)}
 .wh{display:flex;align-items:center;gap:8px}
@@ -243,7 +237,7 @@ body.noscroll{overflow:hidden;overscroll-behavior:none}
   .ov.bottom{place-items:center;padding:20px}
   .ov.bottom .ovc{max-width:360px;border-radius:22px}
   #toast{bottom:32px}
-  @media (hover:hover){ .chip:hover,.pre:hover{border-color:var(--sub)} .chip.on:hover,.pre.on:hover{border-color:var(--pink)} .scard:hover{border-color:var(--pink)} }
+  @media (hover:hover){ .chip:hover{border-color:var(--sub)} .chip.on:hover{border-color:var(--pink)} .scard:hover{border-color:var(--pink)} }
 }
 
 /* UX 검토 (11/17): 이름 · 휴대폰 줄은 번호 칸을 넓게 · 사진 옆 안심 문구 · 식순 "메모" 버튼 */
@@ -253,3 +247,15 @@ body.noscroll{overflow:hidden;overscroll-behavior:none}
 .pfb .lock3{flex:1 0 100%;margin:0}
 .fi.slim{padding-bottom:10px}
 .fh .mm{flex:0 0 auto;background:transparent;border-style:dashed;color:var(--sub)}
+
+/* 사회자님 2차 (11/17): 꼭 찍을 장면이 중심 · 선원판 나눔 · 직접 적는 장면 */
+.scard.main{border-color:var(--pink);box-shadow:inset 0 0 0 1px var(--pink)}
+.scard .tag{display:inline-block;vertical-align:2px;margin-left:4px;font-size:11.5px;font-weight:700;color:#fff;background:var(--pink);border-radius:999px;padding:2px 8px;letter-spacing:0}
+.lb4.grp{margin:18px 0 8px;color:var(--pink)}
+.own{list-style:none;margin:0 0 4px;padding:0;display:flex;flex-direction:column;gap:6px}
+.own li{display:flex;align-items:center;gap:10px;padding:6px 6px 6px 14px;border-radius:12px;background:var(--card);font-size:15px;font-weight:700}
+.own li span{flex:1;min-width:0}
+.own .tl{min-width:48px}
+.frow .nt{margin-top:0}
+.wpl-h{margin:20px 0 6px;font-size:14.5px;font-weight:900;color:var(--sub)}
+.wpl-h.first{color:var(--pink)}
