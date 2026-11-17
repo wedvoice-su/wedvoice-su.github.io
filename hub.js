@@ -24,7 +24,8 @@ const GROUPS = [
   { name: "신부 · 신랑 관리", items: [
     { key: "care", label: "신부 관리 찾아보기" },
     { key: "hair", label: "신랑 헤어 · 미용실 찾기" },
-    { key: "makeup", label: "헤어·메이크업 요청서" }
+    { key: "makeup", label: "헤어·메이크업 요청서" },
+    { key: "dress", label: "드레스 투어 기록 카드" }
   ]},
   { name: "결혼식 음악", items: [
     { key: "groom",    label: "신랑 입장곡 찾기" },
