@@ -35,6 +35,7 @@ const GROUPS = [
   ]},
   { name: "식순 · 영상", items: [
     { key: "flow", label: "식순표 만들기" },
+    { key: "timetable", label: "결혼식 당일 타임테이블" },
     { key: "film", label: "식전영상 만들기" },
     { key: "filmPlus", label: "식전영상 만들기 (업그레이드)" },
     { key: "snap", label: "본식 스냅 요청서" },
