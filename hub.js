@@ -21,6 +21,9 @@ const GROUPS = [
     { key: "guests", label: "보증 인원 계산기" },
     { key: "table", label: "청첩장 모임 장소 찾기" }
   ]},
+  { name: "신부 · 신랑 관리", items: [
+    { key: "care", label: "신부 관리 찾아보기" }
+  ]},
   { name: "결혼식 음악", items: [
     { key: "groom",    label: "신랑 입장곡 찾기" },
     { key: "bride",    label: "신부 입장곡 찾기" },
