@@ -40,7 +40,8 @@ const SITES = {
   "care": { path: "something-new", reel: "" },  // 신부 관리 찾아보기 (㊶, 미공개. 공개하면 something-new/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
   "timetable": { path: "like-clockwork", reel: "" },  // 결혼식 당일 타임테이블 (㊽, 미공개. 공개하면 like-clockwork/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
   "dress": { path: "all-dressed-up", reel: "" },  // 드레스 투어 기록 카드 (㊹, 미공개. 공개하면 all-dressed-up/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
-  "bag": { path: "in-the-bag", reel: "" }  // 본식 가방 체크리스트 (㊼, 미공개. 공개하면 in-the-bag/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
+  "bag": { path: "in-the-bag", reel: "" },  // 본식 가방 체크리스트 (㊼, 미공개. 공개하면 in-the-bag/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
+  "taste": { path: "in-good-taste", reel: "" }  // 혼주 취향 테스트 (㊵, 미공개. 공개하면 in-good-taste/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
 };
 // =========================================================
 

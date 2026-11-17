@@ -50,6 +50,7 @@ const GROUPS = [
     { key: "blessing", label: "부모님 덕담 만들기" }
   ]},
   { name: "부모님 · 신랑 역할", items: [
+    { key: "taste",       label: "혼주 취향 테스트" },
     { key: "parents",     label: "양가 부모님 입장·화촉점화 안내" },
     { key: "parentsQuiz", label: "부모님 본식 역할 퀴즈" },
     { key: "groomQuiz",   label: "신랑 본식 역할 퀴즈" },
