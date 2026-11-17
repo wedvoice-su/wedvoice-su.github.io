@@ -402,9 +402,20 @@ function iBtn(arr, one){
 // 시기 한 줄 (짧게)
 function dueText(r){
   if(!r) return "";
-  const parts = [];
-  if(r.hasStart) parts.push(r.sa ? (+r.sa === +r.sb ? md(r.sa) : mdRange(r.sa, r.sb)) + "쯤 시작" : fm(T.startRel, { r: r.srel }));
-  if(r.hasEnd) parts.push(r.a ? (+r.a === +r.b ? md(r.a) : mdRange(r.a, r.b)) + "까지 끝내기" : fm(T.dueRel, { r: r.rel }));
+  const parts = [], t = today();
+  // 시작: 다 지났으면 "지남", 반쯤 지났으면 "지금이 시작 무렵", 아니면 날짜
+  if(r.hasStart){
+    if(!r.sa) parts.push(fm(T.startRel, { r: r.srel }));
+    else if(t > r.sb) parts.push(T.duePastStart);
+    else if(t >= r.sa) parts.push(T.startNow);
+    else parts.push((+r.sa === +r.sb ? md(r.sa) : mdRange(r.sa, r.sb)) + "쯤 시작");
+  }
+  // 끝내기: 반쯤 지났으면 남은 마지막 날만
+  if(r.hasEnd){
+    if(!r.a) parts.push(fm(T.dueRel, { r: r.rel }));
+    else if(t >= r.a && t <= r.b) parts.push(md(r.b) + "까지 끝내기 (마감 무렵)");
+    else parts.push((+r.a === +r.b ? md(r.a) : mdRange(r.a, r.b)) + "까지 끝내기");
+  }
   return parts.join(" · ");
 }
 function wayCard(w, V){
