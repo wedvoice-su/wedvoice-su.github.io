@@ -23,6 +23,7 @@ const GROUPS = [
   ]},
   { name: "신부 · 신랑 관리", items: [
     { key: "care", label: "신부 관리 찾아보기" },
+    { key: "hair", label: "신랑 헤어 · 미용실 찾기" },
     { key: "makeup", label: "헤어·메이크업 요청서" }
   ]},
   { name: "결혼식 음악", items: [
@@ -49,7 +50,6 @@ const GROUPS = [
     { key: "parents",     label: "양가 부모님 입장·화촉점화 안내" },
     { key: "parentsQuiz", label: "부모님 본식 역할 퀴즈" },
     { key: "groomQuiz",   label: "신랑 본식 역할 퀴즈" },
-    { key: "hair",        label: "신랑 헤어 · 미용실 찾기" },
     { key: "kin",         label: "결혼 호칭 정리표" }
   ]},
   { name: "결혼식 후", items: [
