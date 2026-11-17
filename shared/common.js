@@ -33,7 +33,8 @@ const SITES = {
   "ledger": { path: "duly-noted", reel: "" },  // 축의금 장부 (㊳, 미공개. 공개하면 duly-noted/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
   "tour": { path: "where-we-wed", reel: "" },  // 웨딩홀 투어 기록표 (㊺, 미공개. 공개하면 where-we-wed/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
   "kin": { path: "kith-and-kin", reel: "" },  // 결혼 호칭 정리표 (㉖, 미공개. 공개하면 kith-and-kin/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
-  "guests": { path: "count-us-in", reel: "" }  // 보증 인원 계산기 (㉑, 미공개. 공개하면 count-us-in/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
+  "guests": { path: "count-us-in", reel: "" },  // 보증 인원 계산기 (㉑, 미공개. 공개하면 count-us-in/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
+  "hair": { path: "a-cut-above", reel: "" }  // 신랑 헤어 미용실 찾기 (㉚, 미공개. 공개하면 a-cut-above/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
 };
 // =========================================================
 

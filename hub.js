@@ -44,6 +44,7 @@ const GROUPS = [
     { key: "parents",     label: "양가 부모님 입장·화촉점화 안내" },
     { key: "parentsQuiz", label: "부모님 본식 역할 퀴즈" },
     { key: "groomQuiz",   label: "신랑 본식 역할 퀴즈" },
+    { key: "hair",        label: "신랑 헤어 · 미용실 찾기" },
     { key: "kin",         label: "결혼 호칭 정리표" }
   ]},
   { name: "결혼식 후", items: [
