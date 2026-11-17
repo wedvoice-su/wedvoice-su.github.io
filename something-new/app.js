@@ -17,10 +17,17 @@ const CLINIC = { clinic: 1, dental: 1 };
 // ===== 저장 =====
 function blank(){ return { v: 1, wed: "", shoot: "", noDate: false, worries: [], clinic: true, picked: [], tab: "ways" }; }
 function okDate(s){ return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(toDate(s)) ? s : ""; }
+// 저장해도 되는 날짜만: 지난 날짜 · 예식일 뒤 촬영일은 버려요 (예식일 칸에 지난 날짜를 넣거나, 예식 다음 날 다시 와도 "D--1"이 안 나오게)
+function fitDates(wed, shoot){
+  const w = okDate(wed) && toDate(wed) >= today() ? wed : "";
+  const s = okDate(shoot) && toDate(shoot) >= today() && !(w && toDate(shoot) > toDate(w)) ? shoot : "";
+  return { wed: w, shoot: s };
+}
 function clean(x){
   if(!x || typeof x !== "object" || x.v !== 1) return null;
   const b = blank();
-  b.wed = okDate(x.wed); b.shoot = okDate(x.shoot);
+  const d = fitDates(x.wed, x.shoot);
+  b.wed = d.wed; b.shoot = d.shoot;
   b.noDate = !!x.noDate && !b.wed;
   b.worries = (Array.isArray(x.worries) ? x.worries : []).filter(id => WORRY[id]);
   b.clinic = x.clinic !== false;
@@ -129,6 +136,7 @@ let screen = "";
 function go(sc, extra){ history.pushState({ sc, ...(extra || {}) }, ""); render(sc); }
 function render(sc){
   closeSheet(false);
+  if(sc !== "when") afterWhen = "";   // 지도 → 예식일 넣기 → 뒤로 나왔으면, 나중에 고민으로 찾기에서 지도로 가지 않게
   screen = sc;
   ({ home, when, pick, res, map })[sc]();
   window.scrollTo(0, 0);
@@ -216,8 +224,10 @@ function when(){
     $("#next").disabled = !ok || (!okDate(wed.value) && !S.noDate);
     return ok;
   };
-  wed.addEventListener("input", () => { if(wed.value){ S.noDate = false; nd.classList.remove("on"); nd.setAttribute("aria-pressed", "false"); $("#shootSec").hidden = false; } S.wed = okDate(wed.value); save(); check(); });
-  shoot.addEventListener("input", () => { S.shoot = okDate(shoot.value); save(); check(); });
+  // 칸에는 사람이 넣은 그대로 두고(오류 문구로 알려 줌), 저장은 맞는 날짜만
+  const keep = () => { const d = fitDates(wed.value, shoot.value); S.wed = d.wed; S.shoot = d.shoot; save(); check(); };
+  wed.addEventListener("input", () => { if(wed.value){ S.noDate = false; nd.classList.remove("on"); nd.setAttribute("aria-pressed", "false"); $("#shootSec").hidden = false; } keep(); });
+  shoot.addEventListener("input", keep);
   nd.onclick = () => {
     S.noDate = !S.noDate;
     if(S.noDate){ S.wed = ""; S.shoot = ""; wed.value = ""; shoot.value = ""; }
@@ -288,7 +298,7 @@ function res(){
   app.innerHTML = `
     <div class="top"><button class="top-btn" id="back">${esc(isEx() ? "‹ " + T.name : T.backPick)}</button><span></span></div>
     ${isEx() ? `<div class="ex-bar"><span>${esc("예시예요 · 예식 120일 전 · 웨딩촬영 50일 뒤")}</span><button class="btn accent sm" id="exStart">${esc("내 것으로 시작")}</button></div>` : ""}
-    <h2 class="question">${esc(dl != null ? fm(T.resTitleDate, { d: dl }) : T.resTitleNoDate)}</h2>
+    <h2 class="question">${esc(dl != null && dl >= 0 ? fm(T.resTitleDate, { d: dl }) : T.resTitleNoDate)}</h2>
     <p class="lead2">${esc(V.worries.length ? fm(T.resLead, { w: V.worries.length, m: list.length }) : fm(T.resLeadPicked, { n: V.picked.length }))}${V.wed ? " · " + esc("본식 " + mdw(wedD())) : ""}</p>
     <p class="ref-bar" role="note">${esc(T.refBar)}</p>
     <div class="tabs" role="tablist">
@@ -320,7 +330,13 @@ function bindPane(t){
   } else {
     $("#save").onclick = saveCard;
     $("#copy").onclick = copyCal;
-    $$("[data-goway]").forEach(b => { b.onclick = () => { openCards.add(b.dataset.goway); switchTab("ways"); const el = $(`.way[data-id="${b.dataset.goway}"]`); if(el) el.scrollIntoView({ block: "start" }); }; });
+    // 달력의 방법 이름 → 그 카드. 고른 고민에 없는 방법(시술 종류 지도에서 담은 것)은 지도에서 열어 줘요
+    $$("[data-goway]").forEach(b => { b.onclick = () => {
+      const id = b.dataset.goway;
+      openCards.add(id);
+      if(waysFor(VIEW).some(w => w.id === id)) switchTab("ways"); else go("map");
+      const el = $(`.way[data-id="${id}"]`); if(el) el.scrollIntoView({ block: "start" });
+    }; });
     prepareImage(T.saveName);
   }
 }
