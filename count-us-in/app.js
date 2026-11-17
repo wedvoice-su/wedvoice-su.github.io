@@ -4,7 +4,7 @@
 
 // ===== 공개 설정 ==========================================
 // 공개 전에는 false. 미리 보려면 주소 뒤에 ?preview 를 붙여요. (예: …/count-us-in/?preview)
-const OPEN = false;
+const OPEN = true;
 // =========================================================
 
 const KEY = "countUsIn.v1";
