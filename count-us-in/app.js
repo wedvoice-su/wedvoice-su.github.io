@@ -87,7 +87,7 @@ function render(sc, k){
   closeSheet(true);
   screen = sc; cur = k || "";
   document.body.classList.remove("big");
-  ({ home, board, pocket, result, askHome, askPocket, askDone })[sc](k);
+  ({ home, board, pocket, result, askHome, askPocket, askDone, imp: code => importScreen(code, true) })[sc](k);
   window.scrollTo(0, 0);
 }
 window.addEventListener("popstate", e => {
@@ -161,11 +161,58 @@ function board(){
     <h2 class="question">${br(T.boardTitle)}</h2>
     <p class="lead2">${esc(T.boardLead)}</p>
     <div class="pks">${C.POCKETS.map(card).join("")}</div>
+    <section class="paste" aria-labelledby="pasteT">
+      <h3 id="pasteT">${esc(T.pasteTitle)}</h3>
+      <p class="hint2">${esc(T.pasteLead)}</p>
+      <div class="paste-in">
+        <input id="pasteIn" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" placeholder="${esc(T.pastePh)}" aria-label="${esc(T.pasteTitle)}" aria-describedby="pasteMsg">
+        <button type="button" class="btn line sm" id="pasteBtn">${esc(T.pasteBtn)}</button>
+      </div>
+      <p class="warn-sm" id="pasteMsg" role="status" hidden></p>
+    </section>
     ${dockHtml(R)}`;
   $("#toHome").onclick = () => go("home");
   $$("[data-w]").forEach(b => { b.onclick = () => go("pocket", b.dataset.w); });
   $$("[data-s]").forEach(b => { b.onclick = () => { history.pushState({ sc: "board", sheet: b.dataset.s }, ""); openSheet(b.dataset.s, true); }; });
+  bindPaste();
   bindDock();
+  // 부모님 답을 막 넣은 칸: 눈에 띄게 + 화면 가운데로 (render가 맨 위로 올린 다음에)
+  if(justK){
+    const c = $(`.pk[data-k="${justK}"]`); justK = "";
+    if(c){ c.classList.add("just"); requestAnimationFrame(() => c.scrollIntoView({ block: "center" })); }
+  }
+}
+let justK = "";
+
+// ===== 부모님 답 붙여 넣기 =====
+// 카톡 메시지를 통째로 복사해도 돼요(설명 글 + 링크). 링크 속 #a= 뒤만 찾아 써요.
+function findAnswer(s){
+  s = String(s || "").trim();
+  if(!s) return { err: "empty" };
+  const m = s.match(/(?:#|%23)a=([A-Za-z0-9_-]+)/);
+  if(m) return C.decodeAnswer(m[1]) ? { code: m[1] } : { err: "cut" };
+  if(/^[A-Za-z0-9_-]{20,}$/.test(s) && C.decodeAnswer(s)) return { code: s };
+  if(/[?&]ask=[gb](?![A-Za-z0-9])/.test(s)) return { err: "ask" };
+  return { err: "not" };
+}
+function bindPaste(){
+  const inp = $("#pasteIn"), msg = $("#pasteMsg");
+  const say = s => { msg.textContent = s || ""; msg.hidden = !s; };
+  const tryIt = (s, typing) => {
+    const r = findAnswer(s);
+    if(r.code){ say(""); inp.value = ""; inp.blur(); history.pushState({ sc: "imp", k: r.code }, ""); render("imp", r.code); return; }
+    if(typing && (r.err === "empty" || (r.err === "not" && s.trim().length < 12))){ say(""); return; }   // 아직 적는 중
+    say({ empty: T.pasteEmpty, ask: T.pasteAsk, not: T.pasteNot, cut: T.pasteCut }[r.err]);
+  };
+  inp.oninput = () => tryIt(inp.value, true);
+  inp.onkeydown = e => { if(e.key === "Enter"){ e.preventDefault(); tryIt(inp.value, false); } };
+  // 버튼: 클립보드에서 바로 가져오기. 안 되는 폰(카톡 · 인스타 안 창 등)은 빈칸에 직접 붙여 넣게 안내
+  $("#pasteBtn").onclick = async () => {
+    let s = null;
+    try { if(navigator.clipboard && navigator.clipboard.readText) s = await navigator.clipboard.readText(); } catch(e){ s = null; }
+    if(s == null){ say(T.pasteManual); inp.focus(); return; }
+    inp.value = s; tryIt(s, false);
+  };
 }
 function dockHtml(R){
   const has = R.all.inv > 0;
@@ -592,30 +639,31 @@ function askDone(){
   }
 }
 
-// ===== 6. 부모님 답 받기 (#a=…) =====
-function importScreen(code){
+// ===== 6. 부모님 답 받기 =====
+// 두 길: ① 답 링크를 눌러서 열림(#a=…) ② 네 칸 맨 아래에 붙여 넣음(pasted = true, 지금 쓰는 창이 곧 원래 적던 곳)
+function importScreen(code, pasted){
   document.body.classList.remove("is-cover");
   app.className = "wrap imp";
   const got = C.decodeAnswer(code);
   const clearHash = () => history.replaceState({ sc: "home" }, "", pageUrl(""));
   if(!got){
     app.innerHTML = `<h2 class="question">${esc(T.impBad)}</h2><button class="btn main" id="impHome">${esc(T.impHome)}</button>${foot()}`;
-    $("#impHome").onclick = () => { clearHash(); render("home"); };
+    $("#impHome").onclick = () => { if(pasted){ history.back(); return; } clearHash(); render("home"); };
     return;
   }
   const k = PK_OF[got.side], P = C.calcPocket("parents", got.pocket);
-  const saved = load(), hasData = !!saved && C.calcAll(saved).all.inv > 0;
+  const saved = pasted ? S : load(), hasData = !!saved && C.calcAll(saved).all.inv > 0;
   const curFilled = hasData && C.calcPocket("parents", saved.p[k]).filled;
   app.innerHTML = `
-    <div class="top"><span>${esc(T.name)}</span><span></span></div>
+    <div class="top">${pasted ? `<button class="top-btn" id="impBack">${esc(T.back)}</button>` : `<span>${esc(T.name)}</span>`}<span></span></div>
     <h2 class="question">${br(fm(T.impTitle, { who: WHO[got.side] }))}</h2>
     <div class="sum-box"><p>${esc(fm(T.impLine, { n: nb(P.inv), lo: nb(P.lo), hi: nb(P.hi) }).replace(/(\d[\d,]*)~\1명/, "$1명"))}</p>
       <p class="sec-t imp-t">${esc(T.impListTitle)}</p><ul class="imp-list">${impItems(got.pocket).map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>
-    ${hasData ? `
+    ${hasData || pasted ? `
       ${curFilled ? `<p class="lead2">${esc(fm(T.impReplace, { pk: T.pk[k] }))}</p>` : ""}
       <div class="btns"><button class="btn main" id="impPut">${esc(fm(T.impBtn, { pk: T.pk[k] }))}</button></div>`
     : `
-      <div class="warn"><p>${esc(T.impNoData)}</p></div>
+      <div class="warn"><p>${esc(T.impNoData)}</p><ol class="imp-steps">${T.impSteps.map(s => `<li>${esc(s)}</li>`).join("")}</ol></div>
       <div class="btns">
         <button class="btn main" id="impCopy">${esc(T.impCopy)}</button>
         <p class="msg" id="msg" role="status"></p>
@@ -623,11 +671,14 @@ function importScreen(code){
       </div>`}
     ${foot()}`;
   const cp = $("#impCopy"); if(cp) cp.onclick = () => copyText(location.href, $("#msg"), T.impCopied);
+  const bk = $("#impBack"); if(bk) bk.onclick = () => history.back();
   $("#impPut").onclick = () => {
-    S = load() || blank(); VIEW = S;
+    if(!pasted) S = load() || blank();
+    VIEW = S;
     S.p[k] = got.pocket; save();
+    justK = k;
+    if(pasted){ history.back(); return; }   // 네 칸으로 돌아가요 (뒤로 가기 한 번 더 = 첫 화면)
     clearHash(); history.pushState({ sc: "board" }, ""); render("board");
-    const card = $(`.pk[data-k="${k}"]`); if(card){ card.classList.add("just"); }
   };
 }
 
