@@ -15,7 +15,7 @@ const GROUPS = [
   { name: "결혼 준비 전체", items: [
     { key: "ready", label: "결혼 준비 체크리스트" }
   ]},
-  { name: "날짜 · 청첩장 모임", items: [
+  { name: "날짜 · 예식장 · 청첩장 모임", items: [
     { key: "date",  label: "결혼 날짜 후보 찾기" },
     { key: "tour",  label: "웨딩홀 투어 기록표" },
     { key: "guests", label: "보증 인원 계산기" },
