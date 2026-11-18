@@ -35,7 +35,7 @@ const SITES = {
   "kin": { path: "kith-and-kin", reel: "" },  // 결혼 호칭 정리표 (㉖, 미공개. 공개하면 kith-and-kin/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
   "snap": { path: "in-the-frame", reel: "" },  // 본식 스냅 요청서 (㊴, 미공개. 공개하면 in-the-frame/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
   "makeup": { path: "best-face-forward", reel: "" },  // 헤어 · 메이크업 요청서 (㊻, 미공개. 공개하면 best-face-forward/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
-  "guests": { path: "count-us-in", reel: "" },  // 보증 인원 계산기 (㉑, 미공개. 공개하면 count-us-in/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
+  "guests": { path: "count-us-in", reel: "https://www.instagram.com/reel/Df1fNGjpgZ5/" },  // 보증 인원 계산기 (㉑, 공개 2026-11-17, 릴스 주소 2026-11-18 넣음)
   "hair": { path: "a-cut-above", reel: "" },  // 신랑 헤어 미용실 찾기 (㉚, 미공개. 공개하면 a-cut-above/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
   "care": { path: "something-new", reel: "" },  // 신부 관리 찾아보기 (㊶, 미공개. 공개하면 something-new/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
   "timetable": { path: "like-clockwork", reel: "" },  // 결혼식 당일 타임테이블 (㊽, 미공개. 공개하면 like-clockwork/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기

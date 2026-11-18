@@ -6,18 +6,20 @@
 //   name  : 주제 이름 (작은 분홍 글씨)
 //   key   : shared/common.js 사이트 목록(SITES)의 키
 //   label : 버튼 글씨 — 무엇을 준비하는 도구인지 바로 알 수 있는 이름 (후킹 문장은 쓰지 않아요)
-// 버튼이 켜질지는 SITES의 reel 칸을 보고 저절로 정해져요:
-//   reel 주소가 있으면 → 켜진 버튼, 누르면 그 릴스로
-//   reel이 비어 있으면 → 흐린 버튼 "준비 중" (누를 수 없음)
+//   soon  : true = 사이트가 완성됨(사회자님 검수 끝) → 릴스 전까지 흐린 "준비 중" 버튼으로 보여요
+// 버튼은 이렇게 정해져요:
+//   SITES의 reel 주소가 있으면 → 켜진 버튼, 누르면 그 릴스로
+//   reel이 비었고 soon: true면  → 흐린 버튼 "준비 중" (누를 수 없음)
+//   reel이 비었고 soon이 없으면 → 첫 화면에 안 보여요 (아직 만드는 중). 주제 안 버튼이 하나도 안 보이면 주제 이름도 숨겨요.
 // 그래서 릴스를 올리고 SITES에 주소만 넣으면 여기 버튼도 같이 켜져요.
-// 새 사이트를 만들면 SITES에 한 줄 + 여기 알맞은 주제에 한 줄.
+// 새 사이트를 만들면 SITES에 한 줄 + 여기 알맞은 주제에 한 줄(soon 없이). 검수가 끝나면 soon: true.
 const GROUPS = [
   { name: "결혼 준비 전체", items: [
     { key: "ready", label: "결혼 준비 체크리스트" }
   ]},
   { name: "날짜 · 예식장 · 청첩장 모임", items: [
-    { key: "date",  label: "결혼 날짜 후보 찾기" },
-    { key: "tour",  label: "웨딩홀 투어 기록표" },
+    { key: "date",  label: "결혼 날짜 후보 찾기", soon: true },
+    { key: "tour",  label: "웨딩홀 투어 기록표", soon: true },
     { key: "guests", label: "보증 인원 계산기" },
     { key: "table", label: "청첩장 모임 장소 찾기" }
   ]},
@@ -47,7 +49,7 @@ const GROUPS = [
   { name: "식에서 읽는 글", items: [
     { key: "vows",     label: "혼인서약서 만들기" },
     { key: "declare",  label: "성혼선언문 만들기" },
-    { key: "blessing", label: "부모님 덕담 만들기" }
+    { key: "blessing", label: "부모님 덕담 만들기", soon: true }
   ]},
   { name: "부모님 · 신랑 역할", items: [
     { key: "taste",       label: "혼주 취향 테스트" },
@@ -63,6 +65,9 @@ const GROUPS = [
   ]}
 ];
 // =========================================================
+
+// 첫 화면에 보일 버튼: 릴스가 있거나(켜짐), 완성돼서 릴스만 기다리는 것(준비 중)
+function shown(it){ const s = SITES[it.key]; return s && (s.reel || it.soon); }
 
 function tool(it){
   const s = SITES[it.key];
@@ -82,7 +87,7 @@ function home(){
     <h1>우리 결혼식<br>준비하기</h1>
     <div class="bar"></div>
     <p class="lead">필요한 것을 골라 눌러 보세요.</p>
-    ${GROUPS.map(g=>`
+    ${GROUPS.map(g=>({...g, items:g.items.filter(shown)})).filter(g=>g.items.length).map(g=>`
     <section class="group">
       <h2>${esc(g.name)}</h2>
       <div class="pick">${g.items.map(tool).join("")}</div>
