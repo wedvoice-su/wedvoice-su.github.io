@@ -54,8 +54,9 @@ const GROUPS = [
   { name: "부모님 · 신랑 역할", items: [
     { key: "taste",       label: "혼주 취향 테스트", soon: true },
     { key: "parents",     label: "양가 부모님 입장·화촉점화 안내", soon: true },
-    { key: "parentsQuiz", label: "부모님 본식 역할 퀴즈", soon: true },
-    { key: "groomQuiz",   label: "신랑 본식 역할 퀴즈", soon: true },
+    // 부모님 · 신랑 퀴즈: 1판은 다시 만들 예정이라 첫 화면에서 뺌 (사회자님 11/18). 다시 만들어 올리면 soon: true
+    { key: "parentsQuiz", label: "부모님 본식 역할 퀴즈" },
+    { key: "groomQuiz",   label: "신랑 본식 역할 퀴즈" },
     { key: "kin",         label: "결혼 호칭 정리표", soon: true }
   ]},
   { name: "결혼식 후", items: [
