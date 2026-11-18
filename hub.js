@@ -38,6 +38,8 @@ const GROUPS = [
   ]},
   { name: "식순 · 영상", items: [
     { key: "flow", label: "식순표 만들기" },
+    { key: "aisleGroom", label: "신랑 본식 동선 영상", soon: true },
+    { key: "aisleBride", label: "신부 본식 동선 영상", soon: true },
     { key: "timetable", label: "결혼식 당일 타임테이블", soon: true },
     { key: "bag", label: "본식 가방 체크리스트", soon: true },
     { key: "film", label: "식전영상 만들기" },

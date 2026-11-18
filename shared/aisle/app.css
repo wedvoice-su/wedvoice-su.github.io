@@ -1,0 +1,68 @@
+/* 본식 동선 영상: 두 사이트(신랑 · 신부) 공통 스타일 (공통 바탕은 shared/brand.css) */
+:root{ --edge:#BDBDBD; --soft:#F2F2F2; --on:#161616; --hall:#FBF7F2; }
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --edge:#5A5A5A; --soft:#333333; --on:#F2F2F2; } }
+:root[data-theme="dark"]{ --edge:#5A5A5A; --soft:#333333; --on:#F2F2F2; }
+
+/* ===== 공통 ===== */
+.top-btn{background:none;border:0;padding:10px 0;margin:-10px 0;font:inherit;font-size:14px;font-weight:500;color:var(--sub);text-decoration:underline;text-underline-offset:4px;letter-spacing:0;min-height:40px}
+.step .top{margin-bottom:12px}
+.question{min-height:0;margin:8px 0 8px}
+.lead2{margin:0 0 14px;color:var(--sub);font-size:15.5px}
+.note2{margin:-4px 0 12px;font-size:14px;font-weight:700;color:var(--accent)}
+.hint2{margin:-4px 0 10px;font-size:14px;color:var(--sub)}
+.hint2.center{text-align:center;margin:8px 0 0}
+.sec{background:var(--card);border-radius:20px;padding:14px 16px 16px;margin-top:10px}
+.sec h3{margin:0 0 10px;font-size:17px;font-weight:900;letter-spacing:-.01em;line-height:1.35}
+.dock{position:sticky;bottom:0;z-index:5;margin:16px -20px 0;padding:12px 20px calc(14px + env(safe-area-inset-bottom,0px));background:linear-gradient(to top,var(--paper) 78%,transparent)}
+.dock .btn{box-shadow:0 6px 18px rgba(0,0,0,.18)}
+.msg{word-break:break-all}
+
+/* ===== 첫 화면 ===== */
+.again{margin-top:12px}
+.cover-link{color:var(--cover-sub);font-size:14px}
+
+/* ===== 식순 고르기 ===== */
+.seg{display:flex;gap:6px}
+.seg button{flex:1 1 0;min-width:0;min-height:48px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);color:var(--sub);font-size:15.5px;font-weight:700;padding:4px 2px;line-height:1.25;word-break:keep-all}
+.seg.three button{font-size:15px}
+.seg button[aria-pressed="true"]{background:var(--on);border-color:var(--on);color:var(--card)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{min-height:44px;padding:0 14px;border-radius:999px;border:1.5px solid var(--line);background:var(--card);color:var(--sub);font-size:15px;font-weight:700}
+.chip[aria-pressed="true"]{background:var(--on);border-color:var(--on);color:var(--card)}
+.chip[aria-pressed="true"]::before{content:"✓ "}
+
+/* ===== 영상 ===== */
+.stage-box{position:relative;display:flex;justify-content:center;margin:0 auto}
+.stage-box canvas{display:block;border-radius:18px;background:var(--hall);box-shadow:0 6px 22px rgba(0,0,0,.12);max-width:100%;cursor:pointer;touch-action:manipulation}
+.big-play{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);width:76px;height:76px;border-radius:50%;border:0;background:rgba(22,22,22,.78);display:grid;place-items:center;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+.big-play span{display:block;width:0;height:0;border-style:solid;border-width:15px 0 15px 25px;border-color:transparent transparent transparent #fff;margin-left:6px}
+.ctl{display:flex;align-items:center;gap:10px;width:100%;max-width:380px;margin:12px auto 0}
+.pp{flex:0 0 44px;width:44px;height:44px;border-radius:50%;border:0;background:var(--on);display:grid;place-items:center}
+.ico.play{display:block;width:0;height:0;border-style:solid;border-width:8px 0 8px 13px;border-color:transparent transparent transparent var(--card);margin-left:3px}
+.ico.pause{display:block;width:12px;height:14px;border-left:4px solid var(--card);border-right:4px solid var(--card)}
+.ctl input[type=range]{flex:1 1 auto;min-width:0;accent-color:var(--accent);height:32px}
+.time{flex:0 0 auto;font-size:13px;font-weight:700;color:var(--sub);font-variant-numeric:tabular-nums}
+.scn-l{width:100%;max-width:380px;margin:14px auto 6px;font-size:13px;font-weight:700;color:var(--sub)}
+.scenes{display:flex;gap:6px;overflow-x:auto;width:100%;min-width:0;max-width:380px;margin:0 auto;padding-bottom:6px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.scenes::-webkit-scrollbar{display:none}
+.scenes button{flex:0 0 auto;min-height:40px;padding:0 12px;border-radius:999px;border:1.5px solid var(--line);background:var(--card);color:var(--sub);font-size:14px;font-weight:700;white-space:nowrap}
+.scenes button[aria-current="true"]{border-color:var(--on);color:var(--ink)}
+.watch .btns{margin-top:18px}
+.btn.save,.btn.send{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;line-height:1.3}
+.btn.save small,.btn.send small{font-size:13px;font-weight:500;opacity:.8}
+.making{background:var(--card);border-radius:18px;padding:14px 16px;text-align:center}
+.mk-t{margin:0 0 10px;font-size:17px;font-weight:900}
+.bar2{height:8px;border-radius:99px;background:var(--soft);overflow:hidden}
+.bar2 i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+.done{display:flex;flex-direction:column;gap:10px}
+.done-t{margin:0;text-align:center;font-size:17px;font-weight:900}
+.inapp{background:var(--card);border-radius:18px;padding:14px 16px}
+.inapp p{margin:0 0 10px;font-size:14.5px}
+.watch .tip{margin-top:18px}
+.after2{margin-top:14px}
+
+/* ===== UI·UX 검토 (11/18) ===== */
+.top-btn{padding:10px 8px;margin:-10px -8px}                 /* 누르는 칸 넓게 (글자 위치는 그대로) */
+.ctl input[type=range]{height:40px}                           /* 재생 위치 막대 누르는 칸 40px */
+.watch .msg:empty{display:none}                               /* 알림 없을 때 저장 · 보내기 사이 빈칸 없애기 */
+.inapp .btn{border:1.5px solid var(--line);padding:14px 16px} /* 흰 카드 안에서도 버튼으로 보이게 */
