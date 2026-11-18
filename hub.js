@@ -6,13 +6,13 @@
 //   name  : 주제 이름 (작은 분홍 글씨)
 //   key   : shared/common.js 사이트 목록(SITES)의 키
 //   label : 버튼 글씨 — 무엇을 준비하는 도구인지 바로 알 수 있는 이름 (후킹 문장은 쓰지 않아요)
-//   soon  : true = 사이트가 완성됨(사회자님 검수 끝) → 릴스 전까지 흐린 "준비 중" 버튼으로 보여요
+//   soon  : true = 사이트를 만들어 깃허브에 올림(?preview로라도 열림) → 릴스 전까지 흐린 "준비 중" 버튼으로 보여요
 // 버튼은 이렇게 정해져요:
 //   SITES의 reel 주소가 있으면 → 켜진 버튼, 누르면 그 릴스로
 //   reel이 비었고 soon: true면  → 흐린 버튼 "준비 중" (누를 수 없음)
-//   reel이 비었고 soon이 없으면 → 첫 화면에 안 보여요 (아직 만드는 중). 주제 안 버튼이 하나도 안 보이면 주제 이름도 숨겨요.
+//   reel이 비었고 soon이 없으면 → 첫 화면에 안 보여요 (사이트가 아직 없음). 주제 안 버튼이 하나도 안 보이면 주제 이름도 숨겨요.
 // 그래서 릴스를 올리고 SITES에 주소만 넣으면 여기 버튼도 같이 켜져요.
-// 새 사이트를 만들면 SITES에 한 줄 + 여기 알맞은 주제에 한 줄(soon 없이). 검수가 끝나면 soon: true.
+// 새 사이트를 만들어 올리면 SITES에 한 줄 + 여기 알맞은 주제에 한 줄(soon: true).
 const GROUPS = [
   { name: "결혼 준비 전체", items: [
     { key: "ready", label: "결혼 준비 체크리스트" }
@@ -24,10 +24,10 @@ const GROUPS = [
     { key: "table", label: "청첩장 모임 장소 찾기" }
   ]},
   { name: "신부 · 신랑 관리", items: [
-    { key: "care", label: "신부 관리 찾아보기" },
-    { key: "hair", label: "신랑 헤어 · 미용실 찾기" },
-    { key: "makeup", label: "헤어·메이크업 요청서" },
-    { key: "dress", label: "드레스 투어 기록 카드" }
+    { key: "care", label: "신부 관리 찾아보기", soon: true },
+    { key: "hair", label: "신랑 헤어 · 미용실 찾기", soon: true },
+    { key: "makeup", label: "헤어·메이크업 요청서", soon: true },
+    { key: "dress", label: "드레스 투어 기록 카드", soon: true }
   ]},
   { name: "결혼식 음악", items: [
     { key: "groom",    label: "신랑 입장곡 찾기" },
@@ -38,13 +38,13 @@ const GROUPS = [
   ]},
   { name: "식순 · 영상", items: [
     { key: "flow", label: "식순표 만들기" },
-    { key: "timetable", label: "결혼식 당일 타임테이블" },
-    { key: "bag", label: "본식 가방 체크리스트" },
+    { key: "timetable", label: "결혼식 당일 타임테이블", soon: true },
+    { key: "bag", label: "본식 가방 체크리스트", soon: true },
     { key: "film", label: "식전영상 만들기" },
     { key: "filmPlus", label: "식전영상 만들기 (업그레이드)" },
-    { key: "snap", label: "본식 스냅 요청서" },
-    { key: "select", label: "웨딩사진 셀렉 도우미" },
-    { key: "retouch", label: "웨딩사진 수정 요청서" }
+    { key: "snap", label: "본식 스냅 요청서", soon: true },
+    { key: "select", label: "웨딩사진 셀렉 도우미", soon: true },
+    { key: "retouch", label: "웨딩사진 수정 요청서", soon: true }
   ]},
   { name: "식에서 읽는 글", items: [
     { key: "vows",     label: "혼인서약서 만들기" },
@@ -52,14 +52,14 @@ const GROUPS = [
     { key: "blessing", label: "부모님 덕담 만들기", soon: true }
   ]},
   { name: "부모님 · 신랑 역할", items: [
-    { key: "taste",       label: "혼주 취향 테스트" },
-    { key: "parents",     label: "양가 부모님 입장·화촉점화 안내" },
-    { key: "parentsQuiz", label: "부모님 본식 역할 퀴즈" },
-    { key: "groomQuiz",   label: "신랑 본식 역할 퀴즈" },
-    { key: "kin",         label: "결혼 호칭 정리표" }
+    { key: "taste",       label: "혼주 취향 테스트", soon: true },
+    { key: "parents",     label: "양가 부모님 입장·화촉점화 안내", soon: true },
+    { key: "parentsQuiz", label: "부모님 본식 역할 퀴즈", soon: true },
+    { key: "groomQuiz",   label: "신랑 본식 역할 퀴즈", soon: true },
+    { key: "kin",         label: "결혼 호칭 정리표", soon: true }
   ]},
   { name: "결혼식 후", items: [
-    { key: "ledger", label: "축의금 장부" },
+    { key: "ledger", label: "축의금 장부", soon: true },
     { key: "thanks", label: "감사 문자·땡큐 카드 만들기" },
     { key: "pack",   label: "신혼여행 짐 체크리스트" }
   ]}
