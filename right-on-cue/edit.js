@@ -7,6 +7,8 @@
 //   long  : 곡이 짧아요              → 뒤에 같은 곡이나 다른 곡을 이어 붙여요 (겹쳐서 넘어가요)
 //   fade  : 끝이 뚝 끊겨요           → 끝을 서서히 줄여요
 //   sil   : 틀어도 바로 소리가 안 나요 → 앞 무음을 지워요
+//   mr    : 하이라이트 앞에 가사가 나와요 → 틀기 시작하는 곳부터 하이라이트까지를 AI로 가사(목소리)만 빼서 반주(MR)로 바꿔요
+//           (사회자님 11/20. MR_ON일 때만 보여요. 화면은 intro와 같은 하이라이트 화면의 맨 아래 칸)
 // 음원은 이 휴대폰 안에서만 풀고 고쳐요. 어디에도 올라가지 않아요.
 // 들을 때는 wav(바로 만들어져요), 저장할 때만 mp3로 바꿔요 (lamejs, 그때만 불러와요).
 
@@ -29,6 +31,14 @@ const ED_KBPS = 192;              // 저장하는 mp3 음질
 const ED_LAME = "https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js";
 const ED_LAME_SRI = "sha512-xT0S/xXvkrfkRXGBPlzZPCAncnMK5c1N7slRkToUbv8Z901aUEuKO84tLy8dWU+3ew4InFEN7TebPaVMy2npZw==";
 
+// ----- 하이라이트 앞 가사 빼기 (MR). app.js의 MR_ON일 때만 보여요 -----
+// AI 모델(UVR MDX-Net, 30MB)을 처음 한 번 받아 이 휴대폰에 저장해 두고(Cache Storage), 워커(mr-worker.js)에서 돌려요. 음원은 휴대폰 밖으로 나가지 않아요.
+const MR_MODEL = { url:"https://huggingface.co/Politrees/UVR_resources/resolve/929e057b81aa49bc2e6490bef8671f47b2c120f6/models/MDXNet/UVR_MDXNET_3_9662.onnx", nfft:6144, dimF:2048, primary:"Vocals", comp:1.035, mb:30 };
+const MR_CACHE = "cue-mr-models-v1";   // 저장해 두는 곳 이름 (mr-worker.js와 같아야 해요)
+const MR_PAD = 2;                 // 바꿀 구간 앞뒤로 이만큼(초) 더 만들어 둬요. 하이라이트를 조금 옮겨도 다시 기다리지 않게
+const MR_XF = 0.3;                // 하이라이트 직전 이만큼(초) 동안 원곡으로 돌아와요
+const MR_MIN = 1;                 // 하이라이트 앞이 이보다(초) 짧으면 바꿀 게 없어요
+
 // ===== 상태 =====
 //   S.ed (app.js) = { src, hl, lead, duck, clips, ops, sil, more, fade }
 //     src  : 처음 연 원본 파일
@@ -40,15 +50,20 @@ const ED_LAME_SRI = "sha512-xT0S/xXvkrfkRXGBPlzZPCAncnMK5c1N7slRkToUbv8Z901aUEuK
 //     sil  : 앞 무음을 지울지
 //     more : 뒤에 붙인 곡들. { same:true } = 같은 곡 한 번 더, { file } = 다른 곡
 //     fade : 끝을 몇 초 동안 줄일지 (0 = 안 줄여요)
+//     mr   : 하이라이트 앞 가사를 뺄지. 만들어 둔 반주(ED_MR)가 맞을 때만 쓰여요
+//   S.edMrLost : 곡의 모양이 바뀌어서 가사 빼기가 풀렸는지 (고민 화면에서 한 번 알려요)
 let ED = null;       // 풀어 둔 소리 { src, main, extra(Map 파일→소리), body(구간 편집까지 한 곡을 듣는 주소·물결), clip(복사해 둔 구간) }. 편집 화면을 나가면 비워요
 let DR = null;       // 고민 화면에서 고치는 중인 값. "적용"을 누르면 S.ed가 돼요
 let ED_MP3 = null;   // 편집본을 mp3로 바꿔 둔 것 { src(wav 파일), blob }
 let edLameJob = null;
+let ED_MR = null;    // 만들어 둔 반주 { src, sig(곡의 모양), a·b(구간 편집까지 한 곡에서의 자리, 샘플), L, R }. 편집 화면을 나가도 둬요 (다시 기다리지 않게)
+let mrWorker = null, mrJob = null;   // mrJob = 지금 만드는 중인 일 { id, rej }
+let edFocus = "";    // 고민 화면에서 "가사가 나와요" 줄로 들어왔으면 "mr" (하이라이트 화면이 그 칸을 보여 줘요)
 
-function edNew(file){ return { src:file, hl:null, lead:15, duck:ED_DUCK, clips:null, ops:[], sil:false, more:[], fade:0 }; }
-function edCopy(E){ return { src:E.src, hl:E.hl, lead:E.lead, duck:E.duck, clips:edClipCopy(E.clips), ops:E.ops.slice(), sil:E.sil, more:E.more.slice(), fade:E.fade }; }
+function edNew(file){ return { src:file, hl:null, lead:15, duck:ED_DUCK, clips:null, ops:[], sil:false, more:[], fade:0, mr:false }; }
+function edCopy(E){ return { src:E.src, hl:E.hl, lead:E.lead, duck:E.duck, clips:edClipCopy(E.clips), ops:E.ops.slice(), sil:E.sil, more:E.more.slice(), fade:E.fade, mr:!!E.mr }; }
 function edOn(E){ return !!E && (E.hl!=null || E.clips!=null || E.sil || E.more.length>0 || E.fade>0); }
-function edFree(){ edPrevStop(); if(ED && ED.body){ try{ URL.revokeObjectURL(ED.body.url); }catch(e){} } ED=null; DR=null; }
+function edFree(){ edPrevStop(); edMrStop(); if(ED && ED.body){ try{ URL.revokeObjectURL(ED.body.url); }catch(e){} } ED=null; DR=null; }
 function edTopOf(fn){ return stack[stack.length-1]===fn; }
 
 // ===== 시간·글자 =====
@@ -247,10 +262,13 @@ function edPlan(E){
   });
   const end=segs[last], total=end.at+(end.b-end.a);
   const hlOut = hasHl ? Math.max(0, hlS-cut) : 0;          // 결과에서 하이라이트가 나오는 자리
+  // 하이라이트 앞 가사 빼기: 만들어 둔 반주가 '틀기 시작하는 곳 ~ 하이라이트'를 다 덮을 때만 써요
+  const MC=ED_MR, mr = E.mr && hasHl && hlOut>=MR_MIN*ED_SR && MC && MC.src===E.src && MC.sig===edSig(E) && MC.a<=cut && MC.b>=hlS
+    ? { c:MC, off:cut-MC.a, n:hlOut, fi:segs[0].fi } : null;
   // 하이라이트 전 음량: 줄였다가(duck%), 하이라이트 직전 0.5초 동안 원래대로 커져요
   const dk = hasHl && hlOut>0 && E.duck<100 ? { to:hlOut, lv:E.duck/100, up:Math.round(Math.min(ED_SWELL*ED_SR, hlOut/2)) } : null;
   return {
-    segs, total, cut, dk, songs,
+    segs, total, cut, dk, songs, mr,
     fade: E.fade>0 ? Math.round(Math.min(E.fade*ED_SR, total/2)) : 0,
     hl: hasHl ? hlOut/ED_SR : null,                          // 결과에서 하이라이트가 나오는 초
     duck: dk ? E.duck : 100,                                 // 하이라이트 전 음량(%). 줄이지 않았으면 100
@@ -271,6 +289,15 @@ function edMix(P, upto){
       const j=(s.at+i)*2, l=out[j]+L[s.a+i]*g, r=out[j+1]+R[s.a+i]*g;
       out[j]   = l>32767 ? 32767 : l<-32768 ? -32768 : l;
       out[j+1] = r>32767 ? 32767 : r<-32768 ? -32768 : r;
+    }
+  }
+  // 하이라이트 앞 가사 빼기: 처음부터 하이라이트까지를 만들어 둔 반주로 바꾸고, 하이라이트 직전에 원곡으로 돌아와요
+  if(P.mr){
+    const m=P.mr, cL=m.c.L, cR=m.c.R, e=Math.min(m.n,n), xf=Math.max(1, Math.min(Math.round(MR_XF*ED_SR), m.n>>1)), x0=m.n-xf;
+    for(let i=0;i<e;i++){
+      const g = i>=x0 ? (m.n-i)/xf : 1, f = i<m.fi ? Math.sin(i/m.fi*H) : 1, j=i*2, k=m.off+i;
+      out[j]   = out[j]*(1-g) + cL[k]*g*f;
+      out[j+1] = out[j+1]*(1-g) + cR[k]*g*f;
     }
   }
   // 하이라이트 전 음량 (직전에는 부드럽게 원래대로)
@@ -303,6 +330,7 @@ function edSum(E, P){
   const L=[], cut=P.cut/ED_SR, ops=edOpsSum(E);
   if(E.hl!=null) L.push(edHlSum(E,P));
   else if(E.sil && cut>.05) L.push(`앞 무음 ${edSec(cut)} 지움`);
+  if(P.mr) L.push("하이라이트 전 가사 뺌 (반주만)");
   if(ops) L.push(ops);
   if(E.more.length) L.push("뒤에 " + E.more.map(m=>m.same ? "같은 곡 한 번 더" : `‘${edShortName(m.file.name)}’`).join(", ") + " 이어 붙임");
   if(E.fade>0) L.push(`끝 ${E.fade}초 서서히 줄임`);
@@ -321,12 +349,16 @@ async function edCommit(E){
   for(const f of Array.from(ED.extra.keys())) if(!E.more.some(m=>m.file===f)) ED.extra.delete(f);
   if(!E.clips) E.ops=[];
   if(E.hl!=null){ E.hl=Math.min(E.hl, edLen(edClips(E))/ED_SR); if(E.lead>E.hl) E.lead=Math.floor(E.hl); }
+  // 하이라이트 앞 가사 빼기: 곡의 모양이나 틀 구간이 바뀌어서 만들어 둔 반주가 안 맞으면 풀고, 고민 화면에서 알려요
+  const hadMr=!!E.mr;
+  if(hadMr && !edMrHas(E)) E.mr=false;
+  S.edMrLost = hadMr && !E.mr && !!edMrWin(E);
   S.ed=E; ED_MP3=null;
   let d;
   if(edOn(E)){
     const P=edPlan(E), out=edMix(P);
     S.edInfo={ peaks:edPeaks(out,2,0,P.total,240), dur:P.dur, cut:P.cut/ED_SR, hl:P.hl, joints:P.joints, fade:P.fade/ED_SR,
-      sum:edSum(E,P), hlSum:E.hl!=null ? edHlSum(E,P) : "", opSum:edOpsSum(E) };
+      sum:edSum(E,P), hlSum:E.hl!=null ? edHlSum(E,P) : "", opSum:edOpsSum(E), mr:!!P.mr };
     d = await loadFile(edWav(out, songBase()+"_편집.wav"));
     S.t0=S.edInfo.cut;
   } else {
@@ -340,6 +372,67 @@ async function edCommit(E){
     else { const n=Math.round(S.enter+was-S.t0); S.enter = n>=1 ? n : null; }   // 앞을 자른 만큼 찍어 둔 시간을 당겨요
   }
   return d;
+}
+
+// ===== 하이라이트 앞 가사 빼기 (MR) =====
+// 틀기 시작하는 곳부터 하이라이트까지를 AI로 가사(목소리)만 빼서 반주로 바꿔요. 하이라이트부터는 원곡 그대로예요.
+// 바꿀 자리 { a, b, n } : 구간 편집까지 한 곡에서의 자리(샘플)와 곡 길이. 하이라이트가 없거나 '바로' 틀면 null
+function edMrWin(E){
+  if(!E || E.hl==null || !ED) return null;
+  const cl=edClips(E), n=edLen(cl), b=Math.min(n, Math.round(E.hl*ED_SR));
+  let a=edCut0(E);
+  if(E.sil) a+=edSilAt(cl,a);
+  a=Math.max(0, Math.min(a, n-ED_SR));
+  return b-a>=MR_MIN*ED_SR ? { a, b, n } : null;
+}
+// 만들어 둔 반주가 지금 바꿀 자리를 다 덮는지
+function edMrHas(E){ const w=edMrWin(E), C=ED_MR; return !!(w && C && C.src===E.src && C.sig===edSig(E) && C.a<=w.a && C.b>=w.b); }
+// 구간 편집까지 한 곡의 a~b(샘플)를 왼쪽 · 오른쪽 소리로 (−1~1)
+function edBodyLR(E, a, b){
+  const n=b-a, L=new Float32Array(n), R=new Float32Array(n);
+  if(!E.clips){ const M=ED.main; for(let i=0;i<n;i++){ L[i]=M.L[a+i]/32768; R[i]=M.R[a+i]/32768; } }
+  else {
+    const pcm=edMix(edPlan({ src:E.src, hl:null, lead:0, duck:100, clips:E.clips, ops:[], sil:false, more:[], fade:0, mr:false }), b);
+    for(let i=0;i<n;i++){ L[i]=pcm[(a+i)*2]/32768; R[i]=pcm[(a+i)*2+1]/32768; }
+  }
+  return { L, R };
+}
+// 반주 만들기. onStep({ phase:"dl"|"init"|"run", a, b })로 얼마나 됐는지 알려 줘요. 그만두면 e.cancel = true 로 실패해요
+function edMrMake(E, onStep){
+  const w=edMrWin(E), pad=Math.round(MR_PAD*ED_SR), a=Math.max(0,w.a-pad), b=Math.min(w.n,w.b+pad), src=E.src, sig=edSig(E);
+  const lr=edBodyLR(E,a,b), id=Date.now()+"-"+Math.random();
+  return new Promise((res,rej)=>{
+    let wk;
+    try{ wk = mrWorker || (mrWorker=new Worker("mr-worker.js")); }catch(err){ err.phase="load"; rej(err); return; }
+    mrJob={ id, rej };
+    const fail = err => { if(!mrJob || mrJob.id!==id) return; mrJob=null; try{ wk.terminate(); }catch(_){} if(mrWorker===wk) mrWorker=null; rej(err); };
+    wk.onmessage = ev => {
+      const d=ev.data;
+      if(!mrJob || mrJob.id!==id || d.id!==id) return;
+      if(d.type==="step"){ onStep(d); return; }
+      if(d.type==="done"){ mrJob=null; ED_MR={ src, sig, a, b, L:edI16(d.L), R:edI16(d.R), info:d.info }; res(d.info); return; }
+      const err=new Error(d.text||"fail"); err.phase=d.phase; fail(err);
+    };
+    wk.onerror = ev => { const err=new Error((ev && ev.message) || "worker"); err.phase="load"; fail(err); };
+    wk.postMessage({ type:"run", id, L:lr.L, R:lr.R, sr:ED_SR, model:MR_MODEL, engine:"auto" }, [lr.L.buffer, lr.R.buffer]);
+  });
+}
+// 만들던 것을 그만둬요 (다른 화면으로 갈 때도)
+function edMrStop(){
+  const j=mrJob; if(!j) return;
+  mrJob=null;
+  if(mrWorker){ try{ mrWorker.terminate(); }catch(e){} mrWorker=null; }
+  const c=new Error("cancel"); c.cancel=true; j.rej(c);
+}
+// AI 모델이 이 휴대폰에 저장돼 있는지 (true · false, 알 수 없으면 null)
+async function edMrSaved(){
+  try{ return (await caches.has(MR_CACHE)) && !!(await (await caches.open(MR_CACHE)).match(MR_MODEL.url)); }catch(e){ return null; }
+}
+// 저장해 둔 AI 모델을 지워요 (다음에 쓰면 다시 받아요)
+async function edMrWipe(){
+  edMrStop();
+  if(mrWorker){ try{ mrWorker.terminate(); }catch(e){} mrWorker=null; }
+  try{ await caches.delete(MR_CACHE); }catch(e){}
 }
 
 // ===== 물결 + 플레이어 =====
@@ -452,7 +545,8 @@ function edBusy(text){ const m=document.getElementById("msg"); if(m) m.textConte
 // ===== 편집 첫 화면: 고민 고르기 =====
 async function editStep(){
   stopAudio(); edPrevStop(); plain();
-  if(!S.ed) S.ed=edNew(S.file);
+  if(!S.ed){ S.ed=edNew(S.file); S.edMrLost=false; }
+  if(ED_MR && ED_MR.src!==S.ed.src) ED_MR=null;      // 다른 곡의 반주는 버려요
   if(!ED || ED.src!==S.ed.src){
     app.innerHTML = `
       ${edTop()}
@@ -494,6 +588,9 @@ function edMain(){
   const rows = [
     { k:"intro", t:"전주가 너무 길어요", s:`하이라이트에 ${O.verb}하도록 앞을 잘라요`, on:E.hl!=null,
       done: on && E.hl!=null ? I.hlSum : "" },
+    MR_ON ? { k:"mr", t:"하이라이트 앞에 가사가 나와요", s:"가사를 빼고 반주(MR)만 남겨요", on:!!E.mr, tag:MR_NEW,
+      chip: S.edMrLost ? "곡이 바뀌어서 가사 빼기가 풀렸어요. 눌러서 다시 만들어 주세요" : "",
+      done: on && I.mr ? `하이라이트 전 ${edSec(I.hl)} 동안 반주만 나와요` : "" } : null,
     { k:"range", t:"빼거나 옮기고 싶은 부분이 있어요", s:"구간을 골라 지우거나, 복사해서 붙여요", on:E.clips!=null,
       done: on && E.clips!=null ? I.opSum : "" },
     { k:"long", t:"곡이 짧아요", s:"뒤에 곡을 이어 붙여요", on:E.more.length>0,
@@ -504,7 +601,7 @@ function edMain(){
       s: cutOver ? "앞을 자르면서 무음도 같이 없어졌어요" : hasSil ? "앞의 소리 없는 부분을 지워요" : "확인해 보니 앞에 소리 없는 부분이 없어요",
       chip: hasSil && !E.sil ? `앞 ${edSec(sil)} 동안 소리가 없어요` : "",
       done: E.sil && hasSil ? `앞 무음 ${edSec(sil)} 지움` : "", off: !hasSil }
-  ];
+  ].filter(Boolean);
   const ia=edInApp();
   const jumps = !on ? [] : [
     ["0", "처음부터"],
@@ -518,7 +615,7 @@ function edMain(){
     <p class="lead2">고르면 알아서 고쳐 드려요. 원래 파일은 바뀌지 않아요.</p>
     ${ia ? `<p class="ednote warn">지금 ${esc(ia)} 안에서 열려 있어요. 여기서는 편집한 음원을 저장하지 못할 수 있어요. 사파리나 크롬에서 열어 주세요.</p>` : ""}
     <div class="answers edrows" role="group" aria-label="고민 고르기">
-      ${rows.map(r=>`<button data-k="${r.k}" class="${r.on?"on":""}" ${r.off?"disabled":""}><span class="box">${CHECK}</span><span>${esc(r.t)}<small${r.done?' class="done"':""}>${esc(r.done||r.s)}</small>${r.chip?`<em class="edchip">${esc(r.chip)}</em>`:""}</span></button>`).join('<div class="div"></div>')}
+      ${rows.map(r=>`<button data-k="${r.k}" class="${r.on?"on":""}" ${r.off?"disabled":""}><span class="box">${CHECK}</span><span>${esc(r.t)}<small${r.done?' class="done"':""}>${r.tag && !r.done ? '<span class="newtag">NEW</span>' : ""}${esc(r.done||r.s)}</small>${r.chip?`<em class="edchip">${esc(r.chip)}</em>`:""}</span></button>`).join('<div class="div"></div>')}
     </div>
     <h3 class="edh">${on ? "편집한 음원 듣기" : "지금 음원 듣기"}</h3>
     ${edPlayerHtml(D)}
@@ -538,7 +635,8 @@ function edMain(){
   edBindPlayer(D, t=>edWave(document.getElementById("wave"), peaks, D, { head:t, marks, joints }));
   app.querySelectorAll(".edrows button").forEach(b=>b.onclick=()=>{
     DR=edCopy(S.ed);
-    go({ intro:edIntro, range:edRange, long:edLong, fade:edFade, sil:edSil }[b.dataset.k]);
+    edFocus = b.dataset.k==="mr" ? "mr" : "";
+    go({ intro:edIntro, mr:edIntro, range:edRange, long:edLong, fade:edFade, sil:edSil }[b.dataset.k]);
   });
   app.querySelectorAll(".edjump button").forEach(b=>b.onclick=()=>edPlayFrom(+b.dataset.t));
   document.getElementById("next").onclick = ()=>{ stack.pop(); edFree(); go(qMode); };   // 풀어 둔 소리를 비우고 넘어가요. "이전"을 누르면 파일 열기 화면으로 돌아가요
@@ -565,21 +663,25 @@ async function edApply(fn){
 async function edIntro(){
   stopAudio(); edPrevStop(); plain();
   const O=ORDERS[S.order], D=DR, had=S.ed.hl!=null, PREV="이렇게 들려요 (미리 듣기)";
+  const focus=edFocus; edFocus="";
+  // 가사 빼기 칸 (MR_ON일 때만. 아니면 예전 그대로 구간 편집으로 가는 칸)
+  const mrBoxHtml = `<div class="mark" id="mrBox"><div id="mrBody"></div><button class="mr-alt" id="toRange" hidden>직접 고칠래요: 이렇게 자르고, 구간 지우기 · 붙이기로 ›</button></div>`;
   const B=edBody(D), bj=edJoints(edClips(D));      // 구간 편집까지 한 곡을 들려줘요 (찍는 자리와 자르는 자리가 정확히 같게)
   app.innerHTML = `
     ${edTop()}
     <h2 class="title">하이라이트가 시작될 때<br>“여기!”를 눌러 주세요</h2>
     <p class="lead2">그 순간에 ${esc(O.verb)}하도록 앞부분을 잘라 드려요. 물결이 커지는 곳이 하이라이트일 때가 많아요.</p>
+    ${MR_ON && focus==="mr" && D.hl==null ? `<p class="ednote" id="mrLead">가사를 뺄 구간을 정하려면 하이라이트부터 찍어 주세요. 찍고 나면 맨 아래 ‘가사 빼고 반주만 남기기’가 켜져요.</p>` : ""}
     <div class="stick">${edPlayerHtml(B.dur)}</div>
     <div class="marks">
       <div class="mark" id="hlBox"></div>
       <div class="mark" id="leadBox"></div>
       <div class="mark" id="duckBox" hidden></div>
-      <div class="mark" id="moreBox" hidden>
+      ${MR_ON ? mrBoxHtml : `<div class="mark" id="moreBox" hidden>
         <div class="mk-head"><b>하이라이트 앞에<br>가사가 나오나요?</b></div>
         <p class="mk-hint">가사 없는 구간(전주·간주)을 복사해서 하이라이트 앞에 붙이거나, 필요 없는 구간을 지울 수 있어요.</p>
         <div class="mk-btns"><button id="toRange">이렇게 자르고, 구간 지우기 · 붙이기로</button></div>
-      </div>
+      </div>`}
     </div>
     <div class="facts" id="facts"></div>
     <div class="btns gap">
@@ -593,6 +695,9 @@ async function edIntro(){
   bindNav();
   await edUse(B.url);
   if(!edTopOf(edIntro)) return;
+  // 가사를 빼는 중에 다른 화면으로 가면 그만둬요
+  document.getElementById("back").onclick = ()=>{ edMrStop(); back(); };
+  document.getElementById("home").onclick = ()=>{ edMrStop(); home(); };
   let P=null;
   const wave = t => {
     const o={ head:t, marks:D.hl!=null ? [D.hl] : [], joints:bj };
@@ -624,7 +729,12 @@ async function edIntro(){
     // 하이라이트 전 음량 (바로 틀기면 전주가 없어서 안 보여요)
     const before = hl!=null && D.lead>0, dbox=document.getElementById("duckBox");
     dbox.hidden = !before;
-    document.getElementById("moreBox").hidden = hl==null;
+    const mb=document.getElementById("moreBox"); if(mb) mb.hidden = hl==null;
+    if(MR_ON){
+      document.getElementById("toRange").hidden = hl==null;
+      const ml=document.getElementById("mrLead"); if(ml) ml.hidden = hl!=null;      // 하이라이트를 찍으면 "먼저 찍어 주세요" 글은 치워요
+      mrPaint();
+    }
     dbox.innerHTML = !before ? "" : `
       <div class="mk-head"><b>하이라이트 전 음량</b><span class="unit"><input class="mk-t" id="duckT" inputmode="numeric" value="${D.duck}" aria-label="하이라이트 전 음량">%</span></div>
       <div class="chips" id="ducks">${ED_DUCKS.map(v=>`<button data-v="${v}" class="${D.duck===v?"on":""}">${v===100 ? "그대로" : v+"%"}</button>`).join("")}</div>
@@ -638,6 +748,7 @@ async function edIntro(){
       f.push(cut>.05 ? `앞에서 <b>${edT(cut)}</b>만큼 잘라요` : "앞을 자르지 않아요 (하이라이트가 이미 그 자리에 있어요)");
       f.push(n>0 ? `음원을 틀고 <b>${n}초</b> 뒤에 하이라이트 → ${esc(O.verb)} 시간 <b>${fmt(n)}</b>` : `틀자마자 하이라이트 → 0:00이 곧 ${esc(O.verb)}`);
       if(P.duck<100) f.push(`하이라이트 전 음량 <b>${P.duck}%</b> → 하이라이트부터 원래 음량`);
+      if(P.mr) f.push(`하이라이트 전 <b>${edSec(r10(P.hl))}</b> 동안 가사 없이 반주만 나와요`);
       f.push(`자른 뒤 길이 <b>${fmt(P.dur)}</b>` + (P.dur<O.min ? ` · ${O.minText}보다 짧아져요. ‘곡이 짧아요’에서 뒤를 이어 붙일 수 있어요.` : ""));
     }
     document.getElementById("facts").innerHTML = f.join("<br>");
@@ -667,22 +778,118 @@ async function edIntro(){
     }
     tick(audio.currentTime||0);
   };
+  // ----- 하이라이트 앞 가사 빼기 (MR_ON일 때만 칸이 있어요) -----
+  let mrRun=null, mrErr="", mrSaved=null, mrQuit=false;      // mrRun = 만드는 중 { text, pct }, mrSaved = AI 모델이 이 휴대폰에 저장돼 있는지
+  // 만드는 동안에는 다른 칸과 아래 버튼을 못 누르게 해요 (구간이 바뀌면 만든 게 안 맞아서)
+  const mrBusy = on => {
+    document.querySelector(".marks").classList.toggle("mrbusy", on);
+    ["apply","prev","toRange"].forEach(id=>{ const b=document.getElementById(id); if(b) b.disabled = on || D.hl==null; });
+    const u=document.getElementById("undo"); if(u) u.disabled=on;
+  };
+  const mrPaint = ()=>{
+    const box=document.getElementById("mrBody"); if(!box) return;
+    const w=edMrWin(D), sec = w ? edSec(r10((w.b-w.a)/ED_SR)) : "", on = D.mr && !!w, fit = on && edMrHas(D);
+    let h;
+    if(mrRun) h = `
+      <p class="mr-st" role="status">${esc(mrRun.text)}</p>
+      <div class="edprog"><div style="width:${(mrRun.pct*100).toFixed(1)}%"></div></div>
+      <p class="mk-hint">화면을 켜 둔 채로 기다려 주세요. 다른 앱으로 가면 멈출 수 있어요.</p>
+      <div class="mk-btns"><button id="mrStop">그만두기</button></div>`;
+    else if(fit) h = `
+      <p class="mr-ok">✓ 하이라이트 전 ${sec} 동안 가사 없이 반주만 나와요</p>
+      <p class="mk-hint">목소리가 조금 남을 수 있어요. 들어 보고 정하세요.</p>
+      <div class="mk-btns"><button class="stamp" id="mrHear">들어 보기</button><button id="mrOff">원래대로</button></div>`;
+    else if(on) h = `
+      <p class="mr-st">구간이 바뀌어서, 하이라이트 전 ${sec}를 반주로 다시 만들어야 해요.</p>
+      <div class="acts"><button id="mrGo">다시 만들기</button></div>
+      <div class="mk-btns mr-sub"><button id="mrOff">원래대로</button></div>`;
+    else h = `
+      <p class="mk-hint">${w ? `하이라이트 전 ${sec} 동안 가사(목소리)를 빼고 반주(MR)만 남겨요. 사회자 멘트와 가사가 겹치지 않아요.`
+        : D.hl==null ? "가사(목소리)를 빼고 반주(MR)만 남길 수 있어요. 하이라이트를 먼저 찍어 주세요."
+        : "‘바로’ 틀면 하이라이트 앞부분이 없어요. 위에서 몇 초 전부터 틀지 먼저 골라 주세요."}</p>
+      <div class="acts"><button id="mrGo" ${w ? "" : "disabled"}>가사 빼고 반주만 남기기</button></div>
+      ${mrErr ? `<p class="err">${esc(mrErr)}</p>` : ""}
+      ${!w ? "" : `<p class="mk-hint mr-foot">${mrSaved ? `AI 모델(30MB)이 이 휴대폰에 저장돼 있어서 바로 시작해요. <button class="mr-wipe" id="mrWipe">지우기</button>`
+        : "처음 한 번만 AI 모델 30MB를 받아요 (와이파이 추천). 음원은 휴대폰 밖으로 나가지 않아요."}</p>`}`;
+    box.innerHTML = `<div class="mk-head"><b>하이라이트 앞에<br>가사가 나오나요?${MR_NEW ? ' <span class="newtag">NEW</span>' : ""}</b></div>` + h;
+    const bind = (id, fn) => { const b=document.getElementById(id); if(b) b.onclick=fn; };
+    bind("mrGo", ()=>mrGo());
+    bind("mrStop", ()=>{ mrQuit=true; edMrStop(); });
+    bind("mrOff", ()=>{ D.mr=false; paint(); });
+    bind("mrHear", ()=>hear());
+    bind("mrWipe", async ()=>{ await edMrWipe(); mrSaved=false; mrPaint(); });
+  };
+  // 반주를 만들어요. 다 되면 true (그만두거나 못 만들면 false)
+  const mrGo = async ()=>{
+    if(mrRun || !edMrWin(D)) return false;
+    if(edMrHas(D)){ D.mr=true; paint(); return true; }       // 만들어 둔 게 맞으면 기다리지 않아요
+    edPrevStop(); try{ audio.pause(); }catch(e){}
+    mrErr=""; mrQuit=false; mrRun={ text:"준비하는 중…", pct:0 };
+    mrBusy(true); mrPaint();
+    const card=document.getElementById("mrBox");
+    if(card && card.scrollIntoView) card.scrollIntoView({ block:"center", behavior:reduce ? "auto" : "smooth" });
+    let wake=null, t0=0, ok=false;
+    try{ if(navigator.wakeLock) wake=await navigator.wakeLock.request("screen"); }catch(e){}     // 기다리는 동안 화면이 꺼지지 않게
+    try{
+      await new Promise(r=>setTimeout(r,30));                // "준비하는 중"이 먼저 보이게
+      if(mrQuit || !edTopOf(edIntro) || DR!==D){ const c=new Error("cancel"); c.cancel=true; throw c; }
+      await edMrMake(D, d=>{
+        let text, pct=0;
+        if(d.phase==="dl"){ pct = d.b ? Math.min(1, d.a/d.b) : 0; text=`AI 모델 받는 중… ${Math.round(d.a/1e6)} / ${Math.round(d.b/1e6)}MB (처음 한 번만)`; }
+        else if(d.phase==="init") text="AI 모델 준비하는 중…";
+        else {
+          if(!t0) t0=performance.now();
+          pct = d.b ? d.a/d.b : 0;
+          const left = d.a>0 ? Math.ceil((performance.now()-t0)/1000/d.a*(d.b-d.a)) : 0;
+          text=`가사를 빼는 중… ${Math.round(pct*100)}%` + (left>0 ? ` · 약 ${edGap(left)} 남았어요` : "");
+        }
+        mrRun={ text, pct };
+        const st=document.querySelector("#mrBody .mr-st"), bar=document.querySelector("#mrBody .edprog div");
+        if(st && bar){ st.textContent=text; bar.style.width=(pct*100).toFixed(1)+"%"; } else mrPaint();
+      });
+      ok=true;
+    }catch(err){
+      if(!err || !err.cancel) mrErr = err && (err.phase==="dl" || err.phase==="load")
+        ? "AI 모델을 받지 못했어요. 인터넷을 확인하고 다시 해 주세요."
+        : "이 휴대폰에서는 가사를 빼지 못했어요. 다시 해 보거나, 아래 ‘직접 고칠래요’를 써 주세요.";
+    }
+    if(wake){ try{ wake.release(); }catch(e){} }
+    mrRun=null;
+    if(!edTopOf(edIntro) || DR!==D || !document.getElementById("mrBody")) return false;     // 그 사이 다른 화면으로 갔어요
+    if(ok){ D.mr=true; mrSaved=true; }
+    else mrSeen();                                           // 그만뒀어도 모델은 받아 뒀을 수 있어요
+    mrBusy(false); paint();
+    return ok;
+  };
+  // AI 모델이 저장돼 있는지 확인해서 칸 아래 한 줄을 맞춰요
+  const mrSeen = ()=>edMrSaved().then(v=>{ mrSaved=v; if(!mrRun && edTopOf(edIntro) && DR===D) mrPaint(); });
+  if(MR_ON) mrSeen();
   paint();
+  if(MR_ON && focus==="mr" && D.hl!=null){ const c=document.getElementById("mrBox"); if(c && c.scrollIntoView) c.scrollIntoView({ block:"center" }); }
   // 미리 듣기: 누르면 지금 고른 대로 들려주고, 다시 누르면 멈춰요
   const pv=document.getElementById("prev");
-  pv.onclick = ()=>{
+  // 아래 "미리 듣기" 버튼과 가사 빼기 칸의 "들어 보기"가 같이 써요
+  const hear = ()=>{
     if(edPrevA){ edPrevStop(); return; }
     if(D.hl==null) return;
-    edPrevPlay(D, ()=>{ if(pv.isConnected) pv.textContent=PREV; });
-    pv.textContent="멈춤";
+    if(D.mr && edMrWin(D) && !edMrHas(D)){ mrGo(); return; }     // 반주를 다시 만들어야 하면 그것부터 (다 되면 한 번 더 눌러요)
+    const lab = t => { if(pv.isConnected) pv.textContent = t || PREV; const h=document.getElementById("mrHear"); if(h) h.textContent = t || "들어 보기"; };
+    edPrevPlay(D, ()=>lab(""));
+    lab("멈춤");
   };
-  document.getElementById("apply").onclick = ()=>{ if(D.hl!=null) edApply(edIntro); };
+  pv.onclick = hear;
+  document.getElementById("apply").onclick = async ()=>{
+    if(D.hl==null) return;
+    if(D.mr && edMrWin(D) && !edMrHas(D) && !(await mrGo())) return;     // 반주를 다시 만들어야 하면 그것부터
+    edApply(edIntro);
+  };
   const un=document.getElementById("undo");
   if(un) un.onclick = ()=>{ D.hl=null; edApply(edIntro); };
   // 지금 고른 대로 자르고 구간 편집 화면으로 (거기서 "이전"을 누르면 고민 화면으로 가요)
   const tr=document.getElementById("toRange");
   tr.onclick = async ()=>{
     if(D.hl==null) return;
+    if(D.mr && edMrWin(D) && !edMrHas(D) && !(await mrGo())) return;
     tr.disabled=true; edPrevStop();
     edBusy("음원을 고치는 중…");
     await new Promise(r=>setTimeout(r,30));

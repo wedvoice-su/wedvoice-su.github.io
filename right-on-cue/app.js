@@ -12,6 +12,12 @@ const EDIT_ON = EDIT_OPEN || new URLSearchParams(location.search).has("preview")
 // 2026년 12월 1일(한국 시간)부터는 저절로 안 보여요 (사회자님 11/12: "new 표시는 12월 1일에 제거하자"). 날짜를 바꾸려면 아래 한 줄만.
 const EDIT_NEW_UNTIL = "2026-12-01T00:00:00+09:00";
 const EDIT_NEW = Date.now() < Date.parse(EDIT_NEW_UNTIL);
+// 하이라이트 앞 가사 빼기(MR, edit.js + mr-worker.js): 음원 편집의 "하이라이트 앞에 가사가 나와요" 줄과 그 칸을 보여 줄지 정해요.
+// false면 주소 뒤에 ?preview 를 붙였을 때만 보여요. (예: …/right-on-cue/?preview)
+// (사회자님 11/20: "나만 먼저 테스트 … 릴스를 만들어서 올린 뒤 공개하라고 하면 그때 버튼이 공개") → 공개는 true로.
+const MR_OPEN = false;
+const MR_ON = MR_OPEN || new URLSearchParams(location.search).has("preview");
+const MR_NEW = true;   // 그 줄과 칸의 NEW 표시. 떼려면 false
 // =========================================================
 
 // ===== 방식은 세 가지뿐이에요 (2026-11-02 사회자님 정리) =====
@@ -205,7 +211,7 @@ function editBox(){
   return `
     <div class="edbox">
       <b>음원을 고치고 싶나요?</b>
-      <p>전주가 길 때, 곡이 짧을 때, 끝이 뚝 끊길 때 여기서 바로 고칠 수 있어요.</p>
+      <p>${MR_ON ? "전주가 길 때, 하이라이트 앞 가사를 빼고 싶을 때, 곡이 짧을 때 여기서 바로 고칠 수 있어요." : "전주가 길 때, 곡이 짧을 때, 끝이 뚝 끊길 때 여기서 바로 고칠 수 있어요."}</p>
       <button class="btn ghost" id="edit">음원 편집하기${EDIT_NEW ? ' <span class="newtag">NEW</span>' : ""}</button>
     </div>`;
 }
