@@ -24,6 +24,8 @@ async function getModel(m) {
   if (cache) {
     const hit = await cache.match(m.url);
     if (hit) return { buf: await hit.arrayBuffer(), cached: true, sec: 0 };
+    // 예전 주소로 받아 둔 모델이 남아 있으면 지워요 (모델 주소가 바뀌어도 30MB가 쌓이지 않게)
+    try { for (const k of await cache.keys()) await cache.delete(k); } catch (e) {}
   }
   const t0 = performance.now();
   say("dl", 0, m.mb * 1e6);

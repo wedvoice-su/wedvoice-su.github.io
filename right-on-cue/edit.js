@@ -33,7 +33,8 @@ const ED_LAME_SRI = "sha512-xT0S/xXvkrfkRXGBPlzZPCAncnMK5c1N7slRkToUbv8Z901aUEuK
 
 // ----- 하이라이트 앞 가사 빼기 (MR). app.js의 MR_ON일 때만 보여요 -----
 // AI 모델(UVR MDX-Net, 30MB)을 처음 한 번 받아 이 휴대폰에 저장해 두고(Cache Storage), 워커(mr-worker.js)에서 돌려요. 음원은 휴대폰 밖으로 나가지 않아요.
-const MR_MODEL = { url:"https://huggingface.co/Politrees/UVR_resources/resolve/929e057b81aa49bc2e6490bef8671f47b2c120f6/models/MDXNet/UVR_MDXNET_3_9662.onnx", nfft:6144, dimF:2048, primary:"Vocals", comp:1.035, mb:30 };
+// 모델 파일은 사회자님 Hugging Face 저장소(wedvoice-su/mr-models)에 있어요 (11/20, Politrees/UVR_resources의 파일을 그대로 복사 · MIT). 주소는 올린 그 판(commit)에 고정해요.
+const MR_MODEL = { url:"https://huggingface.co/wedvoice-su/mr-models/resolve/496e4de434c0b331511490f991743cdaccfd17e8/UVR_MDXNET_3_9662.onnx", nfft:6144, dimF:2048, primary:"Vocals", comp:1.035, mb:30 };
 const MR_CACHE = "cue-mr-models-v1";   // 저장해 두는 곳 이름 (mr-worker.js와 같아야 해요)
 const MR_PAD = 2;                 // 바꿀 구간 앞뒤로 이만큼(초) 더 만들어 둬요. 하이라이트를 조금 옮겨도 다시 기다리지 않게
 const MR_XF = 0.3;                // 하이라이트 직전 이만큼(초) 동안 원곡으로 돌아와요
