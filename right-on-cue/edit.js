@@ -430,6 +430,7 @@ async function edMrSaved(){
   try{ return (await caches.has(MR_CACHE)) && !!(await (await caches.open(MR_CACHE)).match(MR_MODEL.url)); }catch(e){ return null; }
 }
 // 저장해 둔 AI 모델을 지워요 (다음에 쓰면 다시 받아요)
+const ED_TRASH = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4.3h11M6.2 4.3V2.7h3.6v1.6M4 4.3l.7 9.1h6.6l.7-9.1M6.6 6.8v4.3M9.4 6.8v4.3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 async function edMrWipe(){
   edMrStop();
   if(mrWorker){ try{ mrWorker.terminate(); }catch(e){} mrWorker=null; }
@@ -666,7 +667,7 @@ async function edIntro(){
   const O=ORDERS[S.order], D=DR, had=S.ed.hl!=null, PREV="이렇게 들려요 (미리 듣기)";
   const focus=edFocus; edFocus="";
   // 가사 빼기 칸 (MR_ON일 때만. 아니면 예전 그대로 구간 편집으로 가는 칸)
-  const mrBoxHtml = `<div class="mark" id="mrBox"><div id="mrBody"></div><button class="mr-alt" id="toRange" hidden>직접 고칠래요: 이렇게 자르고, 구간 지우기 · 붙이기로 ›</button></div>`;
+  const mrBoxHtml = `<div class="mark" id="mrBox"><div id="mrBody"></div><button class="mr-alt" id="toRange" hidden>직접 고칠래요: 이렇게 자르고, 구간 지우기 · 붙이기로 ›</button><div id="mrModel"></div></div>`;
   const B=edBody(D), bj=edJoints(edClips(D));      // 구간 편집까지 한 곡을 들려줘요 (찍는 자리와 자르는 자리가 정확히 같게)
   app.innerHTML = `
     ${edTop()}
@@ -781,6 +782,7 @@ async function edIntro(){
   };
   // ----- 하이라이트 앞 가사 빼기 (MR_ON일 때만 칸이 있어요) -----
   let mrRun=null, mrErr="", mrSaved=null, mrQuit=false;      // mrRun = 만드는 중 { text, pct }, mrSaved = AI 모델이 이 휴대폰에 저장돼 있는지
+  let mrGone="";                                             // 방금 AI 모델을 지웠으면 "ok", 못 지웠으면 "fail"
   // 만드는 동안에는 다른 칸과 아래 버튼을 못 누르게 해요 (구간이 바뀌면 만든 게 안 맞아서)
   const mrBusy = on => {
     document.querySelector(".marks").classList.toggle("mrbusy", on);
@@ -810,15 +812,32 @@ async function edIntro(){
         : "‘바로’ 틀면 하이라이트 앞부분이 없어요. 위에서 몇 초 전부터 틀지 먼저 골라 주세요."}</p>
       <div class="acts"><button id="mrGo" ${w ? "" : "disabled"}>가사 빼고 반주만 남기기</button></div>
       ${mrErr ? `<p class="err">${esc(mrErr)}</p>` : ""}
-      ${!w ? "" : `<p class="mk-hint mr-foot">${mrSaved ? `AI 모델(30MB)이 이 휴대폰에 저장돼 있어서 바로 시작해요. <button class="mr-wipe" id="mrWipe">지우기</button>`
-        : "처음 한 번만 AI 모델 30MB를 받아요 (와이파이 추천). 음원은 휴대폰 밖으로 나가지 않아요."}</p>`}`;
+      ${w && !mrSaved && mrGone!=="ok" ? `<p class="mk-hint mr-foot">처음 한 번만 AI 모델 30MB를 받아요 (와이파이 추천). 음원은 휴대폰 밖으로 나가지 않아요.</p>` : ""}`;
     box.innerHTML = `<div class="mk-head"><b>하이라이트 앞에<br>가사가 나오나요?${MR_NEW ? ' <span class="newtag">NEW</span>' : ""}</b></div>` + h;
+    // 휴대폰에 저장된 AI 모델: 칸 맨 아래 따로 두고, 다 쓰면 버튼 하나로 지워요 (만든 반주는 그대로 남아요)
+    const mm=document.getElementById("mrModel");
+    if(mm) mm.innerHTML = mrRun ? ""
+      : mrSaved ? `<div class="mr-model">
+          <p class="mm-t">이 휴대폰에 저장된 AI 모델 · 30MB</p>
+          <p class="mk-hint">${fit ? "가사 빼기를 다 했으면 지워서 휴대폰 공간을 비워 주세요. 만든 반주는 그대로 남아요."
+            : "저장돼 있어서 받지 않고 바로 시작해요. 더 쓰지 않을 거면 지워 주세요."}</p>
+          <button class="mr-wipe" id="mrWipe">${ED_TRASH}AI 모델 지우기</button>
+          ${mrGone==="fail" ? `<p class="err">지우지 못했어요. 다시 눌러 주세요.</p>` : ""}
+        </div>`
+      : mrGone==="ok" ? `<div class="mr-model"><p class="mr-gone" role="status">✓ 휴대폰에서 AI 모델을 지웠어요. 다시 가사를 빼면 30MB를 새로 받아요.</p></div>`
+      : "";
     const bind = (id, fn) => { const b=document.getElementById(id); if(b) b.onclick=fn; };
     bind("mrGo", ()=>mrGo());
     bind("mrStop", ()=>{ mrQuit=true; edMrStop(); });
     bind("mrOff", ()=>{ D.mr=false; paint(); });
     bind("mrHear", ()=>hear());
-    bind("mrWipe", async ()=>{ await edMrWipe(); mrSaved=false; mrPaint(); });
+    bind("mrWipe", async ()=>{
+      const b=document.getElementById("mrWipe"); b.disabled=true; b.textContent="지우는 중…";
+      await edMrWipe();
+      const v=await edMrSaved();
+      mrSaved = v===true; mrGone = v===true ? "fail" : "ok";
+      if(!mrRun && edTopOf(edIntro) && DR===D) mrPaint();
+    });
   };
   // 반주를 만들어요. 다 되면 true (그만두거나 못 만들면 false)
   const mrGo = async ()=>{
@@ -857,7 +876,7 @@ async function edIntro(){
     if(wake){ try{ wake.release(); }catch(e){} }
     mrRun=null;
     if(!edTopOf(edIntro) || DR!==D || !document.getElementById("mrBody")) return false;     // 그 사이 다른 화면으로 갔어요
-    if(ok){ D.mr=true; mrSaved=true; }
+    if(ok){ D.mr=true; mrSaved=true; mrGone=""; }
     else mrSeen();                                           // 그만뒀어도 모델은 받아 뒀을 수 있어요
     mrBusy(false); paint();
     return ok;
