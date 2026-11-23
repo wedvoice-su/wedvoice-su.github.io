@@ -17,7 +17,12 @@ const EDIT_NEW = Date.now() < Date.parse(EDIT_NEW_UNTIL);
 // (사회자님 11/20: "나만 먼저 테스트 … 릴스를 만들어서 올린 뒤 공개하라고 하면 그때 버튼이 공개") → 공개는 true로.
 const MR_OPEN = false;
 const MR_ON = MR_OPEN || new URLSearchParams(location.search).has("preview");
-const MR_NEW = true;   // 그 줄과 칸의 NEW 표시. 떼려면 false
+// 가사 빼기 새 기능 알림 (가사 빼기가 보일 때만 같이 보여요 = MR_OPEN을 true로 하는 순간 같이 켜짐):
+//   첫 화면 "NEW 입장곡 가사 빼기가 생겼어요" 소개(이게 보이는 동안 음원 편집 소개는 안 보임) · "음원 편집하기" 버튼 NEW · 고민 줄과 칸의 NEW
+// (사회자님 11/23: "가사빼기도 새로운 기능에 대한 소개를 해줘. 그 음원 편집기 처럼 … 나중에 해당 기능을 공개할 때 새로운 기능 알림 표시도 같이 보이도록")
+// 2026년 12월 15일(한국 시간)부터는 저절로 안 보여요 (Claude 기본값: 릴스 11/24부터 3주, 음원 편집 NEW와 비슷한 기간). 날짜를 바꾸려면 아래 한 줄만.
+const MR_NEW_UNTIL = "2026-12-15T00:00:00+09:00";
+const MR_NEW = Date.now() < Date.parse(MR_NEW_UNTIL);
 // =========================================================
 
 // ===== 방식은 세 가지뿐이에요 (2026-11-02 사회자님 정리) =====
@@ -161,7 +166,11 @@ function home(){
     <h1>이 곡,<br>몇 초에<br>입장할까요?</h1>
     <div class="bar"></div>
     <p class="lead">고른 음원을 들으면서 “여기!”만 누르세요. 사회자·음향팀에 보낼 큐시트가 나와요.</p>
-    ${EDIT_ON && EDIT_NEW ? `
+    ${MR_ON && MR_NEW ? `
+    <div class="news">
+      <p class="nt"><span class="newtag">NEW</span>입장곡 가사 빼기가 생겼어요</p>
+      <p>하이라이트 앞에 가사가 나올 때, 아래에서 순서를 고르고 파일을 연 뒤 ‘음원 편집하기’ → ‘하이라이트 앞에 가사가 나와요’를 누르세요. AI가 ${ORDERS.bride.verb} 전까지 가사를 빼고 반주만 남겨 드려요.</p>
+    </div>` : EDIT_ON && EDIT_NEW ? `
     <div class="news">
       <p class="nt"><span class="newtag">NEW</span>음원 편집이 생겼어요</p>
       <p>전주가 길거나 곡이 짧을 때, 아래에서 순서를 고르고 파일을 연 뒤 ‘음원 편집하기’를 누르세요. 하이라이트에 맞춰 ${ORDERS.bride.verb}하게 바로 고쳐 드려요.</p>
@@ -212,7 +221,7 @@ function editBox(){
     <div class="edbox">
       <b>음원을 고치고 싶나요?</b>
       <p>${MR_ON ? "전주가 길 때, 하이라이트 앞 가사를 빼고 싶을 때, 곡이 짧을 때 여기서 바로 고칠 수 있어요." : "전주가 길 때, 곡이 짧을 때, 끝이 뚝 끊길 때 여기서 바로 고칠 수 있어요."}</p>
-      <button class="btn ghost" id="edit">음원 편집하기${EDIT_NEW ? ' <span class="newtag">NEW</span>' : ""}</button>
+      <button class="btn ghost" id="edit">음원 편집하기${EDIT_NEW || (MR_ON && MR_NEW) ? ' <span class="newtag">NEW</span>' : ""}</button>
     </div>`;
 }
 // ※ accept는 확장자로 적어요. 아이폰 사파리는 accept="audio/*"를 영상처럼 취급해서 mp3·m4a가 회색으로 막혀요 (WebKit 버그 242110, 34442)
