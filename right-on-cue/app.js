@@ -15,7 +15,8 @@ const EDIT_NEW = Date.now() < Date.parse(EDIT_NEW_UNTIL);
 // 하이라이트 앞 가사 빼기(MR, edit.js + mr-worker.js): 음원 편집의 "하이라이트 앞에 가사가 나와요" 줄과 그 칸을 보여 줄지 정해요.
 // false면 주소 뒤에 ?preview 를 붙였을 때만 보여요. (예: …/right-on-cue/?preview)
 // (사회자님 11/20: "나만 먼저 테스트 … 릴스를 만들어서 올린 뒤 공개하라고 하면 그때 버튼이 공개") → 공개는 true로.
-const MR_OPEN = false;
+// ✅ 2026-11-25 공개 (사회자님: "이제 음원편집 사이트에서 AI 가사 빼기 기능을 공개할거다. 공개하라.")
+const MR_OPEN = true;
 const MR_ON = MR_OPEN || new URLSearchParams(location.search).has("preview");
 // 가사 빼기 새 기능 알림 (가사 빼기가 보일 때만 같이 보여요 = MR_OPEN을 true로 하는 순간 같이 켜짐):
 //   첫 화면 "NEW 입장곡 가사 빼기가 생겼어요" 소개(이게 보이는 동안 음원 편집 소개는 안 보임) · "음원 편집하기" 버튼 NEW · 고민 줄과 칸의 NEW
