@@ -15,7 +15,8 @@
 // 새 사이트를 만들어 올리면 SITES에 한 줄 + 여기 알맞은 주제에 한 줄(soon: true).
 const GROUPS = [
   { name: "결혼 준비 전체", items: [
-    { key: "ready", label: "결혼 준비 체크리스트" }
+    { key: "ready", label: "결혼 준비 체크리스트" },
+    { key: "talk",  label: "결혼 전 대화 카드", soon: true }
   ]},
   { name: "날짜 · 예식장 · 청첩장 모임", items: [
     { key: "date",  label: "결혼 날짜 후보 찾기", soon: true },
