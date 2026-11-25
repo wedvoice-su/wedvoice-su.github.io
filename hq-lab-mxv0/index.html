@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="color-scheme" content="light dark">
+<title>입장곡 음질 올리기 시험</title>
+<style>
+  :root { --bg:#faf7f5; --card:#fff; --ink:#1f1a17; --sub:#6d635d; --line:#e7dfd9; --pink:#c93f6b; --on-pink:#fff; --pinkbg:#fdecf1; --pinktx:#b23460;
+          --soft:#f3eeea; --ok:#2f7d4f; --bad:#b3261e; --warnbg:#fff6e0; --warnln:#ecd9a4; --warntx:#6b4e00; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#171311; --card:#221c19; --ink:#f3ece7; --sub:#b8aca4; --line:#3d332e; --pink:#f08aa9; --on-pink:#2a1017; --pinkbg:#3a2029; --pinktx:#f6a5bd;
+            --soft:#2c2521; --ok:#7fd3a0; --bad:#ff9a92; --warnbg:#3a3018; --warnln:#5f5026; --warntx:#f1dca0; }
+  }
+  * { box-sizing:border-box; }
+  [hidden] { display:none !important; }
+  html { -webkit-text-size-adjust:100%; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.55 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; word-break:keep-all; overflow-wrap:anywhere; }
+  main { max-width:560px; margin:0 auto; padding:20px 16px calc(60px + env(safe-area-inset-bottom)); }
+  h1 { font-size:22px; line-height:1.3; margin:4px 0 6px; }
+  h1 .tag { display:inline-block; vertical-align:3px; margin-left:4px; padding:2px 8px; border-radius:999px; background:var(--soft); color:var(--sub); font-size:12px; font-weight:700; }
+  .note { color:var(--sub); font-size:15px; margin:0 0 8px; }
+  .safe { display:flex; gap:6px; align-items:flex-start; color:var(--sub); font-size:13.5px; margin:0 0 18px; }
+  .safe svg { flex:0 0 auto; width:15px; height:15px; margin-top:3px; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin:0 0 14px; }
+  h2 { font-size:17px; margin:0 0 12px; display:flex; align-items:center; }
+  h2 b { flex:0 0 auto; display:inline-block; width:24px; height:24px; border-radius:50%; background:var(--pink); color:var(--on-pink); font-size:13.5px; text-align:center; line-height:24px; margin-right:8px; }
+  h3 { font-size:15px; margin:22px 0 8px; }
+  button, input { font:inherit; color:inherit; }
+  button { cursor:pointer; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
+  .btn { display:flex; align-items:center; justify-content:center; gap:7px; width:100%; min-height:50px; border:0; border-radius:12px; padding:12px 14px; font-weight:700; line-height:1.3; background:var(--pink); color:var(--on-pink); text-decoration:none; text-align:center; }
+  .btn.ghost { background:var(--pinkbg); color:var(--pinktx); }
+  .btn.line { background:var(--card); color:var(--ink); border:1.5px solid var(--line); }
+  .btn:disabled { opacity:.45; cursor:default; }
+  .btn svg { flex:0 0 auto; width:17px; height:17px; }
+  :focus-visible { outline:2.5px solid var(--pink); outline-offset:2px; }
+  .muted { color:var(--sub); font-size:14px; margin:8px 0 0; }
+  .err { color:var(--bad); font-size:14.5px; font-weight:700; margin:10px 0 0; }
+  .okline { color:var(--ok); font-weight:700; margin:0 0 12px; }
+
+  /* 안내 상자 */
+  .box { border-radius:12px; padding:12px 14px; margin:0 0 12px; font-size:14.5px; background:var(--soft); }
+  .box b { display:block; margin:0 0 2px; font-size:15px; }
+  .box p { margin:0; color:var(--sub); }
+  .box.warn { background:var(--warnbg); border:1px solid var(--warnln); }
+  .box.warn b, .box.warn p { color:var(--warntx); }
+  .box .btn { margin-top:10px; }
+  .box .sm { font-size:13px; margin-top:8px; }
+
+  /* 음원에 들어 있는 소리 높이 */
+  .meter { margin:12px 0 0; padding:12px 14px; border-radius:12px; background:var(--soft); }
+  .meter .mt { margin:0 0 8px; font-size:14.5px; font-weight:700; }
+  .meter .track { position:relative; height:12px; border-radius:6px; background:var(--line); overflow:hidden; }
+  .meter .fill { position:absolute; left:0; top:0; bottom:0; border-radius:6px; background:var(--pink); }
+  .meter .ends { display:flex; justify-content:space-between; font-size:12.5px; color:var(--sub); margin:5px 0 0; }
+  .meter .md { margin:8px 0 0; font-size:14px; color:var(--sub); }
+
+  /* 고르기 */
+  .opt { display:flex; gap:10px; align-items:flex-start; border:1.5px solid var(--line); border-radius:12px; padding:12px; margin:0 0 8px; cursor:pointer; min-height:48px; }
+  .opt input { flex:0 0 auto; width:18px; height:18px; margin:3px 0 0; accent-color:var(--pink); }
+  .opt.on { border-color:var(--pink); background:var(--pinkbg); }
+  .opt span { display:block; font-weight:700; }
+  .opt small { display:block; color:var(--sub); font-size:13.5px; }
+  .range { margin:14px 0 0; }
+  .range label { display:flex; justify-content:space-between; align-items:baseline; gap:8px; font-size:14.5px; font-weight:700; }
+  .range label strong { font-size:17px; font-variant-numeric:tabular-nums; color:var(--pinktx); white-space:nowrap; }
+  input[type=range] { width:100%; height:44px; margin:0; accent-color:var(--pink); }
+  .nudge { display:flex; gap:6px; margin:2px 0 10px; }
+  .nudge button { flex:1; min-height:44px; border:1.5px solid var(--line); background:var(--card); border-radius:10px; padding:6px 0; font-size:14.5px; font-variant-numeric:tabular-nums; }
+
+  /* 진행 */
+  .run { margin:12px 0 0; }
+  .run .st { margin:0 0 8px; font-size:15px; font-weight:700; color:var(--pinktx); font-variant-numeric:tabular-nums; }
+  .bar { height:10px; background:var(--line); border-radius:5px; overflow:hidden; }
+  .bar div { height:100%; width:0; background:var(--pink); transition:width .25s; }
+  .run .el { margin:6px 0 0; font-size:14px; color:var(--sub); font-variant-numeric:tabular-nums; }
+  .run .btn { margin-top:12px; }
+
+  /* 번갈아 듣기 */
+  .ab { display:flex; gap:8px; margin:0 0 10px; }
+  .ab button { flex:1; min-height:56px; border:1.5px solid var(--line); border-radius:12px; background:var(--card); font-weight:700; line-height:1.25; padding:8px 6px; }
+  .ab button small { display:block; font-weight:500; font-size:12.5px; color:var(--sub); }
+  .ab button.on { border-color:var(--pink); background:var(--pink); color:var(--on-pink); }
+  .ab button.on small { color:var(--on-pink); opacity:.85; }
+  .player { display:flex; align-items:center; gap:10px; }
+  .player .btn { width:auto; flex:0 0 auto; min-width:104px; }
+  .player input { flex:1; min-width:0; }
+  .player span { flex:0 0 auto; font-size:13.5px; color:var(--sub); font-variant-numeric:tabular-nums; }
+  .pic { position:relative; margin:0 0 8px; border-radius:10px; overflow:hidden; background:#000004; }
+  .pic canvas { display:block; width:100%; height:112px; }
+  .pic .cap { position:absolute; left:8px; top:6px; padding:1px 7px; border-radius:999px; background:rgba(0,0,0,.6); color:#fff; font-size:12.5px; font-weight:700; }
+  .pic .hi, .pic .lo { position:absolute; right:8px; font-size:11.5px; color:rgba(255,255,255,.85); text-shadow:0 0 3px #000, 0 0 3px #000; }
+  .pic .hi { top:6px; } .pic .lo { bottom:5px; }
+  .nums { margin:0; padding:0; list-style:none; font-size:14.5px; }
+  .nums li { display:flex; justify-content:space-between; gap:12px; padding:8px 0; border-bottom:1px solid var(--line); }
+  .nums li:last-child { border-bottom:0; }
+  .nums span { color:var(--sub); flex:0 0 auto; }
+  .nums b { text-align:right; font-variant-numeric:tabular-nums; }
+  .file { display:flex; justify-content:space-between; gap:10px; font-size:14px; margin:0 0 8px; }
+  .file b { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .file span { flex:0 0 auto; color:var(--sub); }
+  #save .btn + .btn { margin-top:8px; }
+
+  /* 저장된 AI 모델 */
+  .model .mm-t { margin:0; font-size:15px; font-weight:700; }
+  .model .muted { margin:4px 0 12px; }
+  .gone { margin:0; font-size:14.5px; font-weight:700; color:var(--ok); }
+
+  #log { font:12px/1.5 ui-monospace, Menlo, monospace; white-space:pre-wrap; background:var(--soft); border-radius:10px; padding:10px; max-height:240px; overflow:auto; margin:10px 0; }
+  #log .bad { color:var(--bad); }
+  .credit { color:var(--sub); font-size:12.5px; line-height:1.6; margin:18px 4px 0; }
+  .credit a { color:inherit; }
+  @media (min-width:720px) { main { padding-top:36px; } h1 { font-size:26px; } }
+  @media (prefers-reduced-motion: reduce) { .bar div { transition:none; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>입장곡 음질 올리기 <span class="tag">시험</span></h1>
+  <p class="note">용량을 줄여서 먹먹해진 음원에, AI가 깎여 나간 소리를 다시 채워 줘요.</p>
+  <p class="safe"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="7" width="10" height="7.5" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5.4 7V5.2a2.6 2.6 0 015.2 0V7" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><span>음원 파일은 이 휴대폰 안에서만 쓰이고, 어디에도 올라가지 않아요.</span></p>
+
+  <div id="topgate"></div>
+
+  <section id="s1">
+    <h2><b>1</b>음원 고르기</h2>
+    <div class="box warn" id="inapp" hidden>
+      <b>‘음원 파일 고르기’를 눌러도 사진만 뜨나요?</b>
+      <p>인스타그램 안에서 열어서 그래요. 크롬에서 열면 음원 파일을 고를 수 있어요.</p>
+      <a class="btn" id="chrome" href="#">크롬에서 열기</a>
+      <p class="sm">버튼이 안 되면, 화면 오른쪽 위 점 세 개(⋮)를 누르고 크롬(외부 브라우저)으로 여는 메뉴를 골라 주세요.</p>
+    </div>
+    <input type="file" id="file" accept=".mp3,.m4a,.wav,.aac,.flac,.ogg,.aiff,.aif" hidden>
+    <button class="btn" id="pick">음원 파일 고르기</button>
+    <p class="muted" id="fileinfo">mp3 · m4a · wav 파일을 고를 수 있어요. 음악 앱 안에 있는 노래는 열 수 없어요.</p>
+    <div class="meter" id="meter" hidden>
+      <p class="mt" id="meterT"></p>
+      <div class="track"><div class="fill" id="meterFill"></div></div>
+      <div class="ends"><span>낮은 소리</span><span>높은 소리</span></div>
+      <p class="md" id="meterD"></p>
+    </div>
+  </section>
+
+  <section id="s2" hidden>
+    <h2><b>2</b>어디를 올릴까요?</h2>
+    <div id="opts" role="radiogroup" aria-label="올릴 곳"></div>
+    <div class="range" id="startBox">
+      <label for="start"><span>어디부터 30초를 올릴까요?</span><strong id="startTxt">0:00 ~ 0:30</strong></label>
+      <input type="range" id="start" min="0" max="0" step="1" value="0">
+      <div class="nudge"><button data-d="-10">−10초</button><button data-d="-1">−1초</button><button data-d="1">+1초</button><button data-d="10">+10초</button></div>
+      <button class="btn line" id="hear">이 30초 들어 보기</button>
+    </div>
+  </section>
+
+  <section id="s3" hidden>
+    <h2><b>3</b>음질 올리기</h2>
+    <div id="gate"></div>
+    <button class="btn" id="go">음질 올리기</button>
+    <p class="muted" id="foot"></p>
+    <div class="run" id="run" hidden>
+      <p class="st" id="status" role="status">준비하는 중…</p>
+      <div class="bar"><div id="fill"></div></div>
+      <p class="el" id="elapsed">지난 시간 0:00</p>
+      <p class="muted">화면을 켜 둔 채로 기다려 주세요. 다른 앱으로 가면 멈출 수 있어요.</p>
+      <button class="btn line" id="stop">그만두기</button>
+    </div>
+    <p class="err" id="err" role="alert" hidden></p>
+  </section>
+
+  <section id="s4" hidden>
+    <h2><b>4</b>들어 보기</h2>
+    <p class="okline" id="doneT">✓ 다 됐어요. 번갈아 들어 보세요.</p>
+    <div class="ab" role="radiogroup" aria-label="들을 소리">
+      <button id="abA" role="radio" aria-checked="false">원래 소리<small>고치기 전</small></button>
+      <button id="abB" role="radio" aria-checked="true" class="on">올린 소리<small>AI가 채운 뒤</small></button>
+    </div>
+    <div class="player">
+      <button class="btn" id="play">▶ 듣기</button>
+      <input type="range" id="seek" min="0" max="1" step="0.01" value="0" aria-label="듣는 자리">
+      <span id="time">0:00 / 0:00</span>
+    </div>
+    <p class="muted">듣는 도중에 눌러도 같은 자리에서 바로 바뀌어요. 이어폰으로 들으면 차이가 더 잘 들려요.</p>
+
+    <h3>소리 그림으로 보기</h3>
+    <div class="pic"><canvas id="picA" width="360" height="221"></canvas><span class="cap">원래 소리</span><span class="hi">높은 소리 ↑</span><span class="lo">낮은 소리 ↓</span></div>
+    <div class="pic"><canvas id="picB" width="360" height="221"></canvas><span class="cap">올린 소리</span><span class="hi">높은 소리 ↑</span><span class="lo">낮은 소리 ↓</span></div>
+    <p class="muted" id="picNote">왼쪽에서 오른쪽으로 시간이 흘러요. 위로 갈수록 높은 소리, 밝을수록 큰 소리예요. 원래 소리의 위쪽이 까맣게 비어 있으면 높은 소리가 깎인 음원이고, 올린 소리에서는 그 자리가 채워져요.</p>
+
+    <h3>숫자로 보기</h3>
+    <ul class="nums" id="nums"></ul>
+
+    <h3>저장하기</h3>
+    <div id="save"></div>
+  </section>
+
+  <section id="s5" class="model" hidden></section>
+
+  <section id="s6">
+    <h2>기록</h2>
+    <p class="muted" style="margin:0">해 본 결과가 여기 쌓여요. 복사해서 보내 주세요.</p>
+    <div id="log"></div>
+    <button class="btn ghost" id="copy">기록 복사하기</button>
+  </section>
+
+  <p class="credit">음질을 올리는 AI는 <a href="https://github.com/JusperLee/Apollo" target="_blank" rel="noopener">Apollo</a> (Kai Li · Yi Luo, 2024)예요. <a href="https://creativecommons.org/licenses/by-sa/4.0/deed.ko" target="_blank" rel="noopener">CC BY-SA 4.0</a> 조건으로 공개된 모델을 휴대폰에서 돌아가게(ONNX 형식으로) 바꿔 썼고, 바꾼 모델도 같은 조건으로 공개해요.</p>
+</main>
+<script src="dsp.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
