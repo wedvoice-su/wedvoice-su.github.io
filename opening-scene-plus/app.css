@@ -394,3 +394,71 @@ em.newtag,.sec em.newtag{font-style:normal;display:inline-block;background:var(-
 .sum b{flex:1;min-width:0;font-weight:700;line-height:1.4;word-break:keep-all}
 .sum b small{display:block;font-size:13px;font-weight:500;color:var(--sub)}
 .sum .text-btn{padding:6px 2px;font-size:14px;font-weight:700;color:var(--accent)}
+
+/* ===== 인물만 오려 내기 (11/25) — 주소에 ?preview가 있을 때만(또는 CUTOUT_OPEN을 켠 뒤) 화면에 나와요 ===== */
+/* 목록: 오려 낸 사진은 바깥이 투명한 그림 뒤에 그 장면의 바탕색 */
+.photos button.ct{background:var(--cb,#000)}
+/* 고른 사진 도구 맨 위의 한 줄 (누르면 아래로 펴져요) */
+.cutrow{display:flex;align-items:center;gap:10px;width:100%;min-height:52px;border:1.5px solid var(--accent);border-radius:14px;background:var(--card);color:var(--ink);padding:7px 8px 7px 12px;text-align:left}
+.cutrow svg{flex:0 0 26px;width:26px;height:26px;color:var(--accent)}
+.cutrow span{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.3}
+.cutrow b{font-size:15px;font-weight:900}
+.cutrow small{font-size:12.5px;font-weight:500;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cutrow i{font-style:normal;flex:0 0 auto;font-size:22px;line-height:1;color:var(--sub);padding:0 4px}
+.cutrow .newtag{margin-left:0}
+.cutrow.on{border-color:var(--line)}
+.cutrow.on b{color:var(--accent)}
+.cutrow.cut-live small{color:var(--accent);font-weight:700;font-variant-numeric:tabular-nums}
+.cutrow small.cut-st{margin:0;font-size:12.5px;line-height:1.3}
+/* 펴진 칸 */
+.cutbox{background:var(--card);border:1.5px solid var(--accent);border-radius:16px;padding:8px 12px 12px;display:flex;flex-direction:column;gap:9px}
+.cut-h{display:flex;align-items:center;gap:7px;min-height:40px}
+.cut-h svg{flex:0 0 22px;width:22px;height:22px;color:var(--accent)}
+.cut-h b{font-size:15px;font-weight:900}
+.cut-h .newtag{margin-left:0}
+.cut-h .text-btn{margin-left:auto;min-width:44px;min-height:40px;padding:6px 4px;font-size:14px}
+.cut-d{margin:0;font-size:13.5px;line-height:1.5;color:var(--sub);word-break:keep-all}
+.cutbox .btn{padding:14px 8px;font-size:15.5px}
+.cutbox .btn.ghost{background:var(--paper)}   /* 흰 칸 위에서도 버튼 모양이 보이게 */
+.cut-h .cut-who{font-size:13px;color:var(--sub)}
+.cut-n{display:flex;gap:6px;align-items:flex-start;margin:0;font-size:12.5px;line-height:1.5;color:var(--sub);word-break:keep-all}
+.cut-n svg{flex:0 0 13px;width:13px;height:13px;margin-top:3px}
+.cut-ok,.cut-err{margin:0;font-size:13.5px;font-weight:700;line-height:1.5;color:var(--accent);word-break:keep-all}
+/* 원래 사진 | 오려 낸 사진: 눌러서 영상에 넣을 쪽을 골라요 (견주기 + 되돌리기를 한 번에) */
+.cut-ba{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cut-ba button{border:0;background:var(--paper);border-radius:12px;padding:6px 6px 9px;display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--sub);font-size:13.5px;line-height:1.3}
+.cut-ba .im{display:block;width:100%;aspect-ratio:1;border-radius:8px;overflow:hidden;background:var(--line)}
+.cut-ba img{display:block;width:100%;height:100%;object-fit:contain}
+.cut-ba b{font-weight:700}
+.cut-ba button.on{outline:3px solid var(--accent);outline-offset:-3px;color:var(--ink)}
+.cut-ba button.on b::before{content:"✓ ";color:var(--accent)}
+.cutbox .pt-hint b{color:var(--ink)}
+.cutbox .sws{padding:2px 3px 0}
+.cutbox .sws button{flex:0 0 40px;width:40px;height:40px}
+.cutbox .sws button.on{box-shadow:0 0 0 3px var(--card),0 0 0 6px var(--accent)}
+@media (max-width:379px){.cutbox .sws{gap:6px}.cutbox .sws button{flex:0 0 36px;width:36px;height:36px}}   /* 좁은 화면: 색 6개가 한 줄에 */
+.cutbox .cut-see{display:flex;justify-content:center;align-items:center;gap:8px;background:var(--paper);padding:13px 8px;font-size:15px}
+.cut-see svg{flex:0 0 14px;width:14px;height:14px}
+/* 오려 내는 중: 받는 중에는 찬 만큼, 나머지는 왔다 갔다 하는 막대 */
+.cut-run{display:flex;flex-direction:column;gap:8px}
+.cut-st{margin:0;font-size:14.5px;font-weight:700;line-height:1.45;color:var(--accent);font-variant-numeric:tabular-nums}
+.cut-prog{height:8px;border-radius:4px;background:var(--line);overflow:hidden}
+.cut-prog > div{height:100%;width:0;border-radius:4px;background:var(--accent);transition:width .2s}
+.cut-prog.wait > div{width:38%;transition:none;animation:cutwait 1.1s ease-in-out infinite alternate}
+@keyframes cutwait{from{transform:translateX(0)}to{transform:translateX(164%)}}
+@media (prefers-reduced-motion:reduce){.cut-prog.wait > div{animation:none;width:100%;opacity:.45}}
+/* 이 휴대폰에 저장된 AI 모델 (음원 편집 사이트의 가사 빼기와 같은 모양): 사진 단계 화면 아래와 완성 화면에 */
+.cut-model{margin:14px 0 0;padding:14px 14px 12px;border-radius:18px;background:var(--card)}
+.cut-model .mm-t{margin:0;font-size:14.5px;font-weight:700;line-height:1.45;color:var(--ink)}
+.cut-model .pt-hint{margin:4px 0 12px;font-size:13px}
+.cut-model .cut-err{margin:8px 0 0}
+.cut-wipe{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;min-height:48px;border:1.5px solid var(--line);border-radius:12px;padding:12px;background:var(--paper);color:var(--ink);font-size:15px;font-weight:700;line-height:1.3}
+.cut-wipe svg{flex:0 0 auto;width:17px;height:17px}
+.cut-wipe:disabled{opacity:.5;cursor:default}
+.cut-gone{margin:0;font-size:14px;font-weight:700;line-height:1.5;color:var(--accent);word-break:keep-all}
+/* 사진 편집 창 안 */
+.ed-cut{display:flex;flex-direction:column;gap:10px}
+.ed-cut .ed-label{margin:6px 0 -2px}
+.ed-cut .cut-go{display:flex;justify-content:center;align-items:center;gap:8px;padding:14px 8px;font-size:15.5px;border:1.5px solid var(--accent)}
+.ed-cut .cut-go svg{flex:0 0 22px;width:22px;height:22px;color:var(--accent)}
+.ed-cut .seg button{padding:12px 4px}

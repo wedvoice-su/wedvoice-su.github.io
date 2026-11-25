@@ -151,6 +151,58 @@ const Movie = (() => {
       } finally { URL.revokeObjectURL(url); }
     }
   }
+  // ===== 인물만 오려 내기 (2026-11-25) =====
+  // 사진에 cut.on과 mask({ w, h, a: 사람 자리 0~255, box: 사람이 있는 네모 [왼, 위, 오른, 아래] 0~1 })가 있으면, 풀 때 '사람만 남긴 그림'을 같이 만들어 둬요
+  //  cut: 사람만 남긴 그림(바깥은 투명, 사진과 같은 비율) · cutSh: 사람 모양의 흐린 그림자(작게) · cutBox: 사람이 있는 네모
+  // 표시가 없는 사진은 아무것도 만들지 않아서 전과 똑같이 그려져요 (app.js가 CUTOUT_ON일 때만 mask를 붙여요)
+  const CUT_MAX = 2560;   // 사람만 남긴 그림의 긴 쪽 (메모리를 아끼려고 원본보다 크게는 안 만들어요)
+  function maskCanvas(m){
+    const c = document.createElement('canvas'); c.width = m.w; c.height = m.h;
+    const a = m.a instanceof Uint8Array ? m.a : new Uint8Array(m.a), id = new ImageData(m.w, m.h), d = id.data;
+    for (let i = 0, p = 3; i < a.length; i++, p += 4) d[p] = a[i];
+    c.getContext('2d').putImageData(id, 0, 0);
+    return c;
+  }
+  // 확실히 사람인 안쪽만 (215 이상이고 옆 네 점도 그런 곳): 가장자리 색을 고칠 때 써요
+  function innerCanvas(m){
+    const w = m.w, h = m.h, a = m.a instanceof Uint8Array ? m.a : new Uint8Array(m.a), id = new ImageData(w, h), d = id.data, T = 215;
+    for (let y = 0, i = 0; y < h; y++) for (let x = 0; x < w; x++, i++) {
+      if (a[i] >= T && (x === 0 || a[i - 1] >= T) && (x === w - 1 || a[i + 1] >= T) && (y === 0 || a[i - w] >= T) && (y === h - 1 || a[i + w] >= T)) d[i * 4 + 3] = 255;
+    }
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    c.getContext('2d').putImageData(id, 0, 0);
+    return c;
+  }
+  function cutLayer(img, m){
+    const k = Math.min(1, CUT_MAX / Math.max(img.width, img.height)), w = Math.max(2, Math.round(img.width * k)), h = Math.max(2, Math.round(img.height * k));
+    const mc = maskCanvas(m), ic = innerCanvas(m), c = document.createElement('canvas'); c.width = w; c.height = h;
+    const x = c.getContext('2d'); x.imageSmoothingQuality = 'high';
+    // 1) 확실히 사람인 안쪽만 남기고
+    x.drawImage(img, 0, 0, w, h);
+    x.globalCompositeOperation = 'destination-in'; x.drawImage(ic, 0, 0, w, h);
+    // 2) 가장자리 색 고치기: 안쪽 색을 바깥으로 조금 번지게 해요(반으로 줄인 그림을 사방으로 조금씩 밀어서 아래에 깔기) — 안 그러면 머리카락·옷 가장자리에 원래 배경색이 테두리처럼 비쳐요
+    const hw = Math.max(2, Math.round(w / 2)), hh = Math.max(2, Math.round(h / 2)), mk = () => { const q = document.createElement('canvas'); q.width = hw; q.height = hh; return q; }, b0 = mk(), b1 = mk();
+    const g0 = b0.getContext('2d'); g0.imageSmoothingQuality = 'high'; g0.drawImage(c, 0, 0, hw, hh);
+    const g1 = b1.getContext('2d'), u = hw / m.w;   // 사람 자리 그림의 한 점 = 줄인 그림의 u점
+    for (const r of [5, 4, 3, 2, 1]) for (let q = 0; q < 8; q++) { const an = q * Math.PI / 4 + (r % 2) * Math.PI / 8; g1.drawImage(b0, Math.cos(an) * r * u, Math.sin(an) * r * u); }
+    x.globalCompositeOperation = 'destination-over'; x.drawImage(b1, 0, 0, w, h);
+    b0.width = b0.height = b1.width = b1.height = ic.width = ic.height = 0;
+    // 3) 부드러운 사람 자리로 마무리 (작은 사람 자리 그림을 부드럽게 키워서 가장자리가 자연스러워요)
+    x.globalCompositeOperation = 'destination-in'; x.drawImage(mc, 0, 0, w, h);
+    // 사진 끝에서 잘린 팔·어깨가 칼로 자른 듯 보이지 않게, 왼쪽·오른쪽·위쪽 끝은 서서히 사라지게 (아래쪽은 화면 아래에 붙여 세우니 그대로)
+    x.globalCompositeOperation = 'destination-out';
+    const f = Math.round(Math.max(w, h) * .03), fade = (x0, y0, x1, y1, rx, ry, rw, rh) => { const g = x.createLinearGradient(x0, y0, x1, y1); g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(rx, ry, rw, rh); };
+    fade(0, 0, f, 0, 0, 0, f, h); fade(w, 0, w - f, 0, w - f, 0, f, h); fade(0, 0, 0, f, 0, 0, w, f);
+    x.globalCompositeOperation = 'source-over';
+    const sk = 96 / Math.max(w, h), sh = document.createElement('canvas'); sh.width = Math.max(2, Math.round(w * sk)); sh.height = Math.max(2, Math.round(h * sk));
+    const sx = sh.getContext('2d'); sx.imageSmoothingQuality = 'high';
+    sx.fillStyle = '#000'; sx.fillRect(0, 0, sh.width, sh.height);
+    sx.globalCompositeOperation = 'destination-in'; sx.drawImage(mc, 0, 0, sh.width, sh.height);
+    mc.width = mc.height = 0;
+    const b = m.box && m.box.length === 4 ? m.box : [0, 0, 1, 1];
+    return { cut: c, cutSh: sh, cutBox: b };
+  }
+  const freeCut = v => { if (v && v.cut) { v.cut.width = v.cut.height = 0; v.cutSh.width = v.cutSh.height = 0; } };
   function bank(items){   // items: [{ bytes, w, h, meta }]
     const ready = new Map(), pending = new Map(), gen = new Map();
     let closed = false;
@@ -160,7 +212,8 @@ const Movie = (() => {
       const g = gen.get(i) || 0;
       const pr = decodePhoto(items[i]).then(img => {
         if (closed || (gen.get(i) || 0) !== g) { if (img.close) img.close(); return null; }   // 그사이 닫혔거나 사진이 바뀌었으면 버려요
-        const v = { img, bg: blurred(img), w: img.width, h: img.height };
+        const v = { img, bg: blurred(img), w: img.width, h: img.height }, it = items[i];
+        if (it && it.cut && it.cut.on && it.mask && !it.vid) { try { Object.assign(v, cutLayer(img, it.mask)); } catch (e) {} }   // 인물만 오려 낸 사진 (못 만들면 원래 사진 그대로)
         pending.delete(i); ready.set(i, v); return v;
       }, e => {
         pending.delete(i);
@@ -178,13 +231,13 @@ const Movie = (() => {
       clipLen: i => (items[i] && items[i].vid && items[i].vid.len) || 0,
       async need(now, soon = []){
         const keep = new Set([...now, ...soon]);
-        for (const [i, v] of ready) if (!keep.has(i)) { if (v.img.close) v.img.close(); ready.delete(i); }
+        for (const [i, v] of ready) if (!keep.has(i)) { if (v.img.close) v.img.close(); freeCut(v); ready.delete(i); }
         soon.forEach(i => { load(i).catch(() => {}); });
         if (closed) return;
         await Promise.all(now.map(load));
       },
-      drop(i){ gen.set(i, (gen.get(i) || 0) + 1); const v = ready.get(i); if (v && v.img.close) v.img.close(); ready.delete(i); pending.delete(i); },   // 사진을 바꿨을 때
-      close(){ closed = true; for (const v of ready.values()) if (v.img.close) v.img.close(); ready.clear(); pending.clear(); }
+      drop(i){ gen.set(i, (gen.get(i) || 0) + 1); const v = ready.get(i); if (v && v.img.close) v.img.close(); freeCut(v); ready.delete(i); pending.delete(i); },   // 사진을 바꿨을 때 (오려 내기를 켜고 껐을 때도)
+      close(){ closed = true; for (const v of ready.values()) { if (v.img.close) v.img.close(); freeCut(v); } ready.clear(); pending.clear(); }
     };
   }
 
@@ -364,8 +417,13 @@ const Movie = (() => {
     const fit = o.fit || (meta.fit === 'cover' ? 'cover' : meta.fit === 'whole' ? 'blur' : auto);
     ctx.save();
     if (o.clip) { ctx.beginPath(); o.clip(ctx); ctx.clip(); }   // 프레임(11/11): 네모 대신 그 모양으로 잘라요
-    else if (o.box) { ctx.beginPath(); ctx.rect(bx, by, bw, bh); ctx.clip(); }
-    if (fit === 'cover') {   // 사용자가 맞춘 위치를 가운데에 두고 조금만 움직여요
+    else if (o.box) { ctx.beginPath(); ctx.rect(...(o.clipBox || [bx, by, bw, bh])); ctx.clip(); }
+    if (ph.cut && s.kind === 'photo') {   // 인물만 오려 낸 사진 (11/25): 사진 대신 바탕색 + 사람만. 사진 장면에서만 — 여는·닫는 장면에 깔리는 사진은 원래 사진 그대로
+      if (!o.noBack) backdrop(ctx, M, [bx, by, bw, bh], o.back || backOf(M, s.i), !!o.clip);
+      if (fit === 'cover') { const z0 = meta.z || 1, amp = .05 / z0; person(ctx, ph, [bx, by, bw, bh], 'cover', z0 * sc, (meta.cx ?? .5) + dx * (e - .5) * amp, (meta.cy ?? .5) + dy * (e - .5) * amp); }
+      else person(ctx, ph, [bx, by, bw, bh], fit === 'contain' ? 'contain' : 'stand', sc);
+    }
+    else if (fit === 'cover') {   // 사용자가 맞춘 위치를 가운데에 두고 조금만 움직여요
       const z0 = meta.z || 1, amp = .05 / z0;
       framed(ctx, ph.img, bx, by, bw, bh, z0 * sc, (meta.cx ?? .5) + dx * (e - .5) * amp, (meta.cy ?? .5) + dy * (e - .5) * amp);
     }
@@ -379,6 +437,49 @@ const Movie = (() => {
       ctx.drawImage(ph.img, bx + (bw - dw) / 2, by + (bh - dh) / 2, dw, dh);
     }
     ctx.restore();
+  }
+  // ===== 인물만 오려 낸 사진 그리기 (11/25) =====
+  // 그 사진(i)이 지금 오려 낸 채로 풀려 있는지
+  const isCut = (M, i) => { const p = i != null && M.bank.get(i); return !!(p && p.cut); };
+  // 바탕색: 프레임과 같은 칸(그 장면 앞 사진의 duo.bg = 템플릿 duoBg의 몇 번째)을 써요. 안 골랐으면 첫 번째 색
+  function backOf(M, i){ const pal = M.tpl.duoBg || [], d = M.bank.duo && M.bank.duo(i); return pal[(d && d.bg) | 0] || pal[0] || { c: M.tpl.bg }; }
+  // 색이 밝은지 (밝은 바탕에는 그림자를, 어두운 바탕에는 은은한 빛을)
+  function isLight(c){ const m = /^#?([0-9a-f]{6}|[0-9a-f]{3})$/i.exec(String(c).trim()); if (!m) return true; let h = m[1]; if (h.length === 3) h = h.replace(/./g, '$&$&'); const n = parseInt(h, 16); return (.299 * (n >> 16) + .587 * ((n >> 8) & 255) + .114 * (n & 255)) > 140; }
+  // 사람 뒤 바탕: 바탕색 한 가지 + (사진관 조명처럼) 가운데가 살짝 밝고 아래가 살짝 어둡게. 템플릿이 cutFlat이면 색만 (미니멀·무빙포스터: 종이·포스터 바탕과 이어지게)
+  // plate: 프레임 안쪽일 때 — 프레임 모양이 보이게 바탕색보다 한 톤 밝게(어두운 색은 살짝 밝게)
+  function backdrop(ctx, M, box, col, plate){
+    const [x, y, w, h] = box, c = (col && col.c) || M.tpl.bg, light = isLight(c);
+    ctx.save();
+    ctx.fillStyle = c; ctx.fillRect(x, y, w, h);
+    if (plate) { ctx.fillStyle = light ? 'rgba(255,255,255,.55)' : 'rgba(255,255,255,.13)'; ctx.fillRect(x, y, w, h); }
+    if (!M.tpl.cutFlat) {
+      const cx = x + w / 2, cy = y + h * .42, g = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(w, h) * .7);
+      g.addColorStop(0, light ? 'rgba(255,255,255,.34)' : 'rgba(255,255,255,.16)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
+      const g2 = ctx.createLinearGradient(0, y + h * .62, 0, y + h);
+      g2.addColorStop(0, 'rgba(0,0,0,0)'); g2.addColorStop(1, light ? 'rgba(0,0,0,.1)' : 'rgba(0,0,0,.28)');
+      ctx.fillStyle = g2; ctx.fillRect(x, y + h * .62, w, h * .38);
+    }
+    ctx.restore();
+  }
+  // 오려 낸 사람을 칸에 그려요 (칸 밖은 부른 쪽에서 잘라 둬요)
+  //  'cover'  : 원래 사진이 칸을 채우던 그 자리·크기 그대로 (사용자가 맞춘 위치도 그대로) — 배경만 사라져요
+  //  'contain': 사진 전체가 칸에 들어가던 그 자리 그대로 (미니멀의 '사진 전체')
+  //  'stand'  : 사진 비율이 칸과 많이 달라 흐린 배경을 깔던 경우 — 사람이 있는 네모(cutBox)를 칸에 맞춰 크게, 사진 아래에서 잘린 사람은 칸 아래에 붙여 세워요
+  function person(ctx, ph, box, how, sc = 1, cx = .5, cy = .5){
+    const [bx, by, bw, bh] = box, im = ph.cut;
+    let x, y, dw, dh;
+    if (how === 'cover') { const q = place(im, bw, bh, sc, cx, cy); dw = q.dw; dh = q.dh; x = bx + bw / 2 - q.cx * dw; y = by + bh / 2 - q.cy * dh; }
+    else if (how === 'contain') { const k = Math.min(bw / ph.w, bh / ph.h) * sc; dw = ph.w * k; dh = ph.h * k; x = bx + (bw - dw) / 2; y = by + (bh - dh) / 2; }
+    else {
+      const B = ph.cutBox || [0, 0, 1, 1], pw = Math.max(.05, B[2] - B[0]) * ph.w, pH = Math.max(.05, B[3] - B[1]) * ph.h, floor = B[3] > .965;   // floor: 사람이 사진 아래 끝에서 잘렸는지
+      const base = Math.min(bw / ph.w, bh / ph.h), k = Math.max(base, Math.min(bw * .88 / pw, bh * (floor ? .93 : .86) / pH, base * 2.4)) * sc;
+      dw = ph.w * k; dh = ph.h * k;
+      x = bx + bw / 2 - (B[0] + B[2]) / 2 * dw;
+      y = floor ? by + bh - dh : by + bh / 2 - (B[1] + B[3]) / 2 * dh;
+    }
+    if (ph.cutSh) { ctx.save(); ctx.globalAlpha *= .16; ctx.drawImage(ph.cutSh, x + dw * .006, y + dh * .012, dw, dh); ctx.restore(); }   // 사람 뒤 옅은 그림자 (바탕에 붙인 종이처럼 안 보이게)
+    ctx.drawImage(im, x, y, dw, dh);
   }
   const font = (w, px, fam) => `${w} ${Math.round(px)}px ${fam}`;
   function text(ctx, str, x, y, o){
@@ -544,13 +645,17 @@ const Movie = (() => {
   // o.under(box, 사진 번호): 사진을 그리기 전에 칸 아래 그릴 것(그림자 등), o.fit(사진 번호): 맞춤 방식을 직접 정할 때
   function duo(ctx, M, s, u, o = {}){
     const R = duoBoxes(M, M.tpl, M.bank.duo && M.bank.duo(s.i)), [A, B] = R.boxes;
+    // 인물만 오려 낸 사진이 있는 장면 (11/25): 바탕색은 장면(앞 사진)의 것 하나. 프레임 없이 좌우·위아래로 둘 다 오려 냈으면 한 바탕 위에 나란히(joined) — 칸 사이 금도, 칸 끝에서 잘리는 것도 없이
+    const cutA = isCut(M, s.i), cutB = isCut(M, s.j), back = cutA || cutB ? backOf(M, s.i) : undefined, joined = cutA && cutB && !R.fr && R.lay !== 'pip';
+    if (cutA || cutB) R.cut = true;
     const one = (idx, b, kk, k) => {
       const p = M.bank.get(idx); if (!p) return;
       if (R.fr) duoShade(ctx, M, R, k, k === 1 && R.lay === 'pip' ? (o.rim || '#fff') : null);
-      else if (o.under) o.under(b, idx);
-      photo(ctx, M, p, { ...s, i: idx, k: kk }, u, { box: b, zoom: o.zoom, auto: 'cover', fit: o.fit ? o.fit(idx) : undefined, clip: R.fr ? c => R.path(c, k) : undefined });
+      else if (o.under && !joined) o.under(b, idx);
+      photo(ctx, M, p, { ...s, i: idx, k: kk }, u, { box: b, zoom: o.zoom, auto: 'cover', fit: o.fit ? o.fit(idx) : undefined, clip: R.fr ? c => R.path(c, k) : undefined, back, noBack: joined, clipBox: joined ? R.D.box : undefined });
     };
     if (R.fr) duoBack(ctx, M, R);
+    if (joined) backdrop(ctx, M, R.D.box, back, false);
     one(s.i, A, s.k, 0);
     if (R.lay === 'pip' && !R.fr) rim(ctx, B, o.rim || '#fff', Math.max(2, Math.min(M.W, M.H) * .006));
     one(s.j, B, s.k + 1, 1);
@@ -1134,9 +1239,10 @@ const Movie = (() => {
 
   return {
     FPS, IOS, ANDROID, MOBILE, WEBKIT, VBR, bitrate, size, inApp, shrink, takenAt, bank, plan, photosAt, frame, scene, fonts,
-    decode, mix, make, player, probe, cleanup, beats, clip, isVideo,
+    decode, mix, make, player, probe, cleanup, beats, clip, isVideo, decodePhoto, maskCanvas,
     segAt: (P, t) => P.segs[at(P.segs, t)],
     kit: { cl, ease, out3, lerp, rise, veil, cover, place, framed, photo, text, wrap, block, typed, grain, vignette, scrim, font,
-      slots, duoBoxes, duo, rim, DUO_R, DUO_LIM, FRAMES, FP_LIM, duoBack, duoShade, rr, soloBox, solo }
+      slots, duoBoxes, duo, rim, DUO_R, DUO_LIM, FRAMES, FP_LIM, duoBack, duoShade, rr, soloBox, solo,
+      isCut, backOf, backdrop, person }
   };
 })();

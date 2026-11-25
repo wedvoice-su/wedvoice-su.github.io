@@ -143,14 +143,15 @@ const TEMPLATES = [];
     photo(ctx, M, s, u){
       if (s.j != null) {   // 두 장 장면
         const R = K.duo(ctx, M, s, u);
-        if (R.fr) pillText(ctx, M, s, u);
+        if (R.fr || R.cut) pillText(ctx, M, s, u);   // R.cut: 인물만 오려 낸 사진이 있으면 바탕색이 보이니 프레임 장면과 같은 글 모양으로 (11/25)
         else if (s.intro || s.intro2) introDuo(ctx, M, s, u, R.boxes); else if (s.caption) caption(ctx, M, s, u);
         return;
       }
       const p = ph(M, s);
       if (K.solo(ctx, M, s, u)) { pillText(ctx, M, s, u); return; }   // 한 장 장면에 프레임을 골랐을 때 (11/11 3판) — 사진을 아직 못 불러왔어도 바탕색은 칠해요
       if (p) K.photo(ctx, M, p, s, u);
-      if (s.intro) intro(ctx, M, s, u); else if (s.caption) caption(ctx, M, s, u);
+      if (p && p.cut) pillText(ctx, M, s, u);   // 인물만 오려 낸 사진 (11/25): 바탕색 위라서 프레임 장면과 같은 글 모양
+      else if (s.intro) intro(ctx, M, s, u); else if (s.caption) caption(ctx, M, s, u);
     },
     parents(ctx, M, s, u){ message(ctx, M, s, u); },
     thanks(ctx, M, s, u){ message(ctx, M, s, u); },
@@ -202,14 +203,15 @@ const TEMPLATES = [];
       const box = area(M);
       if (s.j != null) {   // 두 장 장면
         const R = K.duo(ctx, M, s, u, { zoom: .06 });
-        if (R.fr) pillText(ctx, M, s, u, { bottom: box[1] + box[3] });
+        if (R.fr || R.cut) pillText(ctx, M, s, u, { bottom: box[1] + box[3] });   // R.cut: 인물만 오려 낸 사진이 있는 장면 (11/25)
         else if (s.intro || s.intro2) introDuo(ctx, M, s, u, R.boxes, { accent: "#D9C08C" }); else if (s.caption) caption(ctx, M, s, u, { chapter: "#D9C08C", bottom: box[1] + box[3] });
         return;
       }
       const p = ph(M, s);
       if (K.solo(ctx, M, s, u, { zoom: .06 })) { pillText(ctx, M, s, u, { bottom: box[1] + box[3] }); return; }   // 한 장 장면 프레임
       if (p) K.photo(ctx, M, p, s, u, { box, zoom: .06 });
-      if (s.intro) intro(ctx, M, s, u, { accent: "#D9C08C", y: box[1] + box[3] - mm(M) * .26 }); else if (s.caption) caption(ctx, M, s, u, { chapter: "#D9C08C", bottom: box[1] + box[3] });
+      if (p && p.cut) pillText(ctx, M, s, u, { bottom: box[1] + box[3] });   // 인물만 오려 낸 사진 (11/25)
+      else if (s.intro) intro(ctx, M, s, u, { accent: "#D9C08C", y: box[1] + box[3] - mm(M) * .26 }); else if (s.caption) caption(ctx, M, s, u, { chapter: "#D9C08C", bottom: box[1] + box[3] });
     },
     parents(ctx, M, s, u){ message(ctx, M, s, u); },
     thanks(ctx, M, s, u){ message(ctx, M, s, u); },
@@ -251,7 +253,7 @@ const TEMPLATES = [];
     key: "minimal", name: "미니멀", desc: "밝은 바탕에 사진과 글자만. 짧고 깔끔하게", photos: [10, 25],
     box: (M, p) => mbox(M, p), duo: mduo,
     duoBg: [{ c: PAPER, name: "종이" }, { c: "#FFFFFF", name: "화이트" }, { c: "#F1DADB", name: "연분홍" }, { c: "#DCE3D5", name: "세이지" }, { c: "#D9E4EC", name: "하늘" }, { c: INK, name: "먹색" }],
-    bg: PAPER, edge: PAPER, xf: 1, trans: "fade",
+    bg: PAPER, edge: PAPER, xf: 1, trans: "fade", cutFlat: true,   // cutFlat: 인물만 오려 낸 사진의 바탕을 색 한 가지로만 (종이 바탕과 이어지게, 11/25)
     time: { open: 6, parents: 6, thanks: 6, close: 7, min: 3.5, max: 8, fast: 1.6, short: { open: 4.2, parents: 4, thanks: 4, close: 4.5 } },   // 슬라이드형 템플릿은 사진 11~27장, 장당 약 8초까지
     openPhoto: false, thanksPhoto: false, closePhoto: false,
     fonts: [`500 40px ${F.en}`, `italic 500 40px ${F.en}`, `700 40px ${F.serif}`, `400 40px ${F.serif}`, `400 40px ${F.sans}`, `500 40px ${F.caps}`],
@@ -281,7 +283,7 @@ const TEMPLATES = [];
         }
       };
       if (s.j != null) {   // 두 장 장면
-        const R = K.duo(ctx, M, s, u, { zoom: .04, fit: whole, under: shade });
+        const R = K.duo(ctx, M, s, u, { zoom: .04, fit: whole, under: (b, idx) => { if (!K.isCut(M, idx)) shade(b); } });   // 인물만 오려 낸 사진(11/25)은 네모가 아니라서 네모 그림자를 안 깔아요
         under(R.D.box[1] + R.D.box[3]);
         return;
       }
@@ -289,7 +291,7 @@ const TEMPLATES = [];
         const R = K.solo(ctx, M, s, u, { zoom: .04, fit: whole });   // 한 장 장면 프레임: 두 장 틀 자리에 모양 하나, 글은 그 아래
         if (R) { under(R.D.box[1] + R.D.box[3]); return; }
         const box = mbox(M, p);
-        shade(box);
+        if (!p.cut) shade(box);
         K.photo(ctx, M, p, s, u, { box, fit: whole(s.i), zoom: .04 });
         under(box[1] + box[3]);
       }
@@ -318,7 +320,11 @@ const TEMPLATES = [];
       const p = M.bank.get(idx); if (!p) return;
       const meta = (M.bank.meta && M.bank.meta(idx)) || {};
       ctx.save(); ctx.beginPath(); if (path) path(ctx); else ctx.rect(b[0], b[1], b[2], b[3]); ctx.clip();
-      if (meta.fit === "whole") { const k = Math.min(b[2] / p.w, b[3] / p.h) * z, dw = p.w * k, dh = p.h * k; ctx.drawImage(p.img, b[0] + (b[2] - dw) / 2, b[1] + (b[3] - dh) / 2, dw, dh); }
+      if (p.cut && s.kind === "photo") {   // 인물만 오려 낸 사진 (11/25): 포스터 틀 안에 바탕색 + 사람만. '사진 전체'면 사람을 틀에 맞춰 세워요
+        K.backdrop(ctx, M, b, K.backOf(M, s.i), !!path);
+        if (meta.fit === "whole") K.person(ctx, p, b, "stand", z); else K.person(ctx, p, b, "cover", (meta.z || 1) * z, meta.cx ?? .5, meta.cy ?? .5);
+      }
+      else if (meta.fit === "whole") { const k = Math.min(b[2] / p.w, b[3] / p.h) * z, dw = p.w * k, dh = p.h * k; ctx.drawImage(p.img, b[0] + (b[2] - dw) / 2, b[1] + (b[3] - dh) / 2, dw, dh); }
       else K.framed(ctx, p.img, b[0], b[1], b[2], b[3], (meta.z || 1) * z, meta.cx ?? .5, meta.cy ?? .5);
       ctx.restore();
     };
@@ -363,7 +369,7 @@ const TEMPLATES = [];
     key: "poster", name: "무빙포스터", desc: "포스터 한 장이 천천히 움직여요. 사진 1~10장, 반복 재생용", photos: [1, 10],
     box: M => pbox(M), duo: M => ({ box: pbox(M), gap: mm(M) * .012, lay: tall(M) ? "tb" : "lr", corner: "br" }),
     duoBg: [{ c: POSTER, name: "검정" }, { c: GOLD, name: "골드" }, { c: "#3B1820", name: "버건디" }, { c: "#1F2E27", name: "딥 그린" }, { c: "#18233A", name: "네이비" }, { c: "#EFE6D6", name: "아이보리" }],
-    bg: POSTER, xf: 1.6, trans: "fade", loop: true, fill: true, keepXf: true,   // keepXf: 박자에 맞출 때도 천천히 겹쳐 넘어가게 (2차 업데이트)
+    bg: POSTER, xf: 1.6, trans: "fade", loop: true, fill: true, keepXf: true, cutFlat: true,   // keepXf: 박자에 맞출 때도 천천히 겹쳐 넘어가게 (2차 업데이트) · cutFlat: 오려 낸 사진의 바탕은 색 한 가지로 (11/25)
     time: { open: 6, parents: 6, thanks: 6, close: 6, min: 5, max: 9, fast: 2.5, short: { open: 4, parents: 4, thanks: 4, close: 4 } },
     openPhoto: true, thanksPhoto: true, closePhoto: "first",
     fonts: [`500 40px ${F.caps}`, `700 40px ${F.serif}`, `400 40px ${F.serif}`, `500 40px ${F.en}`, `400 40px ${F.sans}`],

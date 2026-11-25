@@ -12,6 +12,10 @@
 const OPEN = true;
 const QS = new URLSearchParams(location.search);
 const DEBUG = QS.has("debug");
+// 인물만 오려 내기 (2026-11-25, 사회자님: "인물 오려내기 기능은 첫 번째 식전영상 말고, 업그레이드 식전 영상 사이트에 추가"): 사회자님이 릴스를 올린 뒤 공개하라고 하면 true로.
+// false면 주소 뒤에 ?preview 를 붙였을 때만 보여요. (예: …/opening-scene-plus/?preview) — ?preview가 없으면 화면도 만든 영상도 전과 똑같아요
+const CUTOUT_OPEN = false;
+const CUTOUT_ON = CUTOUT_OPEN || QS.has("preview");
 const LOCAL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
 const SAVE_KEY = "nowShowing.v1";   // 폴더 이름(now-showing → opening-scene, 11/5)이 바뀌어도 저장 이름은 그대로 (만들던 사진·글 유지)
 const SAFE = "사진·영상·음악은 이 휴대폰 안에서만 쓰이고, 어디에도 올라가지 않아요.";   // 2차 업데이트: 영상도 넣을 수 있어서 '사진과 음악은' → '사진·영상·음악은' (사회자님 문구 검토 대상)
@@ -39,7 +43,9 @@ const IC = {
   order: svg('<path d="M4 8h13M14 4.5L17.5 8 14 11.5M20 16H7M10 12.5L6.5 16l3.5 3.5"/>'),
   swap: svg('<path d="M4.5 12a7.5 7.5 0 0112.8-5.3L19.5 9M19.5 4.5V9H15M19.5 12a7.5 7.5 0 01-12.8 5.3L4.5 15M4.5 19.5V15H9"/>'),
   trash: svg('<path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l.8 12.5h9.4L17.5 7M10 10.5v6M14 10.5v6"/>'),
-  cut: svg('<circle cx="6.5" cy="7" r="2.5"/><circle cx="6.5" cy="17" r="2.5"/><path d="M8.6 8.4L20 16.5M8.6 15.6L20 7.5"/>')
+  cut: svg('<circle cx="6.5" cy="7" r="2.5"/><circle cx="6.5" cy="17" r="2.5"/><path d="M8.6 8.4L20 16.5M8.6 15.6L20 7.5"/>'),
+  person: svg('<rect x="3" y="3" width="18" height="18" rx="3.5" stroke-dasharray="2.6 2.9"/><circle cx="12" cy="9.3" r="2.9"/><path d="M6.6 20.6c.5-4 2.7-6 5.4-6s4.9 2 5.4 6"/>'),   // 인물만 오려 내기 (11/25): 점선 = 오려 내는 금
+  trash16: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4.3h11M6.2 4.3V2.7h3.6v1.6M4 4.3l.7 9.1h6.6l.7-9.1M6.6 6.8v4.3M9.4 6.8v4.3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'   // 'AI 모델 지우기' 버튼 (음원 편집 사이트와 같은 그림)
 };
 const NEWTAG = '<em class="newtag">NEW</em>';
 
@@ -114,6 +120,7 @@ let PH = [];        // 사진 { id, bytes, thumbBytes, w, h, taken, vid, clip, u
                     // vid: 짧은 영상이면 { len 초 }, clip: 그 영상 MP4 바이트(cl:<id>에 따로 보관). 이때 bytes·thumbBytes는 영상 첫 장면 (2차 업데이트)
                     // taken: 찍은 날짜(밀리초, 모르면 null) — 넣을 때 원본에서 읽어 ph: 기록에 같이 둬요 (날짜순 정렬, 2차 업데이트)
                     // pair: true면 다음 사진과 한 장면에 두 장(11/9), duo: 그 배치 { lay, r } — 둘 다 앞 사진에만 붙어요
+                    // cut: 인물만 오려 내기 표시 { on }, mask: 사람 자리 그림 { w, h, a, box }(cu:<id>에 따로 보관), cutUrl: 오려 낸 작은 그림 (11/25, 아래 '인물만 오려 내기')
 let MINE = null;    // 내가 넣은 음악 { name, bytes, type }
 let MINE_URL = null;
 const mineUrl = () => MINE_URL || (MINE_URL = URL.createObjectURL(new Blob([MINE.bytes], { type: MINE.type })));
@@ -136,6 +143,10 @@ async function restore(){
     const item = { id, bytes, thumbBytes, w: p.w, h: p.h, taken: p.taken != null ? p.taken : null, meta: (m ? m.meta : p.meta) || null, caption: (m ? m.caption : p.caption) || "", pair: !!(m && m.pair), duo: (m && m.duo) || null };
     if (p.vid) { const cb = await bytesOf(await DB.get("cl:" + id)); if (cb) { item.vid = p.vid; item.clip = cb; } }   // 클립을 못 읽으면 첫 장면 사진으로 남아요
     item.url = URL.createObjectURL(jpg(thumbBytes));
+    if (m && m.cut) {   // 인물만 오려 내기 (11/25): 표시는 늘 들고 있다가 그대로 다시 저장하고(지워지지 않게), 사람 자리 그림은 기능이 보일 때만 불러와요
+      item.cut = m.cut;
+      if (CUTOUT_ON && !item.vid) { const k = await DB.get("cu:" + id), a = k && await bytesOf(k.a); if (a && k.w && k.h) { item.mask = { w: k.w, h: k.h, a, box: k.box }; await cutThumb(item); } }
+    }
     PH.push(item);
     if (!p.bytes) { DB.set("ph:" + id, { id, bytes, thumbBytes, w: p.w, h: p.h }); savePhoto(item); }   // 예전 방식으로 저장된 사진은 새 방식으로 옮겨 둬요
   }
@@ -164,7 +175,7 @@ const sceneOf = i => scenes().find(s => s.includes(i)) || [i];
 function pairUp(i){
   if (i + 1 >= PH.length || PH[i].vid || PH[i + 1].vid) return;
   const d0 = PH[i].duo;
-  PH[i].pair = true; PH[i].duo = d0 && d0.fr ? { fr: d0.fr, bg: d0.bg } : null;   // 한 장일 때 고른 프레임·바탕색은 두 장 장면에도 그대로 (배치·옮긴 자리는 처음으로)
+  PH[i].pair = true; PH[i].duo = d0 && d0.fr ? { fr: d0.fr, bg: d0.bg } : d0 && d0.bg != null && cutOn(PH[i]) ? { bg: d0.bg } : null;   // 한 장일 때 고른 프레임·바탕색은 두 장 장면에도 그대로 (배치·옮긴 자리는 처음으로). 인물만 오려 낸 사진의 바탕색도 (11/25)
   if (!(PH[i].caption || "").trim() && (PH[i + 1].caption || "").trim()) { PH[i].caption = PH[i + 1].caption; PH[i + 1].caption = ""; savePhoto(PH[i + 1]); }
   savePhoto(PH[i]); normalize();
 }
@@ -175,6 +186,7 @@ function unpair(i){
     PH[i].duo = { fr: d.fr, bg: d.bg };
     if (n && !n.pair) { n.duo = { fr: d.fr, bg: d.bg }; savePhoto(n); }
   }
+  else if (d && d.bg != null && n && !n.pair && cutOn(n)) { n.duo = { ...(n.duo || {}), bg: d.bg }; savePhoto(n); }   // 인물만 오려 낸 뒤 사진도 장면의 바탕색 그대로 (11/25)
   savePhoto(PH[i]);
 }
 // 사진 한 장을 at 자리에 넣어요 (줄여서 이 휴대폰에 보관). 저장 공간이 부족하면 false
@@ -204,6 +216,7 @@ async function replaceClip(i, c, keepMeta){   // keepMeta: 같은 영상에서 �
   const old = PH[i];
   URL.revokeObjectURL(old.url);
   Object.assign(old, { bytes: c.bytes, thumbBytes: c.thumbBytes, w: c.w, h: c.h, taken: c.taken, vid: c.vid, clip: c.clip, src: c.src || null, url: URL.createObjectURL(jpg(c.thumbBytes)), meta: keepMeta ? old.meta : null });
+  if (old.cut) cutForget(old);   // 사진을 영상으로 바꾸면 오려 낸 것은 지워요 (11/25)
   await DB.set("ph:" + old.id, { id: old.id, bytes: c.bytes, thumbBytes: c.thumbBytes, w: c.w, h: c.h, taken: c.taken, vid: c.vid });
   await DB.set("cl:" + old.id, c.clip);
   savePhoto(old); normalize();   // 두 장 장면에 있던 사진이면 한 장씩으로 풀려요
@@ -339,6 +352,249 @@ function planOpt(buf){
 // 지금 사진·글·음악 구간·박자·영상으로 장면 순서 만들기 (미리 보기·편집 창·길이 어림이 같은 계산을 써요)
 function planNow(T, d, buf){ const c = cutOf(buf); return Movie.plan(T, d, PH.length, c ? c.b - c.a : 0, pairs(), planOpt(buf)); }
 
+// ===== 인물만 오려 내기 (2026-11-25) =====
+// 사진에서 사람만 남기고 배경을 지워요. 영상에서는 사람 뒤에 바탕색(프레임의 바탕색과 같은 색들, duo.bg)이 깔려요 — 그리기는 engine.js photo()·person()
+//   AI 모델(MODNet, Apache-2.0, 26MB)을 처음 한 번 받아 이 휴대폰에 저장해 두고(Cache Storage), 워커(cut-worker.js)에서 돌려요. 사진은 휴대폰 밖으로 나가지 않아요.
+//   새로 저장하는 것(옛 코드·간편 버전은 모두 무시): pm: 기록의 cut { on }, 사람 자리 그림은 cu:<id> { w, h, a, box }. 원래 사진(ph:)은 건드리지 않아서 언제든 되돌려요
+//   CUTOUT_ON이 아니면 사람 자리 그림을 불러오지 않아서 화면도 영상도 전과 똑같아요
+// 모델 파일: Hugging Face Xenova/modnet의 onnx/model.onnx (25,888,640바이트). 주소는 그 판(commit)에 고정. 공개 전에 사회자님 저장소(wedvoice-su)로 옮길 것 — docs/식전영상-오려내기/허깅페이스-올릴-파일/
+const CUT_MODEL = { url: "https://huggingface.co/Xenova/modnet/resolve/fa2fa546052fba4c08921230a26cc69a333fca12/onnx/model.onnx", mb: 26 };
+const CUT_CACHE = "scene-cut-models-v1";   // 저장해 두는 곳 이름 (cut-worker.js와 같아야 해요)
+const CUT_REF = 512, CUT_LONG = 1024;       // 모델에 넣는 사진: 짧은 쪽 512(모델이 배운 크기), 아주 길쭉한 사진도 긴 쪽 1024까지
+const cutOn = p => CUTOUT_ON && !!(p && p.cut && p.cut.on && p.mask && !p.vid);   // 이 사진이 지금 오려 낸 채로 영상에 들어가는지
+let cutWorker = null;
+let CUT = null;          // 지금 오려 내는 중인 일 { pid(사진 id), phase, a, b, id, rej } — 한 번에 한 장
+let CUT_SAVED = null;    // AI 모델이 이 휴대폰에 저장돼 있는지 (true · false, 알 수 없으면 null)
+let CUT_GONE = "";       // 방금 AI 모델을 지웠으면 "ok", 못 지웠으면 "fail"
+let CUT_MSG = null;      // 마지막 결과를 알리는 말 { pid, ok, text }
+const CUT_OK = "인물만 오려 냈어요. 마음에 안 들면 '원래 사진'을 눌러 주세요.";
+const CUT_WHY = {
+  none: "이 사진에서는 사람을 찾지 못했어요. 원래 사진 그대로 둘게요.",
+  all: "이 사진은 사람이 화면에 꽉 차서 지울 배경이 없어요. 원래 사진 그대로 둘게요.",
+  dl: "AI 모델을 받지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요.",
+  load: "이 브라우저에서는 인물 오려 내기를 쓸 수 없어요. 크롬이나 사파리에서 열어 주세요.",
+  fail: "오려 내지 못했어요. 다시 눌러 주세요. 원래 사진은 그대로예요."
+};
+const CUT_SAFE = "사진은 휴대폰 밖으로 나가지 않아요.";
+const cutFirst = () => (CUT_SAVED ? "" : `처음 한 번만 AI 모델 ${CUT_MODEL.mb}MB를 받아요 (와이파이 추천).`);
+// 모델에 넣을 크기 (32의 배수)
+function cutSize(w, h){
+  let k = CUT_REF / Math.min(w, h);
+  if (Math.max(w, h) * k > CUT_LONG) k = CUT_LONG / Math.max(w, h);
+  const r32 = v => Math.max(32, Math.round(v / 32) * 32);
+  return [r32(w * k), r32(h * k)];
+}
+// 모델이 준 사람 자리(0~255)를 손질하고, 쓸 만한지 봐요. 사람이 거의 없거나(none) 배경이 거의 없으면(all) 못 쓰는 것으로
+function cutMask(a, w, h){
+  const n = w * h, col = new Uint32Array(w), row = new Uint32Array(h);
+  let solid = 0, soft = 0;
+  for (let y = 0, i = 0; y < h; y++) for (let x = 0; x < w; x++, i++) {
+    let v = a[i];
+    if (v >= 40 && v < 216) soft++;   // 사람인지 아닌지 모델이 망설인 점
+    v = v <= 20 ? 0 : v >= 236 ? 255 : Math.round((v - 20) * 255 / 216);   // 아주 옅은 얼룩은 지우고, 거의 다 찬 곳은 꽉 채워요
+    a[i] = v;
+    if (v >= 128) { solid++; col[x]++; row[y]++; }
+  }
+  const cover = solid / n;
+  // 못 쓰는 결과 (시험 사진 12장으로 정한 기준, docs/식전영상-오려내기/이어서-할-일.md): 사람이 사진의 4%도 안 되거나, 망설인 점이 사람 점의 45%를 넘으면(풍경 사진에서 나무·구름을 사람으로 본 경우) 사람을 못 찾은 것으로
+  if (cover < .04 || soft > solid * .45) return { ok: false, why: "none", cover };
+  if (cover > .97) return { ok: false, why: "all", cover };
+  // 사람이 있는 네모: 점 몇 개짜리 얼룩에 끌려가지 않게, 줄마다 사람 점이 조금은 있는 데까지만
+  const edge = (arr, min) => { let lo = 0, hi = arr.length - 1; while (lo < hi && arr[lo] < min) lo++; while (hi > lo && arr[hi] < min) hi--; return [lo, hi + 1]; };
+  const [x0, x1] = edge(col, Math.max(2, h * .012)), [y0, y1] = edge(row, Math.max(2, w * .012));
+  return { ok: true, a, cover, box: [x0 / w, y0 / h, x1 / w, y1 / h].map(v => +v.toFixed(4)) };
+}
+function cutRun(job, rgba, w, h){
+  const id = Date.now() + "-" + Math.random();
+  return new Promise((res, rej) => {
+    let wk, dog = 0;
+    const end = () => clearTimeout(dog);
+    try { wk = cutWorker || (cutWorker = new Worker("cut-worker.js")); } catch (err) { err.phase = "load"; rej(err); return; }
+    job.id = id; job.rej = e => { end(); rej(e); };
+    const fail = err => { end(); if (CUT !== job) return; try { wk.terminate(); } catch (_) {} if (cutWorker === wk) cutWorker = null; rej(err); };
+    const watch = () => { clearTimeout(dog); dog = setTimeout(() => { const e = new Error("너무 오래 걸려요"); e.phase = job.phase; fail(e); }, 180000); };   // 3분 동안 소식이 없으면 그만둬요
+    wk.onmessage = ev => {
+      const d = ev.data;
+      if (CUT !== job || d.id !== id) return;
+      if (d.type === "step") { job.phase = d.phase; job.a = d.a || 0; job.b = d.b || 0; watch(); cutTick(); return; }
+      if (d.type === "done") { end(); res(d); return; }
+      const err = new Error(d.text || "fail"); err.phase = d.phase; fail(err);
+    };
+    wk.onerror = ev => { const err = new Error((ev && ev.message) || "worker"); err.phase = "load"; fail(err); };
+    watch();
+    wk.postMessage({ type: "run", id, rgba, w, h, model: CUT_MODEL, engine: DEBUG && QS.has("cutcpu") ? "cpu" : "auto" }, [rgba.buffer]);   // ?debug&cutcpu: 그래픽 칩 없이(WASM) 돌려 보기
+  });
+}
+// p 사진에서 사람만 오려 내요. 돌려주는 것: { ok: true } · 못 쓰면 { ok: false, why: "none"|"all"|"gone" }. 그만두면 e.cancel, 못 하면 e.phase와 함께 실패
+async function cutMake(p){
+  const job = CUT = { pid: p.id, phase: "prep", a: 0, b: 0 }, bytes = p.bytes, quit = () => { const c = new Error("cancel"); c.cancel = true; return c; };
+  try {
+    const img = await Movie.decodePhoto(p);
+    if (CUT !== job) { if (img.close) img.close(); throw quit(); }
+    const [w, h] = cutSize(img.width, img.height), c = document.createElement("canvas"); c.width = w; c.height = h;
+    const x = c.getContext("2d", { willReadFrequently: true }); x.imageSmoothingQuality = "high"; x.drawImage(img, 0, 0, w, h);
+    if (img.close) img.close();
+    const rgba = x.getImageData(0, 0, w, h).data; c.width = c.height = 0;
+    const d = await cutRun(job, rgba, w, h);
+    if (CUT !== job) throw quit();
+    const m = cutMask(d.alpha, w, h);
+    if (!m.ok) return { ok: false, why: m.why, info: d.info, cover: m.cover };
+    if (!PH.includes(p) || p.bytes !== bytes || p.vid) return { ok: false, why: "gone" };   // 그사이 사진을 빼거나 바꿨으면 버려요
+    p.mask = { w, h, a: m.a.buffer, box: m.box }; p.cut = { on: true };
+    const saved = await DB.set("cu:" + p.id, p.mask);
+    savePhoto(p);
+    await cutThumb(p);
+    return { ok: true, info: d.info, cover: m.cover, saved };
+  } finally { if (CUT === job) CUT = null; }
+}
+// 오려 내던 것을 그만둬요
+function cutStop(){
+  const j = CUT; if (!j) return;
+  CUT = null;
+  if (cutWorker) { try { cutWorker.terminate(); } catch (e) {} cutWorker = null; }
+  if (j.rej) { const c = new Error("cancel"); c.cancel = true; j.rej(c); }
+}
+// 영상을 만들기 전에: 쉬고 있는 워커는 닫아서 메모리를 비워요 (다음에 오려 낼 때 다시 열려요)
+function cutRest(){ if (cutWorker && !CUT) { try { cutWorker.terminate(); } catch (e) {} cutWorker = null; } }
+// 오려 낸 것을 지워요 (사진을 빼거나 바꿀 때 — 사람 자리 그림은 그 사진에만 맞아요)
+function cutForget(p){
+  if (CUT && CUT.pid === p.id) cutStop();
+  if (p.cutUrl) { URL.revokeObjectURL(p.cutUrl); p.cutUrl = null; }
+  p.cut = null; p.mask = null; DB.del("cu:" + p.id);
+}
+// 원래 사진 ↔ 오려 낸 사진 (사람 자리 그림은 그대로 둬서 다시 켤 때 기다리지 않아요)
+function cutSet(p, on){ if (!p.mask) return; p.cut = { ...(p.cut || {}), on: !!on }; savePhoto(p); }
+// 목록·작은 미리 보기에 쓸 오려 낸 작은 그림 (바깥이 투명한 PNG)
+async function cutThumb(p){
+  if (p.cutUrl) { URL.revokeObjectURL(p.cutUrl); p.cutUrl = null; }
+  if (!p.mask) return;
+  try {
+    const img = await Movie.decodePhoto({ bytes: p.thumbBytes }), c = document.createElement("canvas"); c.width = img.width; c.height = img.height;
+    const x = c.getContext("2d"); x.drawImage(img, 0, 0);
+    if (img.close) img.close();
+    const mc = Movie.maskCanvas(p.mask);
+    x.globalCompositeOperation = "destination-in"; x.imageSmoothingQuality = "high"; x.drawImage(mc, 0, 0, c.width, c.height);
+    mc.width = mc.height = 0;
+    const b = await new Promise(r => c.toBlob(r, "image/png"));
+    c.width = c.height = 0;
+    if (b) p.cutUrl = URL.createObjectURL(b);
+  } catch (e) {}
+}
+// 목록·작은 미리 보기에 보일 그림과 그 뒤 바탕색 (오려 낸 사진이면 오려 낸 그림 + 장면의 바탕색). front = 그 장면의 앞 사진
+const cutShown = p => (cutOn(p) && p.cutUrl) || p.url;
+const cutBack = front => { const b = bgOf(front); return b ? b.c : "#000"; };
+// AI 모델이 이 휴대폰에 저장돼 있는지 (true · false, 알 수 없으면 null)
+async function cutSaved(){
+  try { return (await caches.has(CUT_CACHE)) && !!(await (await caches.open(CUT_CACHE)).match(CUT_MODEL.url)); } catch (e) { return null; }
+}
+// 저장해 둔 AI 모델을 지워요 (오려 낸 사진은 그대로. 다음에 오려 내면 다시 받아요)
+async function cutWipe(){
+  cutStop();
+  if (cutWorker) { try { cutWorker.terminate(); } catch (e) {} cutWorker = null; }
+  try { await caches.delete(CUT_CACHE); } catch (e) {}
+}
+// 얼마나 됐는지: 받는 중에는 MB와 막대, 나머지는 움직이는 막대
+function cutText(j){
+  if (j.phase === "dl") return { text: `AI 모델 받는 중… ${(j.a / 1e6).toFixed(j.a < 9.95e6 ? 1 : 0)} / ${Math.round((j.b || CUT_MODEL.mb * 1e6) / 1e6)}MB`, pct: j.b ? Math.min(1, j.a / j.b) : 0 };
+  if (j.phase === "init") return { text: "AI 모델 준비 중…", pct: null };
+  if (j.phase === "run") return { text: "인물을 오려 내는 중…", pct: null };
+  return { text: "사진 준비 중…", pct: null };
+}
+const cutRunHtml = (stopId, hint) => { const t = cutText(CUT); return `<div class="cut-run"><p class="cut-st" role="status">${esc(t.text)}</p><div class="cut-prog${t.pct == null ? " wait" : ""}"><div${t.pct == null ? "" : ` style="width:${(t.pct * 100).toFixed(1)}%"`}></div></div>${hint ? `<p class="pt-hint">화면을 켜 둔 채로 잠깐만 기다려 주세요. ${CUT_SAFE}</p>` : ""}<button type="button" class="btn ghost" id="${stopId}">그만두기</button></div>`; };
+function cutTick(){   // 진행 글·막대만 그 자리에서 고쳐요 (목록 도구든 편집 창이든)
+  if (!CUT) return;
+  const t = cutText(CUT);
+  document.querySelectorAll(".cut-run, .cut-live").forEach(el => {   // cut-live: 접어 둔 한 줄
+    const st = el.querySelector(".cut-st"), bar = el.querySelector(".cut-prog");
+    if (st) st.textContent = t.text;
+    if (bar) { bar.classList.toggle("wait", t.pct == null); bar.firstElementChild.style.width = t.pct == null ? "" : (t.pct * 100).toFixed(1) + "%"; }
+  });
+}
+// 오려 내기가 시작되거나 끝났을 때 지금 떠 있는 화면을 고쳐요. made = 방금 오려 낸 사진(있으면)
+function cutRefresh(made){
+  if (ED && ED.cut) ED.cut(made);                // 사진 편집 창
+  else if (ED) return;                           // 다른 창이 떠 있으면 닫힐 때 다시 그려져요
+  else if (S.step === 2) stepPhotos();
+  else if (S.step === 5 && made) preview();      // 미리 보기 중에 다 됐으면 오려 낸 사진으로 다시
+}
+// 오려 내기 시작 → 끝나면 결과를 알려요 (못 쓰는 결과·실패면 원래 사진 그대로)
+async function cutStart(p){
+  if (CUT || !p || p.vid) return;
+  CUT_MSG = null; CUT_GONE = "";
+  let r;
+  const run = cutMake(p);
+  cutRefresh();
+  try { r = await run; } catch (e) { r = { ok: false, why: e && e.cancel ? "cancel" : "fail", phase: e && e.phase, err: e }; }
+  const sv = await cutSaved(); if (sv != null) CUT_SAVED = sv;
+  if (DEBUG) console.log("cut", JSON.stringify({ ok: r.ok, why: r.why, phase: r.phase, cover: r.cover, info: r.info, err: r.err && r.err.message }));
+  CUT_LAST = r;
+  if (r.why !== "cancel" && r.why !== "gone") CUT_MSG = { pid: p.id, ok: r.ok, why: r.why || "", text: r.ok ? CUT_OK : CUT_WHY[r.why === "fail" ? (r.phase === "dl" ? "dl" : r.phase === "load" ? "load" : "fail") : r.why] || CUT_WHY.fail };
+  cutRefresh(r.ok ? p : null);
+}
+let CUT_LAST = null;     // 마지막 결과 (시험·?debug용: 어떤 방식으로 몇 초 걸렸는지)
+// 이 휴대폰에 저장된 AI 모델 칸 (사진 단계 화면 아래 · 완성 화면): 다 쓰면 버튼 하나로 지워요. where = "list" | "done"
+function cutModelBox(where){
+  if (!CUTOUT_ON || CUT) return "";
+  if (CUT_SAVED) return `<div class="cut-model">
+      <p class="mm-t">이 휴대폰에 저장된 AI 모델 · ${CUT_MODEL.mb}MB</p>
+      <p class="pt-hint">${where === "done" ? "영상을 다 만들었으면 지워서 휴대폰 공간을 비워 주세요. 오려 낸 사진은 그대로 남아요." : "저장돼 있어서 다음 사진은 받지 않고 바로 오려 내요. 다 쓴 뒤에는 지워서 휴대폰 공간을 비워 주세요."}</p>
+      <button type="button" class="cut-wipe" id="cutwipe">${IC.trash16}AI 모델 지우기</button>
+      ${CUT_GONE === "fail" ? `<p class="cut-err">지우지 못했어요. 다시 눌러 주세요.</p>` : ""}
+    </div>`;
+  if (CUT_GONE === "ok") return `<div class="cut-model"><p class="cut-gone" role="status">✓ 휴대폰에서 AI 모델을 지웠어요. 오려 낸 사진은 그대로 남아 있어요. 다시 오려 내면 ${CUT_MODEL.mb}MB를 새로 받아요.</p></div>`;
+  return "";
+}
+function cutModelBind(redraw){
+  const b = app.querySelector("#cutwipe"); if (!b) return;
+  b.onclick = async () => {
+    b.disabled = true; b.textContent = "지우는 중…";
+    await cutWipe();
+    const v = await cutSaved();
+    CUT_SAVED = v === true; CUT_GONE = v === true ? "fail" : "ok";
+    redraw();
+  };
+}
+// 사진 목록에서 고른 사진의 '인물만 오려 내기' 칸. 접혀 있을 땐 한 줄(누르면 펴져요), 펴면 오려 내기 → 원래 사진과 견주기 · 바탕색 · AI 모델 지우기
+//   i = 고른 사진 번호, front = 그 장면의 앞 사진(바탕색은 장면마다 하나)
+function cutCard(i, front){
+  const p = PH[i], pr = sceneOf(i).length === 2, on = cutOn(p), mine = !!(CUT && CUT.pid === p.id), busy = !!CUT && !mine;
+  if (TAB !== "cut") return `<button type="button" class="cutrow${on ? " on" : ""}${mine ? " cut-live" : ""}" id="cutopen" aria-expanded="false">${IC.person}<span><b>${on ? "인물만 오려 낸 사진이에요" : "인물만 오려 내기"}</b><small class="cut-st">${mine ? esc(cutText(CUT).text) : on ? "원래 사진과 견주기 · 바탕색" : p.mask ? "오려 둔 사진이 있어요. 눌러서 다시 쓰기" : "배경을 지우고 사람만 남겨요"}</small></span>${on || p.mask ? "" : NEWTAG}<i aria-hidden="true">›</i></button>`;
+  const pal = tpl().duoBg || [], bgi = Math.min(Math.max(0, pal.length - 1), Math.max(0, (front.duo && front.duo.bg) | 0));
+  const msg = CUT_MSG && CUT_MSG.pid === p.id ? `<p class="${CUT_MSG.ok ? "cut-ok" : "cut-err"}" role="status">${CUT_MSG.ok ? "✓ " : ""}${esc(CUT_MSG.text)}</p>` : "";
+  const lost = !!msg && (CUT_MSG.why === "none" || CUT_MSG.why === "all");   // 이 사진에서는 오려 낼 수 없었음
+  const body = mine ? cutRunHtml("cutstop", true)
+    : p.mask ? `${msg}
+      <div class="cut-ba" role="group" aria-label="영상에 넣을 사진 고르기">
+        <button type="button" data-v="0" class="${on ? "" : "on"}" aria-pressed="${!on}"><span class="im"><img src="${p.url}" alt=""></span><b>원래 사진</b></button>
+        <button type="button" data-v="1" class="${on ? "on" : ""}" aria-pressed="${on}"><span class="im" style="background:${cutBack(front)}"><img src="${p.cutUrl || p.url}" alt=""></span><b>오려 낸 사진</b></button>
+      </div>
+      ${msg ? "" : `<p class="pt-hint">${on ? "영상에는 <b>오려 낸 사진</b>이 들어가요. 마음에 안 들면 '원래 사진'을 눌러 주세요." : "영상에는 <b>원래 사진</b>이 들어가요. '오려 낸 사진'을 누르면 기다리지 않고 바로 바뀌어요."}</p>`}
+      ${on && pal.length ? `<p class="pt-label"><b>사람 뒤 바탕색</b><span id="cutbgn">${esc(pal[bgi].name)}</span></p>
+      <div class="sws" id="cutbg">${pal.map((c, k) => `<button type="button" data-k="${k}" class="${k === bgi ? "on" : ""}" style="--c:${c.c}" aria-label="바탕색 ${esc(c.name)}"></button>`).join("")}</div>
+      <button type="button" class="btn ghost cut-see" id="cutsee">${PLAY}<span>영상에서 보일 모습 보기</span></button>` : ""}`
+    : lost ? `${msg}
+      <p class="pt-hint">사람이 크고 또렷하게 나온 사진에서 잘 돼요.</p>
+      <button type="button" class="btn ghost" id="cutgo"${busy ? " disabled" : ""}>다시 해 보기</button>`   // 사람을 못 찾은 사진: 같은 결과가 나올 큰 버튼을 다시 내밀지 않아요
+    : `<p class="cut-d">사진에서 사람만 남기고 배경을 지워요. 영상에서는 사람 뒤에 깔끔한 바탕색이 깔려요.</p>
+      ${msg}
+      <button type="button" class="btn main" id="cutgo"${busy ? " disabled" : ""}>${pr ? `${i + 1}번 사진에서 ` : "이 사진에서 "}인물만 오려 내기</button>
+      <p class="cut-n">${LOCK}<span>${busy ? "다른 사진을 오려 내는 중이에요. 끝나면 누를 수 있어요." : `${CUT_SAFE} ${cutFirst()}`}</span></p>`;
+  return `<div class="cutbox">
+    <div class="cut-h">${IC.person}<b>인물만 오려 내기</b>${pr ? `<span class="cut-who">${i + 1}번 사진</span>` : ""}${p.mask ? "" : NEWTAG}<button type="button" class="text-btn" id="cutclose" aria-expanded="true">접기</button></div>
+    ${body}
+  </div>`;
+}
+function cutCardBind(i, front){
+  const p = PH[i], q = s => app.querySelector(s);
+  if (q("#cutopen")) q("#cutopen").onclick = () => { TAB = "cut"; if (!p.mask && !CUT && CUT_SAVED) cutStart(p); else stepPhotos(); };   // 모델이 이미 있으면 누르자마자 오려 내요 (처음엔 26MB 안내를 먼저 보여 줘요)
+  if (q("#cutclose")) q("#cutclose").onclick = () => { TAB = ""; stepPhotos(); };
+  if (q("#cutgo")) q("#cutgo").onclick = () => cutStart(p);
+  if (q("#cutstop")) q("#cutstop").onclick = () => cutStop();
+  app.querySelectorAll(".cut-ba button").forEach(b => b.onclick = () => { cutSet(p, b.dataset.v === "1"); CUT_MSG = null; stepPhotos(); });
+  app.querySelectorAll("#cutbg button").forEach(b => b.onclick = () => { setDuo(front, { bg: +b.dataset.k }); CUT_MSG = null; stepPhotos(); });
+  if (q("#cutsee")) q("#cutsee").onclick = () => editPhoto(i);   // 사진 편집 창: 위 화면이 영상에서 보일 모습 그대로예요
+}
+
 // ===== 글 =====
 const tpl = () => TEMPLATES.find(x => x.key === S.tpl) || TEMPLATES[0];
 // 사귄 날로 채우는 말: {만난해} 2019 · {연애} 5년(1년 안 되면 8개월) · {일수} 1,234 (사귄 날부터 예식 날까지, 예식 날을 안 쓰면 오늘까지)
@@ -415,9 +671,10 @@ function render(){
 // ===== 새 기능 알림 (11/9): 첫 화면과 단계 화면 위에 작게. 닫으면 이 휴대폰에서 다시 안 보여요 — 예전에 링크를 받은 분도 새 기능을 알 수 있게 =====
 // 다음 업데이트 때는 v를 바꾸고 글을 고치면 다시 한 번 보여요. 만들던 단계로 바로 들어가는 분은 첫 화면을 안 거치니 단계 화면(topBar)에도 넣어요
 // 11/11 손질: 긴 글 한 덩어리 대신 ① 첫 화면에는 기능마다 그림 + 한 줄(뭐가 좋은지) ② 단계 화면에는 한 줄짜리 띠 → 누르면 안내 창(어떻게 쓰는지 + "○단계에서 해 보기")
-const NEWS = { v: "v2-3", title: "새 기능" };   // 개수는 안 적어요: 릴스 대본은 "네 가지 + 영상 길이"라서 숫자가 어긋나 보여요 (11/11 사회자님 "추천대로")   // 1차(11/9): "duo-1" 한 장면에 사진 두 장, 2차 초안(11/10): "v2-1" 글 한 덩어리
+const NEWS = { v: CUTOUT_ON ? "v3-1" : "v2-3", title: "새 기능" };   // 개수는 안 적어요: 릴스 대본은 "네 가지 + 영상 길이"라서 숫자가 어긋나 보여요 (11/11 사회자님 "추천대로")   // 1차(11/9): "duo-1" 한 장면에 사진 두 장, 2차 초안(11/10): "v2-1" 글 한 덩어리
 // k: 그림(IC), step: 그 기능이 있는 단계, good: 뭐가 좋은지, how: 어떻게 쓰는지 (사회자님 문구 검토 대상)
 const FEATS = [
+  ...(CUTOUT_ON ? [{ k: "person", step: 2, name: "인물만 오려 내기", good: "배경을 지우고 사람만 남겨요. 배경이 어수선한 사진도 깔끔해져요.", how: "사진을 누르고 '인물만 오려 내기'를 눌러요. 마음에 안 들면 '원래 사진'을 누르면 돼요." }] : []),   // 11/25, CUTOUT_ON일 때만 (공개하면 알림도 같이 켜져요)
   { k: "beat", step: 4, name: "박자에 맞춰 넘기기", good: "노래 박자에 사진이 착착 바뀌어요.", how: "음악을 넣으면 저절로 켜져요. 내 사진으로 미리 느껴 볼 수 있어요." },
   { k: "clip", step: 2, name: "폰 영상 넣기", good: "움직이는 장면이 3~5초씩 들어가요.", how: "'영상 넣기'를 누르면 바로 들어가요. 긴 영상은 쓸 부분만 골라요." },
   { k: "duo", step: 2, name: "한 장면에 사진 두 장", good: "어릴 적 사진을 하트·원 프레임에 나란히 놓을 수 있어요.", how: "사진을 누르고 '두 장'에서 묶어요. 모양은 '프레임'에서 골라요(한 장에도 돼요)." },
@@ -529,7 +786,7 @@ function home(){
   if ($("#start")) $("#start").onclick = async () => {
     if (started && !armed) { armed = true; say("만들던 사진과 글이 지워져요. 한 번 더 누르면 새로 시작해요."); return; }
     if (started) {
-      PH.forEach(p => URL.revokeObjectURL(p.url)); PH = []; MINE = null; dropMineUrl(); AUD = { key: "", buf: null };
+      PH.forEach(p => { URL.revokeObjectURL(p.url); if (p.cutUrl) URL.revokeObjectURL(p.cutUrl); }); PH = []; MINE = null; dropMineUrl(); AUD = { key: "", buf: null };
       await DB.clear();
       S = fresh(); save();
     }
@@ -620,9 +877,10 @@ function setDuo(p, patch){ p.duo = { ...(p.duo || {}), ...patch }; savePhoto(p);
 function miniScene(sc){
   const a = PH[sc[0]], b = sc.length === 2 ? PH[sc[1]] : null, tall = tallNow() ? " tall" : "";
   const fr = frOf(a), bg = fr ? bgOf(a) : null;
-  if (!b) return `<div class="mini${tall}${fr ? ` fr fr-${fr}` : ""}"${bg ? ` style="--bg:${bg.c}"` : ""}><img src="${a.url}" alt=""></div>`;
+  const im = p => `<img src="${cutShown(p)}"${cutOn(p) ? ` style="background:${cutBack(a)}"` : ""} alt="">`;   // 인물만 오려 낸 사진은 오려 낸 그림 + 바탕색 (11/25)
+  if (!b) return `<div class="mini${tall}${fr ? ` fr fr-${fr}` : ""}"${bg ? ` style="--bg:${bg.c}"` : ""}>${im(a)}</div>`;
   const lay = layOf(a), r = (a.duo && a.duo.r) || Movie.kit.DUO_R[lay];
-  return `<div class="mini ${lay}${tall}${fr ? ` fr fr-${fr}` : ""}" style="--r:${r}${bg ? `;--bg:${bg.c}` : ""}"><img src="${a.url}" alt=""><img src="${b.url}" alt=""></div>`;
+  return `<div class="mini ${lay}${tall}${fr ? ` fr fr-${fr}` : ""}" style="--r:${r}${bg ? `;--bg:${bg.c}` : ""}">${im(a)}${im(b)}</div>`;
 }
 // 영상 길이를 미리 알아봐요 (5초 안쪽이면 고를 게 없으니 창 없이 바로 넣으려고). 모르면 0
 function videoDur(file){
@@ -669,6 +927,7 @@ function stepPhotos(){
   const nv = clipCount(), isV = !!(cur && PH[SEL].vid);
   if (!cur) MOVING = false;
   if ((TAB === "duo" && isV) || (TAB === "clip" && !isV)) TAB = "";
+  if (TAB === "cut" && (isV || !CUTOUT_ON)) TAB = "";   // 인물만 오려 내기 칸 (11/25): 사진에만
   // 한 장면에 두 장으로 묶을 짝: 다음 사진이 먼저, 안 되면(마지막 사진 · 다음이 영상 · 다음이 이미 두 장 장면) 앞 사진. joinAt = 앞 칸이 될 사진 번호
   const single = i => i >= 0 && i < PH.length && !PH[i].vid && sceneOf(i).length === 1;
   const joinAt = cur && !pr && !isV ? (single(SEL + 1) ? SEL : single(SEL - 1) ? SEL - 1 : -1) : -1, canJoin = joinAt >= 0;
@@ -707,18 +966,19 @@ function stepPhotos(){
     <p class="busy" id="busy" role="status"></p>
     ${PH.length ? `<div class="count-line"><span>${nv ? `사진 ${PH.length - nv}장 · 영상 ${nv}개` : `사진 ${PH.length}장`}${PH.length >= MAX_PHOTOS ? " (최대)" : ""}${SC.length < PH.length ? ` · 장면 ${SC.length}개` : ""}</span><span>${guess(PH.length)}</span></div>
     ${PH.length >= 2 ? `<div class="sortrow"><button type="button" class="chip" id="sortd">${IC.sort}<span>찍은 날짜순으로 정렬</span>${NEWTAG}</button>${UNDO ? `<button class="text-btn" id="unsort">정렬 되돌리기</button>` : ""}</div>` : ""}
-    ${!cur && !tipSeen() ? `<p class="tip">${IC.tap}<span><b>사진을 눌러 보세요.</b> 순서를 바꾸고, 위치·크기를 맞추고, 두 장을 한 장면에 묶을 수 있어요.</span></p>` : ""}`
+    ${!cur && !tipSeen() ? `<p class="tip">${IC.tap}<span><b>사진을 눌러 보세요.</b> 순서를 바꾸고, 위치·크기를 맞추고, 두 장을 한 장면에 묶을 수 있어요.${CUTOUT_ON ? " 인물만 오려 낼 수도 있어요." : ""}</span></p>` : ""}`
     : `<div class="empty">
       <p class="empty-h">${esc(guess(0))}</p>
       <ul class="feats">
         <li>${IC.tap}<p><b>넣은 뒤 사진을 누르면</b>순서를 바꾸고, 위치·크기를 맞추고, 글을 넣을 수 있어요.</p></li>
         <li>${IC.duo}<p><b>두 장 묶기 · 프레임</b>두 장을 한 장면에 묶고, 하트·원 같은 프레임에 넣을 수 있어요.</p></li>
-        <li>${IC.sort}<p><b>찍은 날짜순 정렬</b>옛날 사진부터 차례로, 버튼 하나로 줄 세워요.</p></li>
+        <li>${IC.sort}<p><b>찍은 날짜순 정렬</b>옛날 사진부터 차례로, 버튼 하나로 줄 세워요.</p></li>${CUTOUT_ON ? `
+        <li>${IC.person}<p><b>인물만 오려 내기${NEWTAG}</b>배경을 지우고 사람만 남겨요. 배경이 어수선한 사진도 깔끔해져요.</p></li>` : ""}
       </ul></div>`}
-    <div class="photos${MOVING ? " moving" : ""}">${PH.map((p, i) => `<button data-i="${i}" class="${i === SEL ? "on " : ""}${pairOf(i)}" aria-label="${i + 1}번 ${p.vid ? "영상" : "사진"}${pairOf(i) ? " (한 장면에 두 장)" : ""}"><img src="${p.url}" alt=""><span class="no">${i + 1}</span>${pairOf(i) ? `<span class="pr">2장</span>` : p.vid ? `<span class="pr vd">▶ ${Math.round(p.vid.len)}초</span>` : ""}${p.caption ? `<span class="tag">글</span>` : edited(p) ? `<span class="tag">✎</span>` : ""}</button>`).join("")}</div>
+    <div class="photos${MOVING ? " moving" : ""}">${PH.map((p, i) => `<button data-i="${i}" class="${i === SEL ? "on " : ""}${pairOf(i)}${cutOn(p) ? " ct" : ""}"${cutOn(p) ? ` style="--cb:${cutBack(PH[sceneOf(i)[0]])}"` : ""} aria-label="${i + 1}번 ${p.vid ? "영상" : "사진"}${pairOf(i) ? " (한 장면에 두 장)" : ""}${cutOn(p) ? " (인물만 오려 냄)" : ""}"><img src="${cutShown(p)}" alt=""><span class="no">${i + 1}</span>${pairOf(i) ? `<span class="pr">2장</span>` : p.vid ? `<span class="pr vd">▶ ${Math.round(p.vid.len)}초</span>` : ""}${p.caption ? `<span class="tag">글</span>` : edited(p) ? `<span class="tag">✎</span>` : ""}</button>`).join("")}</div>
     ${!cur ? "" : MOVING ? `<div class="photo-tools">${head}
       <div class="pt-two"><button class="btn ghost" id="mvend"${q === SC.length - 1 ? " disabled" : ""}>맨 뒤로 보내기</button><button class="btn ghost" id="mvno">그만두기</button></div></div>`
-    : `<div class="photo-tools">${head}
+    : `<div class="photo-tools">${head}${CUTOUT_ON && !isV ? cutCard(SEL, PH[cur[0]]) : ""}
       <div class="pt-bar">
         <button type="button" id="edit">${IC.edit}<span>편집</span></button>
         <button type="button" data-tab="order"${tab("order")}>${IC.order}<span>순서</span></button>
@@ -729,7 +989,7 @@ function stepPhotos(){
       </div>
       ${pane}
       <p class="msg pt-msg" id="ptmsg" role="status"></p>
-    </div>`}
+    </div>`}${cutModelBox("list")}
     <p class="safe">${LOCK}<span>${SAFE}</span></p>
     ${navBar("이전", "다음: 글 넣기", PH.length === 0)}`;
   $("#pick").onchange = $("#pickv").onchange = e => addPhotos(e.target.files);
@@ -758,6 +1018,8 @@ function stepPhotos(){
   if ($("#join")) $("#join").onclick = () => { if (!canJoin) return; const i = joinAt; pairUp(i); TAB = "duo"; stepPhotos(); say(`${i + 1}·${i + 2}번 사진이 한 장면에 나와요. 배치를 골라 보세요.`, "#ptmsg"); };
   app.querySelectorAll("#ptlay button").forEach(b => b.onclick = () => { setDuo(PH[cur[0]], { lay: b.dataset.v, r: null, fp: null }); stepPhotos(); });
   app.querySelectorAll("#ptfr button").forEach(b => b.onclick = () => { setDuo(PH[cur[0]], { fr: b.dataset.v || null, fp: null }); stepPhotos(); });
+  if (CUTOUT_ON && cur && !isV && !MOVING) cutCardBind(SEL, PH[cur[0]]);   // 인물만 오려 내기 칸 (11/25)
+  cutModelBind(stepPhotos);   // 저장된 AI 모델 지우기 (모델을 받아 뒀을 때만 칸이 있어요)
   // 순서 바꾸기는 장면 단위예요 (두 장 장면은 둘이 같이 움직여요)
   const move = d => {
     const t = q + d; if (q < 0 || t < 0 || t >= SC.length) return;
@@ -808,7 +1070,7 @@ function stepPhotos(){
   if ($("#mvr")) $("#mvr").onclick = () => move(1);
   if ($("#rm")) $("#rm").onclick = () => {
     if (pr) { if (SEL === cur[0]) PH[SEL].pair = false; else unpair(cur[0]); }   // 짝이던 사진은 한 장으로 남아요
-    const [p] = PH.splice(SEL, 1); URL.revokeObjectURL(p.url); DB.del("ph:" + p.id); DB.del("pm:" + p.id); if (p.vid) DB.del("cl:" + p.id); UNDO = null;
+    const [p] = PH.splice(SEL, 1); URL.revokeObjectURL(p.url); DB.del("ph:" + p.id); DB.del("pm:" + p.id); if (p.vid) DB.del("cl:" + p.id); if (p.cut) cutForget(p, true); UNDO = null;
     SEL = Math.min(SEL, PH.length - 1); normalize(); saveOrder(); stepPhotos();
   };
   if ($("#unpair")) $("#unpair").onclick = () => { unpair(cur[0]); stepPhotos(); say(`${cur[0] + 1}번과 ${cur[1] + 1}번 사진이 한 장씩 따로 나와요.`, "#ptmsg"); };
@@ -834,11 +1096,16 @@ async function replacePhoto(i, file){
   URL.revokeObjectURL(old.url);
   if (old.vid) DB.del("cl:" + old.id);   // 영상을 사진으로 바꾸면 클립은 지워요
   Object.assign(old, { bytes: p.bytes, thumbBytes: p.thumbBytes, w: p.w, h: p.h, taken: p.taken, vid: null, clip: null, src: null, url: URL.createObjectURL(jpg(p.thumbBytes)), meta: null });
+  if (old.cut) cutForget(old);   // 오려 낸 것은 바꾼 사진과 안 맞으니 지워요 (11/25)
   DB.set("ph:" + old.id, { id: old.id, bytes: p.bytes, thumbBytes: p.thumbBytes, w: p.w, h: p.h, taken: p.taken });
   savePhoto(old);
 }
 // 위치·글·두 장 표시는 사진 파일과 다른 칸(pm:)에 따로 저장해요. 바꿀 때마다 큰 사진 기록을 다시 쓰지 않으려고요
-function savePhoto(p){ DB.set("pm:" + p.id, { meta: p.meta || null, caption: p.caption || "", pair: !!p.pair, duo: p.duo || null }); }
+function savePhoto(p){
+  const r = { meta: p.meta || null, caption: p.caption || "", pair: !!p.pair, duo: p.duo || null };
+  if (p.cut) r.cut = p.cut;   // 인물만 오려 내기 (11/25): 표시가 있는 사진에만 붙여요 (없는 사진의 기록은 전과 똑같아요)
+  DB.set("pm:" + p.id, r);
+}
 const edited = p => !!(p.meta && (p.meta.z > 1.01 || Math.abs(p.meta.cx - .5) > .005 || Math.abs(p.meta.cy - .5) > .005 || (p.meta.fit && p.meta.fit !== "auto")));
 function editPhoto(start){
   if (!PH[start]) return;
@@ -846,6 +1113,7 @@ function editPhoto(start){
   let i = first[0], act = first.length === 2 && start === first[1] ? 1 : 0;   // i: 장면의 앞 사진, act: 두 장 장면에서 지금 맞추는 칸(0 앞, 1 뒤)
   let mv = "photo";   // 손가락으로 움직일 것: photo 사진(칸 안에서) · frame 프레임(칸 자체) — 프레임을 골랐을 때만 (11/11)
   let P = null, M = null, seg = null, raf = 0, saveT = 0, edgeT = 0;
+  let edCutNow = null;   // 인물만 오려 내기 칸을 다시 그리는 것 (11/25)
   const T = tpl(), [W, H] = Movie.size(S.ratio, "720"), tall = H > W, touches = new Map();
   let bank = Movie.bank(PH);
   const box = document.createElement("div");
@@ -921,19 +1189,21 @@ function editPhoto(start){
     const pr = two(), m = PH[cur()].meta || {}, introHere = S.introOn && i < 2 && PH.length >= 2;
     const R = duoR(), LIM = R ? Movie.kit.DUO_LIM[R.lay] : null, SC = scenes(), q = SC.findIndex(s => s[0] === i);
     const isV = !!PH[i].vid, canJoin = !pr && !isV && i + 1 < PH.length && !PH[i + 1].pair && !PH[i + 1].vid, slot = pr ? (act ? "② " : "① ") : "";
-    const FR = frameR(), F = FR && FR.fr ? FR.fr : "", pal = T.duoBg || [], bgi = F ? Math.max(0, pal.indexOf(FR.bg)) : 0;
+    const C = cutOn(PH[i]) || (pr && cutOn(PH[i + 1]));   // 이 장면에 인물만 오려 낸 사진이 있는지 (11/25) → 프레임이 없어도 바탕색을 골라요
+    const FR = frameR(), F = FR && FR.fr ? FR.fr : "", pal = T.duoBg || [], bgi = F ? Math.max(0, pal.indexOf(FR.bg)) : C ? Math.min(Math.max(0, pal.length - 1), Math.max(0, (PH[i].duo && PH[i].duo.bg) | 0)) : 0;
     if (!F) mv = "photo";
     const fm = F && mv === "frame";   // 프레임을 움직이는 중: 사진 맞추기 칸은 숨기고 프레임 크기 칸을 보여요
     box.innerHTML = `<div class="in">
       <div class="ed-top"><b>${isV ? "영상 편집" : "사진 편집"}</b><span class="count">${pr ? `${i + 1}·${i + 2}` : i + 1} / ${PH.length}</span><button type="button" class="btn main ed-ok" id="eddone2">완료</button></div>
       <div class="ed-stage${tall ? " tall" : ""}"><canvas width="${W >= H ? 720 : 405}" height="${W >= H ? 405 : 720}"></canvas></div>
-      <p class="drag" id="edhint">${hint()}</p>
+      <p class="drag" id="edhint">${hint()}</p>${CUTOUT_ON && !isV ? `
+      <div class="ed-cut" id="edcutbox"></div>` : ""}
       <p class="ed-label">${FR_IC.heart}프레임${NEWTAG}<span>${isV ? "영상" : "사진"}이 이 모양이 돼요</span></p>
       <div class="frs" id="edfr">${FRS.map(([v, l]) => `<button type="button" data-v="${v}" class="${F === v ? "on" : ""}">${FR_IC[v]}<span>${l}</span></button>`).join("")}</div>
-      ${F ? `<p class="ed-label">바탕색<span id="edbgn">${esc(pal[bgi] ? pal[bgi].name : "")}</span></p>
-      <div class="sws" id="edbg">${pal.map((c, k) => `<button type="button" data-k="${k}" class="${k === bgi ? "on" : ""}" style="--c:${c.c}" aria-label="바탕색 ${esc(c.name)}"></button>`).join("")}</div>
+      ${F || C ? `<p class="ed-label">${F ? "" : "사람 뒤 "}바탕색<span id="edbgn">${esc(pal[bgi] ? pal[bgi].name : "")}</span></p>
+      <div class="sws" id="edbg">${pal.map((c, k) => `<button type="button" data-k="${k}" class="${k === bgi ? "on" : ""}" style="--c:${c.c}" aria-label="바탕색 ${esc(c.name)}"></button>`).join("")}</div>${F ? `
       <p class="ed-label">손가락으로 움직일 것</p>
-      <div class="seg" id="edmv"><button type="button" data-v="photo" class="${fm ? "" : "on"}">${isV ? "영상" : "사진"}</button><button type="button" data-v="frame" class="${fm ? "on" : ""}">프레임</button></div>` : ""}
+      <div class="seg" id="edmv"><button type="button" data-v="photo" class="${fm ? "" : "on"}">${isV ? "영상" : "사진"}</button><button type="button" data-v="frame" class="${fm ? "on" : ""}">프레임</button></div>` : ""}` : ""}
       ${pr ? `<p class="ed-label">${IC.duo}두 장 배치</p>
       <div class="seg lay" id="edlay">${LAYS.map(([v, l]) => `<button data-v="${v}" class="${R.lay === v ? "on" : ""}">${IC[v]}${l}</button>`).join("")}</div>
       <label class="range"><span id="edrl">${R.lay === "pip" ? "작은 사진 크기" : "앞 칸 비중"}</span><input type="range" id="edr" min="${LIM[0]}" max="${LIM[1]}" step="0.01" value="${R.r}"></label>` : ""}
@@ -958,7 +1228,21 @@ function editPhoto(start){
     const toV = e => { const r = c.getBoundingClientRect(), k = W / r.width; return { x: e.clientX * k, y: e.clientY * k }; };   // 끌기용 (차이만 써요)
     const toC = e => { const r = c.getBoundingClientRect(), k = W / r.width; return { x: (e.clientX - r.left) * k, y: (e.clientY - r.top) * k }; };   // 누른 자리 (화면 안 좌표)
     // 칸을 바꾸면 슬라이더·버튼·안내도 그 칸 것으로 (화면을 다시 만들지 않아요: 끌던 손가락이 끊기지 않게)
-    const syncSlot = () => { const mm = PH[cur()].meta || {}; q$("#edzoom").value = mm.z || 1; syncFit(); q$("#edhint").textContent = hint(); q$("#edzl").textContent = `${act ? "② " : "① "}사진 크기`; q$("#edswapl").textContent = `${act ? "② " : "① "}다른 사진으로 바꾸기`; if (q$("#edfs")) { const f = (PH[i].duo && PH[i].duo.fp && PH[i].duo.fp[act]) || []; q$("#edfs").value = f[2] || 1; q$("#edfsl").textContent = `${act ? "② " : "① "}프레임 크기`; } };
+    // 인물만 오려 내기 (11/25): 지금 맞추는 사진(두 장 장면이면 고른 칸)에. 위 화면이 영상에서 보일 모습 그대로라, 눌러 가며 원래 사진과 견줘 봐요
+    const edCut = () => {
+      const host = q$("#edcutbox"); if (!host) return;
+      const k = cur(), p = PH[k], sl = two() ? (act ? "② " : "① ") : "", on = cutOn(p), mine = !!(CUT && CUT.pid === p.id);
+      const msg = CUT_MSG && CUT_MSG.pid === p.id ? `<p class="${CUT_MSG.ok ? "cut-ok" : "cut-err"}" role="status">${CUT_MSG.ok ? "✓ " : ""}${esc(CUT_MSG.text)}</p>` : "";
+      host.innerHTML = `<p class="ed-label">${IC.person}${sl}인물만 오려 내기${p.mask ? "" : NEWTAG}<span>배경을 지우고 사람만 남겨요</span></p>` + (
+        mine ? cutRunHtml("edcutstop", false)
+        : p.mask ? `<div class="seg" id="edcut"><button type="button" data-v="0" class="${on ? "" : "on"}">원래 사진</button><button type="button" data-v="1" class="${on ? "on" : ""}">오려 낸 사진</button></div>${msg}`
+        : `<button type="button" class="btn ghost cut-go" id="edcutgo"${CUT ? " disabled" : ""}>${IC.person}<span>${sl}인물만 오려 내기</span></button>${msg}<p class="cut-n">${LOCK}<span>${CUT ? "다른 사진을 오려 내는 중이에요. 끝나면 누를 수 있어요." : `${CUT_SAFE} ${cutFirst()}`}</span></p>`);
+      if (q$("#edcutgo")) q$("#edcutgo").onclick = () => cutStart(p);
+      if (q$("#edcutstop")) q$("#edcutstop").onclick = () => cutStop();
+      host.querySelectorAll("#edcut button").forEach(b => b.onclick = () => { if ((b.dataset.v === "1") === on) return; flush(); cutSet(p, b.dataset.v === "1"); CUT_MSG = null; bank.drop(k); shell(); });
+    };
+    edCutNow = edCut; edCut();
+    const syncSlot = () => { edCut(); const mm = PH[cur()].meta || {}; q$("#edzoom").value = mm.z || 1; syncFit(); q$("#edhint").textContent = hint(); q$("#edzl").textContent = `${act ? "② " : "① "}사진 크기`; q$("#edswapl").textContent = `${act ? "② " : "① "}다른 사진으로 바꾸기`; if (q$("#edfs")) { const f = (PH[i].duo && PH[i].duo.fp && PH[i].duo.fp[act]) || []; q$("#edfs").value = f[2] || 1; q$("#edfsl").textContent = `${act ? "② " : "① "}프레임 크기`; } };
     const slotAt = v => {   // 두 장 장면: 누른 자리의 칸 (큰+작은은 작은 사진 먼저)
       const R2 = duoR(); if (!R2) return -1;
       const inb = ([x, y, w, h]) => v.x >= x && v.x <= x + w && v.y >= y && v.y <= y + h;
@@ -1071,7 +1355,9 @@ function editPhoto(start){
     await bank.need(pr ? [i, i + 1] : [i], [i - 1, i + (pr ? 2 : 1)].filter(j => j >= 0 && j < PH.length));
     draw();
   }
-  ED = { close(){ flush(); if (PH[i]) savePhoto(PH[i]); bank.close(); box.remove(); document.body.style.overflow = ""; } };   // 닫기는 뒤로 가기(전체 popstate)에서
+  ED = { close(){ flush(); if (PH[i]) savePhoto(PH[i]); bank.close(); box.remove(); document.body.style.overflow = ""; },   // 닫기는 뒤로 가기(전체 popstate)에서
+    // 인물만 오려 내기가 시작되거나 끝났을 때 (11/25): 방금 오려 낸 사진(made)이 있으면 그 사진을 새로 풀어 화면째 다시, 아니면 그 칸만
+    cut(made){ if (made) { const k = PH.indexOf(made); if (k >= 0) bank.drop(k); shell(); } else if (edCutNow) edCutNow(); } };
   shell();
 }
 
@@ -1642,6 +1928,7 @@ async function makeIt(){
   if (Movie.inApp()) { release(); say("앱 안에서는 저장할 수 없어요. 사파리·크롬에서 열어 주세요."); return; }
   const { T, d, P, buf, W, H, cut } = CUR;
   stopAll();
+  cutRest();   // 인물 오려 내기 워커가 쉬고 있으면 닫아 메모리를 비워요 (안 썼으면 아무 일도 없어요)
   if (RESULT) { URL.revokeObjectURL(RESULT.url); if (RESULT.info.poster) URL.revokeObjectURL(RESULT.info.poster); RESULT = null; }
   // 지난번에 만들다 페이지가 다시 열렸으면(메모리 부족일 수 있어요) 이번엔 메모리를 덜 쓰는 쪽으로
   const crash = lastCrash();
@@ -1691,7 +1978,7 @@ function done(){
       <a class="btn ${share ? "ghost" : "main"}" href="${url}" download="${esc(file.name)}">파일로 받기</a>
       <p class="msg" id="msg" role="status"></p>
     </div>
-    <div class="panel howto"><b>식장에 보낼 때</b><ol>${HOWTO.map(h => `<li>${esc(h)}</li>`).join("")}</ol></div>
+    <div class="panel howto"><b>식장에 보낼 때</b><ol>${HOWTO.map(h => `<li>${esc(h)}</li>`).join("")}</ol></div>${cutModelBox("done")}
     <div class="btns" style="margin-top:18px">
       <button class="btn ghost" id="again">설정 바꿔서 다시 만들기</button>
       ${siteLink("flow", "btn ghost", "결혼식 식순표 만들기")}
@@ -1705,12 +1992,14 @@ function done(){
     catch (e) { if (!e || e.name !== "AbortError") say("공유 창을 열지 못했어요. '파일로 받기'를 눌러 주세요."); }
   };
   $("#again").onclick = () => history.back();
+  cutModelBind(done);   // 저장된 AI 모델 지우기 (인물만 오려 내기를 썼을 때만 보여요, 11/25)
 }
 
 // ===== 시작 =====
 (async () => {
   if (!OPEN && !QS.has("preview")) { soon(); return; }
   await restore();
+  if (CUTOUT_ON) CUT_SAVED = await cutSaved();   // 인물만 오려 내기 (11/25): AI 모델을 이미 받아 뒀는지
   if (!TEMPLATES.some(t => t.key === S.tpl)) S.tpl = TEMPLATES[0].key;
   if (S.track && S.track !== "mine" && !LIST.some(t => t.id === S.track)) S.track = LIST.length ? LIST[0].id : "";
   if (S.track === "mine" && !MINE) S.track = "";
