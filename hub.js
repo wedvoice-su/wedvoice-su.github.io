@@ -55,6 +55,7 @@ const GROUPS = [
     { key: "blessing", label: "부모님 덕담 만들기", soon: true }
   ]},
   { name: "부모님 · 신랑 역할", items: [
+    { key: "meet",        label: "상견례 대화 카드", soon: true },
     { key: "taste",       label: "혼주 취향 테스트", soon: true },
     { key: "parents",     label: "양가 부모님 입장·화촉점화 안내", soon: true },
     // 부모님 · 신랑 퀴즈: 1판은 다시 만들 예정이라 첫 화면에서 뺌 (사회자님 11/18). 다시 만들어 올리면 soon: true

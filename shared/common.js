@@ -44,7 +44,8 @@ const SITES = {
   "taste": { path: "in-good-taste", reel: "" },  // 혼주 취향 테스트 (㊵, 미공개. 공개하면 in-good-taste/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
   "aisleGroom": { path: "down-the-aisle", reel: "" },  // 신랑 본식 동선 영상 (⑦, 미공개. 사이트는 신부와 같은 down-the-aisle/ 하나 — 11/23 합침. 신랑 릴스 올릴 때 down-the-aisle/index.html의 AISLE_OPEN을 true로. 화면 · 엔진은 shared/aisle/)  TODO: 릴스 올리면 주소 넣기
   "aisleBride": { path: "down-the-aisle", reel: "" },  // 신부 본식 동선 영상 (⑨, 같은 사이트 안 신부 버튼. 신부 릴스 올릴 때 down-the-aisle/index.html의 AISLE_BRIDE_OPEN을 true로 — 그 전엔 흐린 "곧 공개돼요")  TODO: 릴스 올리면 주소 넣기
-  "talk": { path: "heart-to-heart", reel: "" }  // 결혼 전 대화 카드 (㉔, 미공개. 공개하면 heart-to-heart/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
+  "talk": { path: "heart-to-heart", reel: "" },  // 결혼 전 대화 카드 (㉔, 미공개. 공개하면 heart-to-heart/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
+  "meet": { path: "breaking-bread", reel: "" }  // 상견례 대화 카드 (㉕, 미공개. 이름은 공개 전까지 바꿀 수 있음. 공개하면 breaking-bread/app.js의 OPEN을 true로)  TODO: 릴스 올리면 주소 넣기
 };
 // =========================================================
 
