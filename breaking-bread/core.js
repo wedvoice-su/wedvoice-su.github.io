@@ -362,7 +362,7 @@ const CORE = (() => {
     const pk = S.kid[o];
     b.push({ type: "quote", t: fill(T.pb.praiseT, { kid: T.kidOf[o] }),
       text: pk.length ? fill(T.pb.praise, { kid: T.kidOf[o], dr: T.praise[pk[0]][1] }) : fill(T.pb.praiseAny, { kid: T.kidOf[o] }),
-      sub: pk.length > 1 ? pk.map(i => T.praise[i][0]).join(" · ") : "" });
+      sub: pk.length > 1 ? fill(T.pb.praiseMore, { list: pk.slice(1).map(i => T.praise[i][0]).join(" · ") }) : "" });
     b.push({ type: "quote", t: T.pb.kidT, text: fill(T.pb.kid, { kid: T.kidOf[o] }), sub: T.pb.kidMine });
     const askItems = [];
     if(pickOf(S, "hanbok") === "ask") askItems.push(T.items.hanbok.name);

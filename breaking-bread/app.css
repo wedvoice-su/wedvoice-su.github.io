@@ -5,7 +5,7 @@
 :root[data-theme="dark"]{ --edge:#5A5A5A; --soft:#333333; --on:#F2F2F2; --on-ink:#161616; --warn-bg:#3A2A14; --warn-ink:#FFD59A; --warn-line:#7A5520; --ok:#81C784; --tint:#3A2630; --info-bg:#1F2A38; --info-ink:#BFD6F2; }
 
 /* ===== 공통 ===== */
-.top-btn{background:none;border:0;padding:10px 0;margin:-10px 0;font:inherit;font-size:14px;font-weight:500;color:var(--sub);text-decoration:underline;text-underline-offset:4px;letter-spacing:0;min-height:40px}
+.top-btn{background:none;border:0;padding:10px 10px 10px 0;margin:-10px 0;font:inherit;font-size:14px;font-weight:500;color:var(--sub);text-decoration:underline;text-underline-offset:4px;letter-spacing:0;min-height:44px;min-width:48px;text-align:left}
 .step .top{margin-bottom:10px}
 .question{min-height:0;margin:14px 0 8px}
 .lead2{margin:0 0 14px;color:var(--sub);font-size:15.5px}
@@ -102,9 +102,12 @@ body.typing .dock{position:static;background:none}
 .kr-v{font-size:14.5px;color:var(--sub);font-weight:700;min-width:0}
 .kr-e{font-size:12.5px;font-weight:700;color:var(--sub);background:var(--soft);border-radius:8px;padding:4px 8px;white-space:nowrap}
 .kr-k{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-.kchip{display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;border-radius:12px;border:1.5px solid var(--line);background:var(--paper);color:var(--sub);font-size:14.5px;font-weight:700;padding:4px 8px}
+.kchip{display:flex;align-items:center;justify-content:center;gap:8px;min-height:52px;border-radius:12px;border:1.5px solid var(--line);background:var(--paper);color:var(--sub);font-size:14.5px;font-weight:700;padding:4px 8px}
 .kchip .box{flex:0 0 20px;width:20px;height:20px;border-width:2px;border-radius:5px;border-color:var(--edge)}
 .kchip .box svg{width:13px;height:13px}
+.kchip-t{display:flex;flex-direction:column;align-items:flex-start;line-height:1.25;text-align:left}
+.kchip-t small{font-size:12.5px;font-weight:700;color:var(--sub)}
+.kchip.on .kchip-t small{color:var(--ok)}
 .kchip.on{border-color:var(--ok);color:var(--ink)}
 .kchip.on .box{background:var(--ok);border-color:var(--ok)}
 .kchip.on .box svg{opacity:1}

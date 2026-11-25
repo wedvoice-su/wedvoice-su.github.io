@@ -32,8 +32,8 @@ function go(sc, k){ history.pushState({ sc, k: k == null ? null : k }, ""); rend
 function render(sc, k){
   screen = sc; cur = k == null ? null : k;
   document.body.classList.remove("is-cover", "typing", "dark-page");
-  ({ home, s1, item, know, fam, kid, topics, board, day, glance })[sc](k);
-  if(sc !== "home" && sc !== "glance" && sc !== "item"){ S.last = sc; save(); }
+  ({ home, s1, item, know, fam, kid, topics, board, day, glance, ex })[sc](k);
+  if(STEP[sc] != null && sc !== "glance" && sc !== "item"){ S.last = sc; save(); }
   window.scrollTo(0, 0);
 }
 window.addEventListener("popstate", e => {
@@ -138,6 +138,7 @@ function home(){
     <div class="pick">
       ${st ? `<button id="resume" class="main-go"><span>${esc(T.resume)}</span><span class="q">${esc(fm(T.resumeQ, { step: resumeStep }))}</span></button>`
            : `<button id="start" class="main-go"><span>${esc(T.start)}</span><span class="q">${esc(T.startQ)}</span></button>`}
+      <button id="ex"><span>${esc(T.example)}</span><span class="q">${esc(T.exampleQ)}</span></button>
     </div>
     <p class="note">${esc(T.note)}</p>
     ${st ? `<div class="reset"><button class="text-btn cover-link" id="reset">${esc(T.restart)}</button>
@@ -146,6 +147,7 @@ function home(){
     ${foot()}`;
   const sb = $("#start"), rb = $("#resume");
   if(sb) sb.onclick = () => go("s1");
+  $("#ex").onclick = () => go("ex");
   if(rb) rb.onclick = () => { const sc = STEP[S.last] != null ? S.last : "s1"; go(sc, sc === "fam" || sc === "board" ? "g" : null); };
   if(st){
     $("#reset").onclick = () => { $("#resetAsk").hidden = false; $("#reset").hidden = true; $("#resetYes").focus(); };
@@ -255,7 +257,7 @@ function know(){
       <button type="button" class="kr-top" data-edit="${k}"><span class="kr-n">${esc(nameOf(k))}</span><span class="kr-v">${esc(C.shortOf(S, k))}</span><span class="kr-e">${esc(T.knowEdit)}</span></button>
       ${und ? `<p class="kr-hint">${esc(T.undecidedHint)}</p>
         <details class="kr-ask"><summary>${esc(T.askFirst)}</summary><p>${esc(q(C.askLine(k)))}</p></details>`
-      : `<div class="kr-k">${["g", "b"].map(s => `<button type="button" class="kchip${x.know[s] ? " on" : ""}" data-know="${k}" data-s="${s}" aria-pressed="${x.know[s]}"><span class="box">${CHECK}</span><span>${esc(s === "g" ? T.knowG : T.knowB)}</span></button>`).join("")}</div>`}
+      : `<div class="kr-k">${["g", "b"].map(s => `<button type="button" class="kchip${x.know[s] ? " on" : ""}" data-know="${k}" data-s="${s}" aria-pressed="${x.know[s]}"><span class="box">${CHECK}</span><span class="kchip-t">${esc(s === "g" ? T.knowG : T.knowB)}<small>${esc(x.know[s] ? T.knowOn : T.knowOff)}</small></span></button>`).join("")}</div>`}
     </div>`;
   }).join("");
   const tell = ["g", "b"].filter(s => K.missing[s].length).map(s => `
@@ -579,6 +581,23 @@ function glance(){
   bindBack();
   prepImages([$("#gl")], [T.imgName.glance], "#161616");
   $("#save").onclick = () => sendImages($("#msg"));
+}
+
+// ===== 예시 먼저 보기 (가상의 가족 · 저장하지 않아요) =====
+function ex(){
+  page("step board ex");
+  const E = C.clean(T.exampleState) || C.blank();
+  app.innerHTML = `
+    ${topBar(T.exTop)}
+    <h2 class="question">${br(T.exTitle)}</h2>
+    <p class="lead2">${esc(T.exLead)}</p>
+    <div class="pb-wrap" id="pbWrap"></div>
+    <div class="dock"><button class="btn main" id="go">${esc(T.exGo)}</button></div>
+    ${foot()}`;
+  bindBack();
+  paginate($("#pbWrap"), C.board(E, "b"), "b");
+  if(document.fonts && document.fonts.status !== "loaded") document.fonts.ready.then(() => { if(screen === "ex") paginate($("#pbWrap"), C.board(E, "b"), "b"); });
+  $("#go").onclick = () => started() ? go(STEP[S.last] != null ? S.last : "s1", S.last === "fam" || S.last === "board" ? "g" : null) : go("s1");
 }
 
 // ===== 아직 공개 전 =====
