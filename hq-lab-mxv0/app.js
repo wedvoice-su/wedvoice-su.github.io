@@ -4,13 +4,15 @@
 
 const SR = 44100, PART = 30, TC = 64;           // PART = "30초만 먼저"의 길이, TC = 모델에 한 번에 넣는 칸 수 (1칸 = 0.01초)
 const MARGIN = Math.round(0.75 * SR);           // 올릴 곳 앞뒤로 같이 넣는 여분 (가장자리가 깨끗하게 나오게. 결과에서는 버려요)
-// AI 모델 주소. 사회자님 Hugging Face 저장소에 파일이 올라오기 전에는 "AI 모델 준비 중"으로 보여요.
-// 올라온 뒤에는 main 대신 그 커밋 번호로 바꿔서 고정해요 (docs/음질-올리기/이어서-할-일.md)
-const MODEL = { url: "https://huggingface.co/wedvoice-su/hq-models/resolve/main/apollo_stream_w16.onnx", mb: 33 };
+// AI 모델 주소. 2026-11-26부터 이 페이지와 같은 폴더(model/)에 둬요 → 따로 올릴 것 없이 바로 써 볼 수 있어요. 파일이 없으면 "AI 모델 준비 중"으로 보여요.
+// 정식 사이트에 넣을 때는 사회자님 Hugging Face 저장소로 옮겨요 (33MB라 많은 사람이 받으면 GitHub 전송량을 먹어요 — docs/음질-올리기/이어서-할-일.md)
+const MODEL = { url: new URL("model/apollo_stream_w16.onnx", location.href).href, mb: 33 };
 // 내 컴퓨터에서 시험할 때만: ?model=/경로 로 같은 주소 안의 파일을 쓸 수 있어요 (공개 주소에서는 안 먹어요)
+let GAP = 0;                                    // 내 컴퓨터에서 시험할 때만: ?gap=300 → 계산 한 번마다 0.3초씩 쉬어요 (맥 화면이 멈추지 않게)
 if (/^(127\.0\.0\.1|localhost)$/.test(location.hostname)) {
-  const m = new URLSearchParams(location.search).get("model");
+  const q = new URLSearchParams(location.search), m = q.get("model");
   if (m && m[0] === "/") MODEL.url = location.origin + m;
+  GAP = Math.max(0, +q.get("gap") || 0);
 }
 const CACHE = "hq-lab-models-v1";               // worker.js의 CACHE와 같아야 해요
 const KEY = "hq-lab.v1";                        // 이 휴대폰에서 걸린 시간 기록 (다음에 어림해 주려고)
@@ -62,7 +64,7 @@ async function checkModel() {
   else {
     S.savedMb = 0;
     try {
-      // 주소만 확인해요 (받지는 않아요). 파일이 있으면 Hugging Face는 다른 주소로 넘겨줘요(= 있다는 뜻), 없으면 401 · 404
+      // 주소만 확인해요 (받지는 않아요). 파일이 있으면 200 (Hugging Face에 둘 때는 다른 주소로 넘겨줘요 = 있다는 뜻), 없으면 401 · 404
       const r = await fetch(MODEL.url, { method: "HEAD", redirect: "manual", cache: "no-store" });
       S.model = (r.type === "opaqueredirect" || r.ok) ? "ready" : "soon";
     } catch (e) { S.model = "offline"; }
@@ -326,7 +328,7 @@ $("go").onclick = async () => {
   try { if (navigator.wakeLock) wake = await navigator.wakeLock.request("screen"); } catch (e) {}      // 기다리는 동안 화면이 꺼지지 않게
   try {
     const move = [L.buffer]; if (R) move.push(R.buffer);
-    done = await runWorker({ type: "run", L, R, keep: [MARGIN, MARGIN + n], model: MODEL, engine: S.gpu ? "auto" : "cpu", tc: TC, cols: 360 }, move, d => {
+    done = await runWorker({ type: "run", L, R, keep: [MARGIN, MARGIN + n], model: MODEL, engine: S.gpu ? "auto" : "cpu", tc: TC, cols: 360, gap: GAP }, move, d => {
       let text, pct = 0;
       if (d.phase === "dl") { pct = d.b ? Math.min(1, d.a / d.b) : 0; text = `AI 모델 받는 중… ${Math.round(d.a / 1e6)} / ${Math.round(d.b / 1e6)}MB (처음 한 번만)`; }
       else if (d.phase === "init") text = "AI 모델 준비하는 중…";

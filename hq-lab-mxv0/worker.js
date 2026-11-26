@@ -1,6 +1,6 @@
 // 음질 올리기 시험: AI(Apollo)로 깎인 소리를 채우는 일을 화면과 따로(워커에서) 해요. app.js가 불러요.
-// 모델: Apollo (Kai Li, Yi Luo · CC BY-SA 4.0) 를 ONNX로 바꾼 것. Hugging Face에서 받아 휴대폰 안에 저장하고, 다음부터는 다시 받지 않아요.
-// 받는 것  { type:"run", id, L, R(모노면 null), keep:[k0, k1], model:{url, mb}, engine:"auto"|"cpu", tc, cols }
+// 모델: Apollo (Kai Li, Yi Luo · CC BY-SA 4.0) 를 ONNX로 바꾼 것 (model/ABOUT-Apollo.txt). 처음 한 번 받아 휴대폰 안에 저장하고, 다음부터는 다시 받지 않아요.
+// 받는 것  { type:"run", id, L, R(모노면 null), keep:[k0, k1], model:{url, mb}, engine:"auto"|"cpu", tc, cols, gap(시험용: 계산 사이에 쉬는 ms) }
 //   L · R = 올릴 부분 + 앞뒤 여분(0.75초쯤). keep = 그 가운데 돌려줄 부분. tc = 한 번에 넣는 칸 수 (1칸 = 0.01초)
 // 보내는 것 { type:"step", id, phase:"dl"|"init"|"run", a, b } … { type:"done", id, L, R, info, pic } | { type:"fail", id, phase, text }
 //   dl = 모델 받는 중 (a / b 바이트), init = 모델 준비 중, run = 음질 올리는 중 (a / b 조각)
@@ -70,7 +70,7 @@ async function getSession(m, engine) {
 // ---------- 음질 올리기: TC칸씩 스펙트럼 → 모델 → 다시 소리 (이어 달리기) ----------
 // L, R: 앞뒤에 여분을 붙인 소리. keep = [k0, k1): 돌려줄 부분 (여분을 뺀 곳)
 const STATE_N = 18 * 80 * 6 * 256;
-async function restore(L, R, keep, session, tc, cols) {
+async function restore(L, R, keep, session, tc, cols, gap) {
   const n = L.length, F = HQ_BIN, H = HQ_HOP, st = hqMakeStft(L, R, n), plan = hqStreamPlan(st.frames, tc);
   const nch = R ? 2 : 1, runs = plan.length * nch;
   // 그림(스펙트로그램)용: 돌려줄 부분만, 가로 W칸 × 세로 442칸에 소리 세기를 모아요 (전 · 후)
@@ -92,6 +92,7 @@ async function restore(L, R, keep, session, tc, cols) {
     times.push((performance.now() - t0) / 1000);
     for (let i = 0; i < data.length; i += 97) if (!isFinite(data[i])) throw new Error("계산 결과에 이상한 값이 나왔어요");
     say("run", ++r, runs);
+    if (gap) await new Promise(res => setTimeout(res, gap));
     return { data, next };
   };
   // 배열 x 의 j0 … j1-1 번째 칸 (칸 j = 곡의 t0 + j 번째 칸) 의 세기를 그림에 더해요
@@ -137,7 +138,7 @@ onmessage = async (e) => {
     const s = await getSession(d.model, d.engine);
     const t1 = performance.now();
     const keep = d.keep || [0, d.L.length];
-    const r = await restore(d.L, d.R, keep, s.session, d.tc, d.cols);
+    const r = await restore(d.L, d.R, keep, s.session, d.tc, d.cols, d.gap || 0);
     const t2 = performance.now();
     const move = [r.L.buffer, r.pic.a.buffer, r.pic.b.buffer]; if (r.R) move.push(r.R.buffer);
     postMessage({ type: "done", id: d.id, L: r.L, R: r.R, pic: r.pic, info: {

@@ -1,0 +1,37 @@
+# Apollo (ONNX, for the browser)
+
+ONNX conversion of **Apollo: Band-sequence Modeling for High-Quality Music Restoration in Compressed Audio**
+by **Kai Li and Yi Luo** (2024). It restores music damaged by lossy compression (MP3 etc.).
+
+- Original model: https://huggingface.co/JusperLee/Apollo (revision `c68bd80fdd9c0d93d2f4a833cb154624f660a561`, `pytorch_model.bin`, sha256 `99d9af7f1ff20e63c393035513a655392818d66b4d7fc23d658175c1f15e8d76`)
+- Original code: https://github.com/JusperLee/Apollo (commit `e84bcacc59d5455f05d86a5c97dd4aeb3c14dbb6`)
+- License: **CC BY-SA 4.0** — same as the original. This converted file is adapted material and is shared under the same license (see `LICENSE-CC-BY-SA-4.0.txt`).
+
+## File
+
+| file | size | sha256 |
+|---|---|---|
+| `apollo_stream_w16.onnx` | 33,262,300 bytes | `8598e654b140996d6c6dca20e874d29594ce867395457c39ff38fdefdf8c161a` |
+
+## What was changed (no retraining; the weights are the original ones)
+
+- Only the neural network is in the file. STFT / iSTFT (44.1 kHz, window 882, hop 441, Hann) are done outside, in JavaScript.
+- 1×1 convolutions are written as MatMul and the 79 narrow bands are computed together, so it runs with onnxruntime-web (WebGPU or WASM).
+- Streaming form: each 7-tap time convolution takes the previous 6 frames as a `state` input, so long songs can be fed in small pieces
+  and the result equals whole-file inference. Output is delayed by 54 frames.
+- Weights are stored as float16 and cast to float32 when loaded (computation stays float32).
+
+Inputs: `spec` float32 `[1, 2, 442, T]` (real, imaginary; one audio channel), `state` float32 `[18, 80, 6, 256]` (zeros at the start).
+Outputs: `out` float32 `[1, 2, 442, T]` (54 frames late), `state_out` float32 `[18, 80, 6, 256]`.
+
+Checked against the original PyTorch computation on the authors' sample: SNR 72.5 dB (float32 version: identical in the interior).
+
+## Citation
+
+```
+@article{li2024apollo,
+  title={Apollo: Band-sequence Modeling for High-Quality Music Restoration in Compressed Audio},
+  author={Li, Kai and Luo, Yi},
+  year={2024}
+}
+```
